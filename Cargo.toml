@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+[workspace]
+resolver = "2"
+members = ["crates/spark"]
+
+[workspace.package]
+authors = ["Apache DataFusion <dev@datafusion.apache.org>"]
+edition = "2024"
+homepage = "https://datafusion.apache.org"
+license = "Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/apache/datafusion-spark"
+rust-version = "1.95.0"
+version = "55.1.0"
+
+[workspace.dependencies]
+arrow = { version = "60.0.0", features = ["prettyprint", "chrono-tz"] }
+bigdecimal = "0.4.8"
+chrono = { version = "0.4.45", default-features = false }
+criterion = "0.8"
+datafusion = { git = "https://github.com/apache/datafusion", branch = "main", default-features = false }
+datafusion-common = { git = "https://github.com/apache/datafusion", branch = "main", default-features = false }
+datafusion-expr = { git = "https://github.com/apache/datafusion", branch = "main", default-features = false }
+datafusion-functions = { git = "https://github.com/apache/datafusion", branch = "main" }
+datafusion-functions-aggregate = { git = "https://github.com/apache/datafusion", branch = "main" }
+datafusion-functions-aggregate-common = { git = "https://github.com/apache/datafusion", branch = "main" }
+datafusion-functions-nested = { git = "https://github.com/apache/datafusion", branch = "main", default-features = false }
+datafusion-physical-expr-common = { git = "https://github.com/apache/datafusion", branch = "main", default-features = false }
+datafusion-session = { git = "https://github.com/apache/datafusion", branch = "main" }
+log = "^0.4"
+num-traits = { version = "0.2" }
+rand = "0.9"
+serde_json = "1"
+sha2 = "^0.11.0"
+tokio = { version = "1.52", features = ["macros", "rt", "sync"] }
+url = "2.5.7"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+    "cfg(coverage)",
+    "cfg(coverage_nightly)",
+] }
+unused_qualifications = "deny"
