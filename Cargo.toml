@@ -14,7 +14,7 @@ license = "Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/apache/datafusion-spark"
 rust-version = "1.95.0"
-version = "55.1.0"
+version = "56.0.0"
 
 [workspace.dependencies]
 arrow = { version = "60.0.0", features = ["prettyprint", "chrono-tz"] }
