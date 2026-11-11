@@ -658,8 +658,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -704,8 +704,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-catalog"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "async-trait",
@@ -728,8 +728,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-catalog-listing"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "async-trait",
@@ -742,7 +742,6 @@ dependencies = [
  "datafusion-physical-expr-adapter",
  "datafusion-physical-expr-common",
  "datafusion-physical-plan",
- "datafusion-pruning",
  "futures",
  "itertools 0.15.0",
  "log",
@@ -752,13 +751,12 @@ dependencies = [
 
 [[package]]
 name = "datafusion-common"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "arrow-ipc",
  "arrow-schema",
- "arrow-select",
  "chrono",
  "foldhash 0.2.0",
  "half",
@@ -777,8 +775,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-common-runtime"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "futures",
  "log",
@@ -787,8 +785,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-datasource"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "async-trait",
@@ -817,8 +815,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-datasource-arrow"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "arrow-ipc",
@@ -840,8 +838,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-datasource-csv"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "async-trait",
@@ -862,8 +860,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-datasource-json"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "async-trait",
@@ -884,13 +882,13 @@ dependencies = [
 
 [[package]]
 name = "datafusion-doc"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 
 [[package]]
 name = "datafusion-execution"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "arrow-buffer",
@@ -914,8 +912,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-expr"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -936,8 +934,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-expr-common"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -947,8 +945,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-functions"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "arrow-buffer",
@@ -975,8 +973,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-functions-aggregate"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "arrow-select",
@@ -997,8 +995,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-functions-aggregate-common"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1008,8 +1006,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-functions-nested"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "arrow-ord",
@@ -1032,8 +1030,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-functions-table"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1047,8 +1045,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-functions-window"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1063,8 +1061,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-functions-window-common"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "datafusion-common",
  "datafusion-physical-expr-common",
@@ -1072,8 +1070,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-macros"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "datafusion-doc",
  "quote",
@@ -1082,8 +1080,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-optimizer"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "chrono",
@@ -1100,8 +1098,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-physical-expr"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "arrow-schema",
@@ -1122,8 +1120,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-physical-expr-adapter"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1136,8 +1134,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-physical-expr-common"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "chrono",
@@ -1153,8 +1151,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-physical-optimizer"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1172,8 +1170,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-physical-plan"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "arrow-data",
@@ -1209,8 +1207,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-pruning"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1224,8 +1222,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-session"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow-schema",
  "async-trait",
@@ -1270,8 +1268,8 @@ dependencies = [
 
 [[package]]
 name = "datafusion-sql"
-version = "57.0.0-dev"
-source = "git+https://github.com/apache/datafusion?branch=main#e7c51c7fb5ebd301f5eb239afbea159e2cfbcfb6"
+version = "56.0.0"
+source = "git+https://github.com/apache/datafusion?branch=branch-56#3f197fe0bc6365756bb88ef2e51c01631da913ca"
 dependencies = [
  "arrow",
  "arrow-schema",

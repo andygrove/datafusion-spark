@@ -21,15 +21,15 @@ arrow = { version = "60.0.0", features = ["prettyprint", "chrono-tz"] }
 bigdecimal = "0.4.8"
 chrono = { version = "0.4.45", default-features = false }
 criterion = "0.8"
-datafusion = { git = "https://github.com/apache/datafusion", branch = "main", default-features = false }
-datafusion-common = { git = "https://github.com/apache/datafusion", branch = "main", default-features = false }
-datafusion-expr = { git = "https://github.com/apache/datafusion", branch = "main", default-features = false }
-datafusion-functions = { git = "https://github.com/apache/datafusion", branch = "main" }
-datafusion-functions-aggregate = { git = "https://github.com/apache/datafusion", branch = "main" }
-datafusion-functions-aggregate-common = { git = "https://github.com/apache/datafusion", branch = "main" }
-datafusion-functions-nested = { git = "https://github.com/apache/datafusion", branch = "main", default-features = false }
-datafusion-physical-expr-common = { git = "https://github.com/apache/datafusion", branch = "main", default-features = false }
-datafusion-session = { git = "https://github.com/apache/datafusion", branch = "main" }
+datafusion = { git = "https://github.com/apache/datafusion", branch = "branch-56", default-features = false }
+datafusion-common = { git = "https://github.com/apache/datafusion", branch = "branch-56", default-features = false }
+datafusion-expr = { git = "https://github.com/apache/datafusion", branch = "branch-56", default-features = false }
+datafusion-functions = { git = "https://github.com/apache/datafusion", branch = "branch-56" }
+datafusion-functions-aggregate = { git = "https://github.com/apache/datafusion", branch = "branch-56" }
+datafusion-functions-aggregate-common = { git = "https://github.com/apache/datafusion", branch = "branch-56" }
+datafusion-functions-nested = { git = "https://github.com/apache/datafusion", branch = "branch-56", default-features = false }
+datafusion-physical-expr-common = { git = "https://github.com/apache/datafusion", branch = "branch-56", default-features = false }
+datafusion-session = { git = "https://github.com/apache/datafusion", branch = "branch-56" }
 log = "^0.4"
 num-traits = { version = "0.2" }
 rand = "0.9"
