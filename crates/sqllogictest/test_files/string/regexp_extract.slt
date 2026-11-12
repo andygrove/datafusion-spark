@@ -112,3 +112,21 @@ SELECT regexp_extract(column1, column2, 1) FROM regexp_extract_t;
 100
 NULL
 a
+
+# Other string types are accepted
+query T
+SELECT regexp_extract(arrow_cast('1a 2b', 'LargeUtf8'), arrow_cast('(\d+)([a-z])', 'Utf8View'), 2);
+----
+a
+
+# Integer types other than INT are accepted for idx
+query T
+SELECT regexp_extract('1a 2b', '(\d+)([a-z])', arrow_cast(2, 'Int8'));
+----
+a
+
+# The result type is a string
+query T
+SELECT arrow_typeof(regexp_extract('a', '(a)'));
+----
+Utf8
