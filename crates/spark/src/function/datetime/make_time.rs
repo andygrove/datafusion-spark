@@ -46,6 +46,10 @@ impl SparkMakeTime {
     }
 }
 
+fn is_string_type(t: &DataType) -> bool {
+    matches!(t, DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View)
+}
+
 fn out_of_bounds(field: &str, range: &str, value: impl std::fmt::Display) -> String {
     format!(
         "[DATETIME_FIELD_OUT_OF_BOUNDS.WITHOUT_SUGGESTION] Invalid value for {field} (valid values {range}): {value}"
@@ -93,15 +97,13 @@ impl ScalarUDFImpl for SparkMakeTime {
 
     fn coerce_types(&self, arg_types: &[DataType]) -> Result<Vec<DataType>> {
         let [hours, minutes, secs] = take_function_args(self.name(), arg_types)?;
-        let integral = |t: &DataType| t.is_integer() || *t == DataType::Null;
-        if !integral(hours) || !integral(minutes) {
-            return exec_err!(
-                "make_time expects INT hour and minute, got {hours} and {minutes}"
-            );
-        }
-        let secs_ok = secs.is_numeric() || *secs == DataType::Null;
-        if !secs_ok {
-            return exec_err!("make_time expects a numeric second, got {secs}");
+        // Spark's ImplicitCastInputTypes also casts strings to INT / DECIMAL.
+        let castable =
+            |t: &DataType| t.is_numeric() || *t == DataType::Null || is_string_type(t);
+        for (arg, t) in [("hour", hours), ("minute", minutes), ("second", secs)] {
+            if !castable(t) {
+                return exec_err!("make_time expects a numeric {arg}, got {t}");
+            }
         }
         Ok(vec![
             DataType::Int32,
@@ -179,8 +181,11 @@ mod tests {
         let got =
             f.coerce_types(&[DataType::Int64, DataType::Int8, DataType::Float64])?;
         assert_eq!(got, vec![DataType::Int32, DataType::Int32, dec]);
+        // strings are cast like Spark; other types are rejected
+        let got = f.coerce_types(&[DataType::Utf8, DataType::Int32, DataType::Utf8])?;
+        assert_eq!(got[0], DataType::Int32);
         assert!(
-            f.coerce_types(&[DataType::Utf8, DataType::Int32, DataType::Int32])
+            f.coerce_types(&[DataType::Boolean, DataType::Int32, DataType::Int32])
                 .is_err()
         );
         Ok(())

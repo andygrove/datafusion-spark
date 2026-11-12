@@ -42,6 +42,12 @@ SELECT make_time(1, 18, NULL);
 ----
 NULL
 
+# Strings are cast to the argument types, like Spark's implicit casts
+query D
+SELECT make_time('6', '30', '45.5');
+----
+06:30:45.500
+
 # Result type
 query T
 SELECT arrow_typeof(make_time(1, 18, 19.87));
