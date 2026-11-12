@@ -27,8 +27,8 @@ This crate provides Spark-compatible scalar, aggregate, and table functions that
 
 ```toml
 [dependencies]
-datafusion = "X"
-datafusion-spark = { version = "X", features = ["core"] }
+datafusion = "56"
+datafusion-spark = { version = "56", features = ["core"] }
 ```
 
 Call `with_spark_features` **after** `with_default_features`, since Spark functions replace DataFusion

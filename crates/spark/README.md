@@ -32,8 +32,8 @@ Add the crate with the `core` feature, which provides the `SessionStateBuilderSp
 
 ```toml
 [dependencies]
-datafusion = "X"
-datafusion-spark = { version = "X", features = ["core"] }
+datafusion = "56"
+datafusion-spark = { version = "56", features = ["core"] }
 ```
 
 Enable Spark features on a session. Call `with_spark_features` **after** `with_default_features`, since
