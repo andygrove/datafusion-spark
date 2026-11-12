@@ -8,6 +8,7 @@ pub mod date_diff;
 pub mod date_part;
 pub mod date_sub;
 pub mod date_trunc;
+pub mod dayname;
 pub mod extract;
 pub mod from_utc_timestamp;
 pub mod last_day;
@@ -32,6 +33,7 @@ make_udf_function!(date_diff::SparkDateDiff, date_diff);
 make_udf_function!(date_part::SparkDatePart, date_part);
 make_udf_function!(date_sub::SparkDateSub, date_sub);
 make_udf_function!(date_trunc::SparkDateTrunc, date_trunc);
+make_udf_function!(dayname::SparkDayName, dayname);
 make_udf_function!(
     from_utc_timestamp::SparkFromUtcTimestamp,
     from_utc_timestamp
@@ -103,6 +105,11 @@ pub mod expr_fn {
         make_dt_interval,
         "Make a day time interval from given days, hours, mins and secs (return type is actually a Duration(Microsecond))",
          days hours mins secs
+    ));
+    export_functions!((
+        dayname,
+        "Returns the three-letter abbreviated day name from a date.",
+        arg1
     ));
     export_functions!((
         make_interval,
@@ -191,6 +198,7 @@ pub fn functions() -> Vec<Arc<ScalarUDF>> {
         date_part(),
         date_sub(),
         date_trunc(),
+        dayname(),
         from_utc_timestamp(),
         hour(),
         last_day(),

@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+# Tests for Spark-compatible dayname (Spark 4.0+)
+# Reference: https://spark.apache.org/docs/latest/api/sql/index.html#dayname
+# The first value is the example from the Spark docs; the rest follow from the
+# calendar (2024-01-01 is a Monday).
+
+query T
+SELECT dayname('2008-02-20'::DATE);
+----
+Wed
+
+# All seven days
+query T
+SELECT dayname('2024-01-01'::DATE);
+----
+Mon
+
+query T
+SELECT dayname('2024-01-02'::DATE);
+----
+Tue
+
+query T
+SELECT dayname('2024-01-03'::DATE);
+----
+Wed
+
+query T
+SELECT dayname('2024-01-04'::DATE);
+----
+Thu
+
+query T
+SELECT dayname('2024-01-05'::DATE);
+----
+Fri
+
+query T
+SELECT dayname('2024-01-06'::DATE);
+----
+Sat
+
+query T
+SELECT dayname('2024-01-07'::DATE);
+----
+Sun
+
+# Epoch and dates before it
+query T
+SELECT dayname('1970-01-01'::DATE);
+----
+Thu
+
+query T
+SELECT dayname('1969-12-31'::DATE);
+----
+Wed
+
+# Leap day
+query T
+SELECT dayname('2024-02-29'::DATE);
+----
+Thu
+
+# NULL
+query T
+SELECT dayname(NULL::DATE);
+----
+NULL
+
+# Timestamps are cast to dates
+query T
+SELECT dayname(arrow_cast('2024-05-20 23:59:59', 'Timestamp(Microsecond, None)'));
+----
+Mon
+
+# Result type
+query T
+SELECT arrow_typeof(dayname('2024-01-01'::DATE));
+----
+Utf8
+
+# Column input, including NULL
+statement ok
+CREATE TABLE dayname_t AS VALUES ('2024-01-01'::DATE), (NULL), ('2024-01-07'::DATE);
+
+query T
+SELECT dayname(column1) FROM dayname_t;
+----
+Mon
+NULL
+Sun
+
+statement error
+SELECT dayname();
