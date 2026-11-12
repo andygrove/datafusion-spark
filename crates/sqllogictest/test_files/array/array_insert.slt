@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+# Tests for Spark-compatible array_insert
+# Reference: https://spark.apache.org/docs/latest/api/sql/index.html#array_insert
+# Expected values come from the Spark docs and Comet's Spark-verified tests.
+
+# Examples from the Spark documentation
+query ?
+SELECT array_insert(make_array(1, 2, 3, 4), 5, 5);
+----
+[1, 2, 3, 4, 5]
+
+query ?
+SELECT array_insert(make_array(5, 4, 3, 2), -1, 1);
+----
+[5, 4, 3, 2, 1]
+
+query ?
+SELECT array_insert(make_array(5, 3, 2, 1), -4, 4);
+----
+[5, 4, 3, 2, 1]
+
+# Positive positions
+query ?
+SELECT array_insert(make_array(1, 2, 3), 2, 10);
+----
+[1, 10, 2, 3]
+
+query ?
+SELECT array_insert(make_array(4, 5), 1, 20);
+----
+[20, 4, 5]
+
+# Beyond the end pads with NULLs
+query ?
+SELECT array_insert(make_array(1, 2, 3), 6, 100);
+----
+[1, 2, 3, NULL, NULL, 100]
+
+# Negative positions
+query ?
+SELECT array_insert(make_array(1, 2, 3), -2, 10);
+----
+[1, 2, 10, 3]
+
+query ?
+SELECT array_insert(make_array(4, 5), -1, 20);
+----
+[4, 5, 20]
+
+# Negative position before the start: item first, then NULL padding
+query ?
+SELECT array_insert(make_array(1), -3, 100);
+----
+[100, NULL, 1]
+
+# A NULL item is inserted as a NULL element
+query ?
+SELECT array_insert(make_array(0, NULL, 0), 1, NULL);
+----
+[NULL, 0, NULL, 0]
+
+# NULL array or NULL position gives NULL
+query ?
+SELECT array_insert(arrow_cast(NULL, 'List(Int32)'), 1, 5);
+----
+NULL
+
+query ?
+SELECT array_insert(make_array(1, 2), NULL::INT, 5);
+----
+NULL
+
+# Table data, with per-row positions
+statement ok
+CREATE TABLE array_insert_t AS VALUES
+  (make_array(1, 2, 3), 2, 10),
+  (make_array(4, 5), -1, 20),
+  (NULL, 1, 30),
+  (make_array(7), NULL, 40);
+
+query ?
+SELECT array_insert(column1, column2, column3) FROM array_insert_t;
+----
+[1, 10, 2, 3]
+[4, 5, 20]
+NULL
+NULL
+
+# Index 0 is invalid
+statement error INVALID_INDEX_OF_ZERO
+SELECT array_insert(make_array(1, 2), 0, 5);
+
+# Exceeding the maximum array length
+statement error COLLECTION_SIZE_LIMIT_EXCEEDED
+SELECT array_insert(make_array(1, 2), 2147483647, 5);
+
+# The index must be an integer
+statement error
+SELECT array_insert(make_array(1, 2), 'a', 5);

@@ -3,6 +3,7 @@
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 pub mod array_contains;
+pub mod array_insert;
 pub mod repeat;
 pub mod shuffle;
 pub mod slice;
@@ -13,6 +14,7 @@ use datafusion_functions::make_udf_function;
 use std::sync::Arc;
 
 make_udf_function!(array_contains::SparkArrayContains, spark_array_contains);
+make_udf_function!(array_insert::SparkArrayInsert, array_insert);
 make_udf_function!(spark_array::SparkArray, array);
 make_udf_function!(shuffle::SparkShuffle, shuffle);
 make_udf_function!(repeat::SparkArrayRepeat, array_repeat);
@@ -25,6 +27,11 @@ pub mod expr_fn {
         spark_array_contains,
         "Returns true if the array contains the element (Spark semantics).",
         array element
+    ));
+    export_functions!((
+        array_insert,
+        "Places an item into the array at the given 1-based index (negative counts from the end).",
+        array pos item
     ));
     export_functions!((array, "Returns an array with the given elements.", args));
     export_functions!((
@@ -47,6 +54,7 @@ pub mod expr_fn {
 pub fn functions() -> Vec<Arc<ScalarUDF>> {
     vec![
         spark_array_contains(),
+        array_insert(),
         array(),
         shuffle(),
         array_repeat(),
