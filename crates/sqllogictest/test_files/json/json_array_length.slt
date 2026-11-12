@@ -1,0 +1,97 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+# Tests for Spark-compatible json_array_length
+# Reference: https://spark.apache.org/docs/latest/api/sql/index.html#json_array_length
+# Expected values come from Spark's sql-tests/results/json-functions.sql.out.
+
+query I
+SELECT json_array_length(NULL);
+----
+NULL
+
+query I
+SELECT json_array_length('');
+----
+NULL
+
+query I
+SELECT json_array_length('[]');
+----
+0
+
+query I
+SELECT json_array_length('[1,2,3]');
+----
+3
+
+query I
+SELECT json_array_length('[[1,2],[5,6,7]]');
+----
+2
+
+query I
+SELECT json_array_length('[{"a":123},{"b":"hello"}]');
+----
+2
+
+query I
+SELECT json_array_length('[1,2,3,[33,44],{"key":[2,3,4]}]');
+----
+5
+
+# Valid JSON that is not an array
+query I
+SELECT json_array_length('{"key":"not a json array"}');
+----
+NULL
+
+# Invalid or truncated JSON
+query I
+SELECT json_array_length('[1,2,3,4,5');
+----
+NULL
+
+query I
+SELECT json_array_length('[1,2');
+----
+NULL
+
+# Only string arguments are accepted
+statement error
+SELECT json_array_length(2);
+
+statement error
+SELECT json_array_length();
+
+# Column input, including NULLs and other string types
+statement ok
+CREATE TABLE json_array_length_t AS VALUES ('[1,2,3]'), (NULL), ('{}'), ('[]'), ('[1,');
+
+query I
+SELECT json_array_length(column1) FROM json_array_length_t;
+----
+3
+NULL
+NULL
+0
+NULL
+
+query I
+SELECT json_array_length(arrow_cast(column1, 'LargeUtf8')) FROM json_array_length_t;
+----
+3
+NULL
+NULL
+0
+NULL
+
+query I
+SELECT json_array_length(arrow_cast(column1, 'Utf8View')) FROM json_array_length_t;
+----
+3
+NULL
+NULL
+0
+NULL
