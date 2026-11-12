@@ -23,11 +23,13 @@ chrono = { version = "0.4.45", default-features = false }
 criterion = "0.8"
 datafusion = { git = "https://github.com/apache/datafusion", branch = "branch-56", default-features = false }
 datafusion-common = { git = "https://github.com/apache/datafusion", branch = "branch-56", default-features = false }
+datafusion-doc = { git = "https://github.com/apache/datafusion", branch = "branch-56" }
 datafusion-expr = { git = "https://github.com/apache/datafusion", branch = "branch-56", default-features = false }
 datafusion-functions = { git = "https://github.com/apache/datafusion", branch = "branch-56" }
 datafusion-functions-aggregate = { git = "https://github.com/apache/datafusion", branch = "branch-56" }
 datafusion-functions-aggregate-common = { git = "https://github.com/apache/datafusion", branch = "branch-56" }
 datafusion-functions-nested = { git = "https://github.com/apache/datafusion", branch = "branch-56", default-features = false }
+datafusion-macros = { git = "https://github.com/apache/datafusion", branch = "branch-56" }
 datafusion-physical-expr-common = { git = "https://github.com/apache/datafusion", branch = "branch-56", default-features = false }
 datafusion-session = { git = "https://github.com/apache/datafusion", branch = "branch-56" }
 log = "^0.4"

@@ -1,0 +1,197 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+# Tests for Spark-compatible array_position.
+# Returns the 1-based position of the first match, 0 if not found, NULL if the array or element is NULL.
+# Expected values verified with pyspark==4.2.0.
+
+query I
+SELECT array_position(array(1, 2, 3, 4), 3);
+----
+3
+
+# Not found returns 0 (DataFusion's built-in returns NULL)
+query I
+SELECT array_position(array(1, 2, 3, 4), 5);
+----
+0
+
+query I
+SELECT array_position(array('a', 'b', 'c'), 'b');
+----
+2
+
+# NULL elements in the array do not match and still count towards the position
+query I
+SELECT array_position(array(1, 2, NULL, 3), 3);
+----
+4
+
+query I
+SELECT array_position(array(1, 2, NULL, 3), 5);
+----
+0
+
+# First occurrence wins
+query I
+SELECT array_position(array(1, 2, 1, 3), 1);
+----
+1
+
+query I
+SELECT array_position(array(1, 2, 3), CAST(NULL AS INT));
+----
+NULL
+
+query I
+SELECT array_position(CAST(NULL AS ARRAY<INT>), 1);
+----
+NULL
+
+query I
+SELECT array_position(array(1, 2, 3), NULL);
+----
+NULL
+
+query I
+SELECT array_position(array(), 1);
+----
+0
+
+# NaN equals NaN
+query I
+SELECT array_position(array(CAST('NaN' AS DOUBLE), CAST(1.0 AS DOUBLE)), CAST('NaN' AS DOUBLE));
+----
+1
+
+query I
+SELECT array_position(array(CAST('NaN' AS FLOAT), CAST(1.0 AS FLOAT)), CAST('NaN' AS FLOAT));
+----
+1
+
+query I
+SELECT array_position(array(true, false), false);
+----
+2
+
+query I
+SELECT array_position(array(CAST(1.5 AS DECIMAL(3,1)), CAST(2.5 AS DECIMAL(3,1))), CAST(2.5 AS DECIMAL(3,1)));
+----
+2
+
+query I
+SELECT array_position(array(DATE '2020-01-01', DATE '2021-01-01'), DATE '2021-01-01');
+----
+2
+
+query I
+SELECT array_position(array(X'01', X'02'), X'02');
+----
+2
+
+# Nested arrays
+query I
+SELECT array_position(array(array(1, 2), array(3)), array(3));
+----
+2
+
+# Element is coerced to the array's element type
+query I
+SELECT array_position(array(1, 2, 3), 2L);
+----
+2
+
+query I
+SELECT array_position(array(1, 2, 3), CAST(2.0 AS DOUBLE));
+----
+2
+
+# Signed zero: -0.0 equals 0.0
+query I
+SELECT array_position(array(CAST('-0.0' AS DOUBLE), CAST(1.0 AS DOUBLE)), CAST(0.0 AS DOUBLE));
+----
+1
+
+query I
+SELECT array_position(array(CAST(0.0 AS DOUBLE), CAST(1.0 AS DOUBLE)), CAST('-0.0' AS DOUBLE));
+----
+1
+
+query I
+SELECT array_position(array(CAST(1.0 AS DOUBLE), CAST('-0.0' AS DOUBLE)), CAST(0.0 AS DOUBLE));
+----
+2
+
+query I
+SELECT array_position(array(CAST('-0.0' AS FLOAT), CAST(1.0 AS FLOAT)), CAST(0.0 AS FLOAT));
+----
+1
+
+# Nested floats follow Spark's ordering: NaN equals NaN, -0.0 equals 0.0
+query I
+SELECT array_position(array(array(CAST('NaN' AS DOUBLE)), array(CAST(1.0 AS DOUBLE))), array(CAST('NaN' AS DOUBLE)));
+----
+1
+
+query I
+SELECT array_position(array(array(CAST('-0.0' AS DOUBLE)), array(CAST(1.0 AS DOUBLE))), array(CAST(0.0 AS DOUBLE)));
+----
+1
+
+query I
+SELECT array_position(array(array(CAST('-0.0' AS FLOAT)), array(CAST(1.0 AS FLOAT))), array(CAST(0.0 AS FLOAT)));
+----
+1
+
+query I
+SELECT array_position(array(named_struct('a', CAST('NaN' AS DOUBLE)), named_struct('a', CAST(1.0 AS DOUBLE))), named_struct('a', CAST('NaN' AS DOUBLE)));
+----
+1
+
+query I
+SELECT array_position(array(named_struct('a', CAST('-0.0' AS DOUBLE)), named_struct('a', CAST(1.0 AS DOUBLE))), named_struct('a', CAST(0.0 AS DOUBLE)));
+----
+1
+
+# NULLs nested inside the compared values are equal to each other
+query I
+SELECT array_position(array(array(1, CAST(NULL AS INT)), array(1, 2)), array(1, CAST(NULL AS INT)));
+----
+1
+
+query I
+SELECT array_position(array(array(CAST(NULL AS INT)), array(1)), array(CAST(NULL AS INT)));
+----
+1
+
+query I
+SELECT array_position(array(named_struct('a', CAST(NULL AS INT)), named_struct('a', CAST(1 AS INT))), named_struct('a', CAST(NULL AS INT)));
+----
+1
+
+query I
+SELECT array_position(array(array(CAST(1.0 AS DOUBLE), CAST(NULL AS DOUBLE))), array(CAST(1.0 AS DOUBLE), CAST(NULL AS DOUBLE)));
+----
+1
+
+###
+### Column inputs
+###
+
+statement ok
+CREATE TABLE t AS VALUES
+  (make_array(1, 2, 3), 3),
+  (make_array(1, NULL, 3), 3),
+  (make_array(1, 2), 5),
+  (NULL, 1),
+  (make_array(1, 2), NULL);
+
+query I
+SELECT array_position(column1, column2) FROM t;
+----
+3
+3
+0
+NULL
+NULL
