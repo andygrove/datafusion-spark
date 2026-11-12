@@ -4,6 +4,7 @@
 
 pub mod add_months;
 pub mod date_add;
+pub mod date_from_unix_date;
 pub mod date_diff;
 pub mod date_part;
 pub mod date_sub;
@@ -28,6 +29,10 @@ use std::sync::Arc;
 
 make_udf_function!(add_months::SparkAddMonths, add_months);
 make_udf_function!(date_add::SparkDateAdd, date_add);
+make_udf_function!(
+    date_from_unix_date::SparkDateFromUnixDate,
+    date_from_unix_date
+);
 make_udf_function!(date_diff::SparkDateDiff, date_diff);
 make_udf_function!(date_part::SparkDatePart, date_part);
 make_udf_function!(date_sub::SparkDateSub, date_sub);
@@ -127,6 +132,11 @@ pub mod expr_fn {
         end start
     ));
     export_functions!((
+        date_from_unix_date,
+        "Creates a date from the number of days since 1970-01-01.",
+        arg1
+    ));
+    export_functions!((
         date_trunc,
         "Truncates a timestamp `ts` to the unit specified by the format `fmt`.",
         fmt ts
@@ -188,6 +198,7 @@ pub fn functions() -> Vec<Arc<ScalarUDF>> {
         add_months(),
         date_add(),
         date_diff(),
+        date_from_unix_date(),
         date_part(),
         date_sub(),
         date_trunc(),

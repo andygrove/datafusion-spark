@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+# Tests for Spark-compatible date_from_unix_date
+# Reference: https://spark.apache.org/docs/latest/api/sql/index.html#date_from_unix_date
+# Expected values come from Spark's sql-tests/results/date.sql.out.
+
+query DDD
+SELECT date_from_unix_date(0), date_from_unix_date(1000), date_from_unix_date(NULL);
+----
+1970-01-01 1972-09-27 NULL
+
+# Negative days are before the epoch
+query D
+SELECT date_from_unix_date(-1);
+----
+1969-12-31
+
+query D
+SELECT date_from_unix_date(18600);
+----
+2020-12-04
+
+# Any INT is a valid date, even where it is too large to print
+query B
+SELECT unix_date(date_from_unix_date(2147483647)) = 2147483647;
+----
+true
+
+# Other integer types are cast to INT
+query D
+SELECT date_from_unix_date(arrow_cast(100, 'Int8'));
+----
+1970-04-11
+
+query D
+SELECT date_from_unix_date(arrow_cast(1000, 'Int64'));
+----
+1972-09-27
+
+# Result type
+query T
+SELECT arrow_typeof(date_from_unix_date(0));
+----
+Date32
+
+# Inverse of unix_date
+query B
+SELECT unix_date(date_from_unix_date(12345)) = 12345;
+----
+true
+
+# Column input, including NULL
+statement ok
+CREATE TABLE date_from_unix_date_t AS VALUES (0), (1000), (NULL), (-365);
+
+query D
+SELECT date_from_unix_date(column1) FROM date_from_unix_date_t;
+----
+1970-01-01
+1972-09-27
+NULL
+1969-01-01
