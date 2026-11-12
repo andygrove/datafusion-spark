@@ -27,6 +27,11 @@ use serde::de::{IgnoredAny, SeqAccess, Visitor};
 ///
 /// Like Spark, the array is read up to its closing bracket and anything after it
 /// is ignored.
+///
+/// Known differences from Spark, which parses with Jackson configured to accept
+/// single-quoted strings and unescaped control characters (Hive compatibility):
+/// `serde_json` rejects both, so those inputs give NULL here. `serde_json` also
+/// stops at 128 levels of nesting, where Jackson allows 1000.
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct JsonArrayLength {
     signature: Signature,
