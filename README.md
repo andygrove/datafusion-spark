@@ -23,11 +23,34 @@
 
 This crate provides Spark-compatible scalar, aggregate, and table functions that can be registered with a DataFusion `SessionContext`.
 
-## Using the crate
+## Quick start
 
-Add `datafusion-spark` to your project and register the functions with a DataFusion session. See the
-[crate README](crates/spark/README.md) for a quick start and the
-[API documentation](https://docs.rs/datafusion-spark) for the available functions.
+```toml
+[dependencies]
+datafusion = "X"
+datafusion-spark = { version = "X", features = ["core"] }
+```
+
+Call `with_spark_features` **after** `with_default_features`, since Spark functions replace DataFusion
+functions with the same name:
+
+```rust
+use datafusion::execution::SessionStateBuilder;
+use datafusion::prelude::SessionContext;
+use datafusion_spark::SessionStateBuilderSpark;
+
+let state = SessionStateBuilder::new()
+    .with_default_features()
+    .with_spark_features()
+    .build();
+let ctx = SessionContext::new_with_state(state);
+
+// `sha2` now has Spark semantics
+let df = ctx.sql("SELECT sha2('Spark', 256)").await?;
+```
+
+See the [crate README](crates/spark/README.md) and the [API documentation](https://docs.rs/datafusion-spark)
+for more.
 
 ## Repository layout
 
