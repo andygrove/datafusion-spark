@@ -267,7 +267,14 @@ fn array_insert<O: OffsetSizeTrait>(
             }
             total += p.new_len;
         }
-        offsets.push(O::usize_as(total));
+        // A `List` (i32 offsets) can overflow across rows even though each row is
+        // within Spark's per-array limit.
+        let Some(offset) = O::from_usize(total) else {
+            return exec_err!(
+                "array_insert result is too large for the list's offset type"
+            );
+        };
+        offsets.push(offset);
     }
 
     GenericListArray::try_new(

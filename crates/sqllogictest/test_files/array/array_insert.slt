@@ -100,3 +100,38 @@ SELECT array_insert(make_array(1, 2), 2147483647, 5);
 # The index must be an integer
 statement error
 SELECT array_insert(make_array(1, 2), 'a', 5);
+
+# String elements
+query ?
+SELECT array_insert(make_array('a', 'c'), 2, 'b');
+----
+[a, b, c]
+
+# The item widens to the common numeric type
+query ?
+SELECT array_insert(make_array(arrow_cast(1, 'Int32')), 1, arrow_cast(3000000000, 'Int64'));
+----
+[3000000000, 1]
+
+# LargeList and FixedSizeList inputs
+query ?
+SELECT array_insert(arrow_cast(make_array(1, 2), 'LargeList(Int64)'), 2, 9);
+----
+[1, 9, 2]
+
+query ?
+SELECT array_insert(arrow_cast(make_array(1, 2), 'FixedSizeList(2, Int64)'), 3, 9);
+----
+[1, 2, 9]
+
+# Empty array
+query ?
+SELECT array_insert(arrow_cast(make_array(), 'List(Int64)'), 1, 7);
+----
+[7]
+
+# Result type keeps the list type
+query T
+SELECT arrow_typeof(array_insert(arrow_cast(make_array(1, 2), 'LargeList(Int64)'), 1, 0));
+----
+LargeList(Int64)
