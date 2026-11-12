@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use crate::function::error_utils::unsupported_data_type_exec_err;
 use arrow::array::{
     Array, ArrayRef, AsArray, Capacities, GenericListArray, Int32Array, MutableArrayData,
     OffsetSizeTrait, make_array,
@@ -113,9 +114,11 @@ impl ScalarUDFImpl for SparkArrayInsert {
             DataType::List(f) | DataType::FixedSizeList(f, _) => (f, DataType::List),
             DataType::LargeList(f) => (f, DataType::LargeList),
             _ => {
-                return exec_err!(
-                    "array_insert expects an array as first argument, got {array}"
-                );
+                return Err(unsupported_data_type_exec_err(
+                    self.name(),
+                    "an array as first argument",
+                    array,
+                ));
             }
         };
 
@@ -123,9 +126,11 @@ impl ScalarUDFImpl for SparkArrayInsert {
         // BIGINT, so accept every integer type and cast to INT; a value outside
         // the INT range then fails the cast instead of being silently truncated.
         if !pos.is_integer() {
-            return exec_err!(
-                "array_insert expects an INT index as second argument, got {pos}"
-            );
+            return Err(unsupported_data_type_exec_err(
+                self.name(),
+                "an INT index as second argument",
+                pos,
+            ));
         }
 
         // Spark uses the tightest common type of the element and the item.
@@ -152,10 +157,13 @@ impl ScalarUDFImpl for SparkArrayInsert {
         let [list, pos, item] = take_function_args(self.name(), arrays)?;
         let pos = pos.as_primitive::<arrow::datatypes::Int32Type>();
         let legacy = self.legacy_negative_index;
-        let elem_field = match args.return_field.data_type() {
-            DataType::List(f) | DataType::LargeList(f) => Arc::clone(f),
-            other => return internal_err!("unexpected array_insert return type {other}"),
+        let Some(elem_field) = list_element_field(args.return_field.data_type()) else {
+            return internal_err!(
+                "unexpected array_insert return type {}",
+                args.return_field.data_type()
+            );
         };
+        let elem_field = Arc::clone(elem_field);
         let result: ArrayRef = match list.data_type() {
             DataType::List(_) => Arc::new(array_insert(
                 list.as_list::<i32>(),
@@ -253,17 +261,17 @@ fn array_insert<O: OffsetSizeTrait>(
             let p = place(pos.value(row), end - start, legacy)?;
 
             out.try_extend(0, start, start + p.before)?;
-            if p.leading_nulls == 0 && p.trailing_nulls == 0 {
-                out.try_extend(1, row, row + 1)?;
-                out.try_extend(0, start + p.before, end)?;
-            } else if p.trailing_nulls > 0 {
+            if p.trailing_nulls > 0 {
+                // Positive index past the end: original elements, NULLs, item.
                 out.try_extend(0, start + p.before, end)?;
                 out.try_extend_nulls(p.trailing_nulls)?;
                 out.try_extend(1, row, row + 1)?;
             } else {
+                // Otherwise: item, then (for a negative index before the start)
+                // NULL padding, then the remaining original elements.
                 out.try_extend(1, row, row + 1)?;
                 out.try_extend_nulls(p.leading_nulls)?;
-                out.try_extend(0, start, end)?;
+                out.try_extend(0, start + p.before, end)?;
             }
             total += p.new_len;
         }
