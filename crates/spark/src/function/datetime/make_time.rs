@@ -7,14 +7,13 @@ use std::sync::Arc;
 use arrow::array::{Array, ArrayRef, AsArray, Time64NanosecondArray};
 use arrow::datatypes::{DataType, Decimal128Type, Int32Type, TimeUnit};
 use datafusion_common::utils::take_function_args;
-use datafusion_common::{Result, exec_err};
+use datafusion_common::{DataFusionError, Result, exec_datafusion_err, exec_err};
 use datafusion_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
 };
 
 const MICROS_PER_SECOND: i128 = 1_000_000;
 const NANOS_PER_MICRO: i64 = 1_000;
-const NANOS_PER_SECOND: i64 = 1_000_000_000;
 
 /// Spark's seconds argument type, `DecimalType(16, 6)`.
 const SECONDS_PRECISION: u8 = 16;
@@ -46,12 +45,12 @@ impl SparkMakeTime {
     }
 }
 
-fn is_string_type(t: &DataType) -> bool {
-    matches!(t, DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View)
-}
-
-fn out_of_bounds(field: &str, range: &str, value: impl std::fmt::Display) -> String {
-    format!(
+fn out_of_bounds(
+    field: &str,
+    range: &str,
+    value: impl std::fmt::Display,
+) -> DataFusionError {
+    exec_datafusion_err!(
         "[DATETIME_FIELD_OUT_OF_BOUNDS.WITHOUT_SUGGESTION] Invalid value for {field} (valid values {range}): {value}"
     )
 }
@@ -64,22 +63,22 @@ fn make_time(hours: i32, minutes: i32, secs_micros: i128) -> Result<i64> {
     // Checked first, like Spark, so the message reports the whole seconds
     // (truncated toward zero) rather than a wrapped value.
     if !(0..=59).contains(&full_secs) {
-        return exec_err!(
-            "{}",
-            out_of_bounds("SecondOfMinute", "0 - 59", secs_micros / MICROS_PER_SECOND)
-        );
+        return Err(out_of_bounds(
+            "SecondOfMinute",
+            "0 - 59",
+            secs_micros / MICROS_PER_SECOND,
+        ));
     }
     if !(0..=23).contains(&hours) {
-        return exec_err!("{}", out_of_bounds("HourOfDay", "0 - 23", hours));
+        return Err(out_of_bounds("HourOfDay", "0 - 23", hours));
     }
     if !(0..=59).contains(&minutes) {
-        return exec_err!("{}", out_of_bounds("MinuteOfHour", "0 - 59", minutes));
+        return Err(out_of_bounds("MinuteOfHour", "0 - 59", minutes));
     }
 
-    Ok(i64::from(hours) * 3_600 * NANOS_PER_SECOND
-        + i64::from(minutes) * 60 * NANOS_PER_SECOND
-        + full_secs as i64 * NANOS_PER_SECOND
-        + frac_micros * NANOS_PER_MICRO)
+    // Whole seconds of the day plus the fraction, in micros, then to nanos.
+    let day_secs = i64::from(hours) * 3_600 + i64::from(minutes) * 60 + full_secs as i64;
+    Ok((day_secs * 1_000_000 + frac_micros) * NANOS_PER_MICRO)
 }
 
 impl ScalarUDFImpl for SparkMakeTime {
@@ -98,8 +97,11 @@ impl ScalarUDFImpl for SparkMakeTime {
     fn coerce_types(&self, arg_types: &[DataType]) -> Result<Vec<DataType>> {
         let [hours, minutes, secs] = take_function_args(self.name(), arg_types)?;
         // Spark's ImplicitCastInputTypes also casts strings to INT / DECIMAL.
-        let castable =
-            |t: &DataType| t.is_numeric() || *t == DataType::Null || is_string_type(t);
+        let castable = |t: &DataType| {
+            t.is_numeric()
+                || *t == DataType::Null
+                || matches!(t, DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View)
+        };
         for (arg, t) in [("hour", hours), ("minute", minutes), ("second", secs)] {
             if !castable(t) {
                 return exec_err!("make_time expects a numeric {arg}, got {t}");
