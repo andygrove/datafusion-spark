@@ -13,6 +13,7 @@ pub mod from_utc_timestamp;
 pub mod last_day;
 pub mod make_dt_interval;
 pub mod make_interval;
+pub mod make_time;
 pub mod monthname;
 pub mod next_day;
 pub mod time_trunc;
@@ -42,6 +43,7 @@ make_udf_function!(extract::SparkSecond, second);
 make_udf_function!(last_day::SparkLastDay, last_day);
 make_udf_function!(make_dt_interval::SparkMakeDtInterval, make_dt_interval);
 make_udf_function!(make_interval::SparkMakeInterval, make_interval);
+make_udf_function!(make_time::SparkMakeTime, make_time);
 make_udf_function!(monthname::SparkMonthName, monthname);
 make_udf_function!(next_day::SparkNextDay, next_day);
 make_udf_function!(time_trunc::SparkTimeTrunc, time_trunc);
@@ -108,6 +110,11 @@ pub mod expr_fn {
         make_interval,
         "Make interval from years, months, weeks, days, hours, mins and secs.",
         years months weeks days hours mins secs
+    ));
+    export_functions!((
+        make_time,
+        "Create a time from hour, minute and second fields.",
+        hour minute second
     ));
     export_functions!((
         monthname,
@@ -196,6 +203,7 @@ pub fn functions() -> Vec<Arc<ScalarUDF>> {
         last_day(),
         make_dt_interval(),
         make_interval(),
+        make_time(),
         minute(),
         monthname(),
         next_day(),
