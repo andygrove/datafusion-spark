@@ -36,6 +36,50 @@ is, they do not need to handle unsigned types or types such as `Float16` or `Dec
 [sail]: https://github.com/lakehq/sail
 [comet]: https://github.com/apache/datafusion-comet
 
+## Documentation Guidelines
+
+Every function should have documentation that appears in generated function references
+(`ScalarUDFImpl::documentation()`, or the aggregate/window equivalent). Write it once, using the
+`#[user_doc]` attribute macro from `datafusion-macros` on the struct, which generates
+`documentation()` and keeps the docs next to the type. The struct keeps only a short rustdoc
+comment (what it is, plus a link to the Spark docs), so that facts are not written twice.
+
+The most useful thing to document is **how the function differs from the DataFusion built-in of
+the same name**, and its Spark edge-case behavior. Only document behavior that is covered by a
+test.
+
+```rust
+use datafusion_macros::user_doc;
+
+/// Spark-compatible `my_func` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#my_func>
+#[user_doc(
+    doc_section(label = "String Functions"),
+    description = "What it returns, and how it differs from the DataFusion built-in: types, \
+        NULL handling, edge cases (out-of-range values, overflow, empty input), ANSI mode.",
+    syntax_example = "my_func(expr[, optional])",
+    alternative_syntax = "alias(expr)", // only if there are aliases
+    sql_example = r#"```sql
+> SELECT my_func('a');
+result
+```"#,
+    argument(name = "expr", description = "What it is, accepted types, NULL behavior.")
+)]
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct SparkMyFunc { /* ... */ }
+
+impl ScalarUDFImpl for SparkMyFunc {
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
+    }
+    // ...
+}
+```
+
+See `sha2` (`crates/spark/src/function/hash/sha2.rs`) and `substring`
+(`crates/spark/src/function/string/substring.rs`) for complete examples.
+
 ## Testing Guidelines
 
 Prefer adding tests via SQLLogicTests where possible, see the [Spark SQLLogicTest README].
