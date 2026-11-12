@@ -19,10 +19,7 @@ const DAY_NAMES: [&str; 7] = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 /// `day` is 0 for Monday through 6 for Sunday.
 fn day_number_to_name(day: i32) -> Option<&'static str> {
-    usize::try_from(day)
-        .ok()
-        .and_then(|d| DAY_NAMES.get(d))
-        .copied()
+    DAY_NAMES.get(day as usize).copied()
 }
 
 /// Spark-compatible `dayname` expression (Spark 4.0+).
