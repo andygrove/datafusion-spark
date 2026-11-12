@@ -4,18 +4,16 @@
 
 use std::sync::Arc;
 
-use arrow::array::{
-    Array, ArrayRef, DictionaryArray, Int32Array, types::ArrowDictionaryKeyType,
-};
+use arrow::array::{ArrayRef, Int32Array, types::ArrowDictionaryKeyType};
 use arrow::buffer::{Buffer, ScalarBuffer};
-use arrow::compute::take;
-use arrow::datatypes::{ArrowNativeType, DataType, Field, FieldRef};
-use datafusion_common::{Result, ScalarValue, internal_err};
+use arrow::datatypes::{DataType, Field, FieldRef};
+use datafusion_common::{Result, ScalarValue, internal_err, plan_err};
 use datafusion_expr::{
     ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     Volatility,
 };
 
+use super::utils::hash_dictionary_values;
 use crate::create_hashes_internal;
 
 const DEFAULT_SEED: u32 = 42;
@@ -54,7 +52,10 @@ impl ScalarUDFImpl for SparkHash {
         internal_err!("return_field_from_args should be used instead")
     }
 
-    fn return_field_from_args(&self, _args: ReturnFieldArgs) -> Result<FieldRef> {
+    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
+        if args.arg_fields.is_empty() {
+            return plan_err!("hash requires at least one argument");
+        }
         // Spark's HashExpression overrides nullable to false: NULL inputs are
         // skipped and the seed is used, so the result is never null.
         Ok(Arc::new(Field::new(self.name(), DataType::Int32, false)))
@@ -131,26 +132,12 @@ fn create_murmur3_hashes_dictionary<K: ArrowDictionaryKeyType>(
     hashes_buffer: &mut [u32],
     seeds_are_pristine: bool,
 ) -> Result<()> {
-    let dict_array = array.as_any().downcast_ref::<DictionaryArray<K>>().unwrap();
-    if !seeds_are_pristine {
-        let unpacked = take(dict_array.values().as_ref(), dict_array.keys(), None)?;
-        create_murmur3_hashes(&[unpacked], hashes_buffer)?;
-    } else {
-        // Hash each dictionary value once, then look up by key.
-        let dict_values = Arc::clone(dict_array.values());
-        // Every row has the same running hash here, so start from it instead of 42
-        let seed = hashes_buffer.first().copied().unwrap_or(DEFAULT_SEED);
-        let mut dict_hashes = vec![seed; dict_values.len()];
-        create_murmur3_hashes(&[dict_values], &mut dict_hashes)?;
-
-        for (hash, key) in hashes_buffer.iter_mut().zip(dict_array.keys().iter()) {
-            if let Some(key) = key {
-                *hash = dict_hashes[key.as_usize()]
-            }
-            // No update for Null keys, consistent with other types.
-        }
-    }
-    Ok(())
+    hash_dictionary_values::<K, u32>(
+        array,
+        hashes_buffer,
+        seeds_are_pristine,
+        create_murmur3_hashes,
+    )
 }
 
 /// Create murmur3 hash values for every row, based on the values in the columns.
@@ -172,7 +159,7 @@ fn create_murmur3_hashes(arrays: &[ArrayRef], hashes_buffer: &mut [u32]) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::array::{Float32Array, Float64Array, StringArray};
+    use arrow::array::{DictionaryArray, Float32Array, Float64Array, StringArray};
     use arrow::datatypes::Int32Type;
 
     fn hash_of(array: ArrayRef) -> Vec<i32> {
@@ -233,6 +220,35 @@ mod tests {
         let f64s: ArrayRef = Arc::new(Float64Array::from(vec![0.0f64, -0.0f64]));
         let h = hash_of(f64s);
         assert_eq!(h[0], h[1]);
+    }
+
+    #[test]
+    fn test_hash_requires_an_argument() {
+        let err = SparkHash::new()
+            .return_field_from_args(ReturnFieldArgs {
+                arg_fields: &[],
+                scalar_arguments: &[],
+            })
+            .unwrap_err();
+        assert!(err.to_string().contains("at least one argument"));
+    }
+
+    #[test]
+    fn test_hash_dictionary_after_other_column_matches_decoded() {
+        // The running hashes are no longer uniform once a first column is hashed,
+        // so the dictionary must be expanded rather than hashed per value.
+        let first: ArrayRef = Arc::new(Int32Array::from(vec![1, 2, 3]));
+        let dict: ArrayRef = Arc::new(
+            vec!["a", "b", "a"]
+                .into_iter()
+                .collect::<DictionaryArray<Int32Type>>(),
+        );
+        let decoded: ArrayRef = Arc::new(StringArray::from(vec!["a", "b", "a"]));
+        let mut with_dict = vec![DEFAULT_SEED; 3];
+        create_murmur3_hashes(&[Arc::clone(&first), dict], &mut with_dict).unwrap();
+        let mut with_decoded = vec![DEFAULT_SEED; 3];
+        create_murmur3_hashes(&[first, decoded], &mut with_decoded).unwrap();
+        assert_eq!(with_dict, with_decoded);
     }
 
     #[test]

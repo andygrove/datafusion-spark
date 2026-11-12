@@ -4,12 +4,9 @@
 
 use std::sync::Arc;
 
-use arrow::array::{
-    Array, ArrayRef, DictionaryArray, Int64Array, types::ArrowDictionaryKeyType,
-};
+use arrow::array::{ArrayRef, Int64Array, types::ArrowDictionaryKeyType};
 use arrow::buffer::{Buffer, ScalarBuffer};
-use arrow::compute::take;
-use arrow::datatypes::{ArrowNativeType, DataType, Field, FieldRef};
+use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion_common::{Result, ScalarValue, internal_err};
 use datafusion_expr::{
     ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
@@ -17,6 +14,7 @@ use datafusion_expr::{
 };
 use twox_hash::XxHash64;
 
+use super::utils::hash_dictionary_values;
 use crate::create_hashes_internal;
 
 const DEFAULT_SEED: u64 = 42;
@@ -94,27 +92,12 @@ fn create_xxhash64_hashes_dictionary<K: ArrowDictionaryKeyType>(
     hashes_buffer: &mut [u64],
     seeds_are_pristine: bool,
 ) -> Result<()> {
-    let dict_array = array.as_any().downcast_ref::<DictionaryArray<K>>().unwrap();
-    if !seeds_are_pristine {
-        let unpacked = take(dict_array.values().as_ref(), dict_array.keys(), None)?;
-        create_xxhash64_hashes(&[unpacked], hashes_buffer)?;
-    } else {
-        // Hash each dictionary value once, then look up by key. This avoids
-        // redundant hashing of large dictionary entries (e.g. long strings).
-        let dict_values = Arc::clone(dict_array.values());
-        // Every row has the same running hash here, so start from it instead of 42
-        let seed = hashes_buffer.first().copied().unwrap_or(DEFAULT_SEED);
-        let mut dict_hashes = vec![seed; dict_values.len()];
-        create_xxhash64_hashes(&[dict_values], &mut dict_hashes)?;
-
-        for (hash, key) in hashes_buffer.iter_mut().zip(dict_array.keys().iter()) {
-            if let Some(key) = key {
-                *hash = dict_hashes[key.as_usize()]
-            }
-            // No update for Null keys, consistent with other types.
-        }
-    }
-    Ok(())
+    hash_dictionary_values::<K, u64>(
+        array,
+        hashes_buffer,
+        seeds_are_pristine,
+        create_xxhash64_hashes,
+    )
 }
 
 /// Create xxhash64 hash values for every row, based on the values in the columns.
@@ -136,7 +119,7 @@ fn create_xxhash64_hashes(arrays: &[ArrayRef], hashes_buffer: &mut [u64]) -> Res
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::array::{FixedSizeBinaryArray, Int32Array, StringArray};
+    use arrow::array::{DictionaryArray, FixedSizeBinaryArray, Int32Array, StringArray};
 
     #[test]
     fn test_xxhash64_nullability() -> Result<()> {

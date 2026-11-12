@@ -11,8 +11,11 @@
 //! Ported from Apache DataFusion Comet:
 //! <https://github.com/apache/datafusion-comet/blob/main/native/spark-expr/src/hash_funcs/utils.rs>
 
-use arrow::array::{Array, PrimitiveArray};
-use arrow::datatypes::ArrowPrimitiveType;
+use std::sync::Arc;
+
+use arrow::array::{Array, ArrayRef, DictionaryArray, PrimitiveArray};
+use arrow::compute::take;
+use arrow::datatypes::{ArrowDictionaryKeyType, ArrowNativeType, ArrowPrimitiveType};
 use datafusion_common::Result;
 
 /// Hash the values of a primitive array, calling `transform` to convert each
@@ -96,6 +99,40 @@ where
             if !array.is_null(i) {
                 *hash = hash_method(value_at(array, i)?, *hash);
             }
+        }
+    }
+    Ok(())
+}
+
+/// Hash a dictionary array by delegating to `recurse`, the hash function's own
+/// array-hashing entry point.
+///
+/// When `seeds_are_pristine` (every row still carries the same running hash),
+/// each dictionary value is hashed once and looked up per key. Otherwise the
+/// dictionary is expanded so each row is hashed from its own running hash.
+/// Null keys leave the running hash unchanged, like any other NULL.
+pub(crate) fn hash_dictionary_values<K: ArrowDictionaryKeyType, T: Copy>(
+    array: &ArrayRef,
+    hashes: &mut [T],
+    seeds_are_pristine: bool,
+    recurse: impl Fn(&[ArrayRef], &mut [T]) -> Result<()>,
+) -> Result<()> {
+    let dict_array = array.as_any().downcast_ref::<DictionaryArray<K>>().unwrap();
+    if !seeds_are_pristine {
+        let unpacked = take(dict_array.values().as_ref(), dict_array.keys(), None)?;
+        return recurse(&[unpacked], hashes);
+    }
+    let dict_values = Arc::clone(dict_array.values());
+    // Every row has the same running hash here, so seed the values with it.
+    // `hashes` is non-empty whenever there is a non-null key to look up.
+    let Some(&seed) = hashes.first() else {
+        return Ok(());
+    };
+    let mut dict_hashes = vec![seed; dict_values.len()];
+    recurse(&[dict_values], &mut dict_hashes)?;
+    for (hash, key) in hashes.iter_mut().zip(dict_array.keys().iter()) {
+        if let Some(key) = key {
+            *hash = dict_hashes[key.as_usize()];
         }
     }
     Ok(())

@@ -201,3 +201,7 @@ SELECT hash(column2) FROM hash_t;
 -1008564952
 -1808790533
 42
+
+# Spark requires at least one argument
+statement error
+SELECT hash();
