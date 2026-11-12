@@ -2,20 +2,20 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
-use std::fmt;
 use std::sync::Arc;
 
-use arrow::array::{Array, AsArray, Int32Array};
+use arrow::array::{Array, ArrayRef, AsArray, Int32Array};
 use arrow::datatypes::DataType;
 use datafusion_common::types::logical_string;
 use datafusion_common::utils::take_function_args;
-use datafusion_common::{Result, ScalarValue, exec_err};
+use datafusion_common::{Result, exec_err};
 use datafusion_expr::{
     Coercion, ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     TypeSignatureClass, Volatility,
 };
-use serde::Deserializer;
-use serde::de::{IgnoredAny, SeqAccess, Visitor};
+use datafusion_functions::utils::make_scalar_function;
+use serde::Deserialize;
+use serde::de::IgnoredAny;
 
 /// Spark-compatible `json_array_length(jsonArray)`.
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#json_array_length>
@@ -70,71 +70,33 @@ impl ScalarUDFImpl for JsonArrayLength {
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
-        let [arg] = take_function_args(self.name(), &args.args)?;
-        match arg {
-            ColumnarValue::Scalar(scalar) => {
-                let json = match scalar {
-                    ScalarValue::Utf8(v)
-                    | ScalarValue::LargeUtf8(v)
-                    | ScalarValue::Utf8View(v) => v.as_deref(),
-                    ScalarValue::Null => None,
-                    other => {
-                        return exec_err!(
-                            "json_array_length expects a string, got {}",
-                            other.data_type()
-                        );
-                    }
-                };
-                Ok(ColumnarValue::Scalar(ScalarValue::Int32(
-                    json.and_then(json_array_length),
-                )))
-            }
-            ColumnarValue::Array(array) => {
-                let lengths: Int32Array = match array.data_type() {
-                    DataType::Utf8 => lengths(array.as_string::<i32>().iter()),
-                    DataType::LargeUtf8 => lengths(array.as_string::<i64>().iter()),
-                    DataType::Utf8View => lengths(array.as_string_view().iter()),
-                    DataType::Null => Int32Array::new_null(array.len()),
-                    other => {
-                        return exec_err!(
-                            "json_array_length expects a string, got {other}"
-                        );
-                    }
-                };
-                Ok(ColumnarValue::Array(Arc::new(lengths)))
-            }
-        }
+        make_scalar_function(json_array_length_inner, vec![])(&args.args)
     }
+}
+
+fn json_array_length_inner(args: &[ArrayRef]) -> Result<ArrayRef> {
+    let [array] = take_function_args("json_array_length", args)?;
+    let lengths: Int32Array = match array.data_type() {
+        DataType::Utf8 => lengths(array.as_string::<i32>().iter()),
+        DataType::LargeUtf8 => lengths(array.as_string::<i64>().iter()),
+        DataType::Utf8View => lengths(array.as_string_view().iter()),
+        DataType::Null => Int32Array::new_null(array.len()),
+        other => return exec_err!("json_array_length expects a string, got {other}"),
+    };
+    Ok(Arc::new(lengths))
 }
 
 fn lengths<'a>(strings: impl Iterator<Item = Option<&'a str>>) -> Int32Array {
     strings.map(|s| s.and_then(json_array_length)).collect()
 }
 
-/// Counts the elements of a JSON array without materializing them.
-struct ArrayItemCounter;
-
-impl<'de> Visitor<'de> for ArrayItemCounter {
-    type Value = i32;
-
-    fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("a JSON array")
-    }
-
-    fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<i32, A::Error> {
-        let mut len = 0i32;
-        while seq.next_element::<IgnoredAny>()?.is_some() {
-            len += 1;
-        }
-        Ok(len)
-    }
-}
-
-/// `None` unless `json` starts with a complete, valid JSON array.
+/// `None` unless `json` starts with a complete, valid JSON array. Elements are
+/// skipped (`IgnoredAny` is zero-sized) and anything after the closing bracket is
+/// not read.
 fn json_array_length(json: &str) -> Option<i32> {
-    serde_json::Deserializer::from_str(json)
-        .deserialize_seq(ArrayItemCounter)
-        .ok()
+    let elements =
+        Vec::<IgnoredAny>::deserialize(&mut serde_json::Deserializer::from_str(json));
+    elements.ok().and_then(|v| i32::try_from(v.len()).ok())
 }
 
 #[cfg(test)]
