@@ -11,7 +11,7 @@ use datafusion_common::{Result, exec_datafusion_err, exec_err};
 use datafusion_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
 };
-use regex::Regex;
+use regex::{CaptureLocations, Regex};
 
 use crate::function::error_utils::invalid_arg_count_exec_err;
 
@@ -119,8 +119,9 @@ fn extract(
     indexes: &Int32Array,
 ) -> Result<ArrayRef> {
     let mut builder = StringBuilder::with_capacity(strings.len(), 0);
-    // The pattern is almost always a literal, so keep only the last one compiled.
-    let mut cached: Option<(&str, Regex)> = None;
+    // The pattern is almost always a literal, so keep only the last one compiled,
+    // with a capture buffer reused across rows instead of allocated per match.
+    let mut cached: Option<(&str, Regex, CaptureLocations)> = None;
 
     for row in 0..strings.len() {
         if strings.is_null(row) || patterns.is_null(row) || indexes.is_null(row) {
@@ -128,9 +129,13 @@ fn extract(
             continue;
         }
         let pattern = patterns.value(row);
-        let regex = match &cached {
-            Some((p, regex)) if *p == pattern => regex,
-            _ => &cached.insert((pattern, compile(pattern)?)).1,
+        let (_, regex, locations) = match &mut cached {
+            Some(entry) if entry.0 == pattern => entry,
+            _ => {
+                let regex = compile(pattern)?;
+                let locations = regex.capture_locations();
+                cached.insert((pattern, regex, locations))
+            }
         };
         let idx = indexes.value(row);
         let group_count = regex.captures_len() - 1;
@@ -144,9 +149,9 @@ fn extract(
         };
         let subject = strings.value(row);
         let text = regex
-            .captures(subject)
-            .and_then(|caps| caps.get(group))
-            .map_or("", |m| m.as_str());
+            .captures_read(locations, subject)
+            .and_then(|_| locations.get(group))
+            .map_or("", |(start, end)| &subject[start..end]);
         builder.append_value(text);
     }
     Ok(Arc::new(builder.finish()))
