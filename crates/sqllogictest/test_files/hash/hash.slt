@@ -1,0 +1,203 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+# Tests for Spark-compatible hash (32-bit Murmur3, seed 42)
+# Reference: https://spark.apache.org/docs/latest/api/sql/index.html#hash
+# Expected values come from Comet's Spark-verified murmur3 tests.
+
+# Int32
+
+query I
+SELECT hash(arrow_cast(1, 'Int32'));
+----
+-559580957
+
+query I
+SELECT hash(arrow_cast(0, 'Int32'));
+----
+933211791
+
+query I
+SELECT hash(arrow_cast(-1, 'Int32'));
+----
+-1604776387
+
+query I
+SELECT hash(arrow_cast(2147483647, 'Int32'));
+----
+133916647
+
+query I
+SELECT hash(arrow_cast(-2147483648, 'Int32'));
+----
+723455942
+
+# Int64
+
+query I
+SELECT hash(arrow_cast(1, 'Int64'));
+----
+-1712319331
+
+query I
+SELECT hash(arrow_cast(0, 'Int64'));
+----
+-1670924195
+
+query I
+SELECT hash(arrow_cast(-1, 'Int64'));
+----
+-939490007
+
+query I
+SELECT hash(arrow_cast(9223372036854775807, 'Int64'));
+----
+-1604625029
+
+query I
+SELECT hash(arrow_cast(-9223372036854775808, 'Int64'));
+----
+-853646085
+
+# Float64: -0.0 hashes like 0.0
+
+query I
+SELECT hash(arrow_cast(1.0, 'Float64'));
+----
+-460888942
+
+query I
+SELECT hash(arrow_cast(0.0, 'Float64'));
+----
+-1670924195
+
+query I
+SELECT hash(arrow_cast(-0.0, 'Float64'));
+----
+-1670924195
+
+query I
+SELECT hash(arrow_cast(-1.0, 'Float64'));
+----
+332927831
+
+# Float32: -0.0 hashes like 0.0
+
+query I
+SELECT hash(arrow_cast(1.0, 'Float32'));
+----
+-466301895
+
+query I
+SELECT hash(arrow_cast(0.0, 'Float32'));
+----
+933211791
+
+query I
+SELECT hash(arrow_cast(-0.0, 'Float32'));
+----
+933211791
+
+query I
+SELECT hash(arrow_cast(-1.0, 'Float32'));
+----
+-603084565
+
+# Strings: every tail length, multi-byte UTF-8
+
+query I
+SELECT hash('hello');
+----
+-1008564952
+
+query I
+SELECT hash('bar');
+----
+-1808790533
+
+query I
+SELECT hash('');
+----
+142593372
+
+query I
+SELECT hash('a');
+----
+1485273170
+
+query I
+SELECT hash('ab');
+----
+-97053317
+
+query I
+SELECT hash('abc');
+----
+1322437556
+
+query I
+SELECT hash('abcd');
+----
+-396302900
+
+query I
+SELECT hash('abcde');
+----
+814637928
+
+query I
+SELECT hash('😁');
+----
+885025535
+
+query I
+SELECT hash('天地');
+----
+-1899966402
+
+# NULL leaves the seed (42) unchanged; the result is never NULL
+query I
+SELECT hash(NULL);
+----
+42
+
+query I
+SELECT hash(arrow_cast(NULL, 'Int32'));
+----
+42
+
+# NULL arguments are skipped when hashing several columns
+query B
+SELECT hash(1, NULL) = hash(1);
+----
+true
+
+query B
+SELECT hash(NULL, 1) = hash(1);
+----
+true
+
+# Arguments chain: the hash of the previous argument seeds the next
+query B
+SELECT hash(1, 2) = hash(2, 1);
+----
+false
+
+# Table data (VALUES integers are Int64, which hash as 8 bytes)
+statement ok
+CREATE TABLE hash_t AS VALUES (1, 'hello'), (NULL, 'bar'), (0, NULL);
+
+query I
+SELECT hash(column1) FROM hash_t;
+----
+-1712319331
+42
+-1670924195
+
+query I
+SELECT hash(column2) FROM hash_t;
+----
+-1008564952
+-1808790533
+42

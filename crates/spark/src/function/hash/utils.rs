@@ -18,16 +18,16 @@ use datafusion_common::Result;
 /// Hash the values of a primitive array, calling `transform` to convert each
 /// value into a byte slice before feeding it to `hash_method`.
 #[inline]
-pub(crate) fn hash_primitive_values<P, F, B, H>(
+pub(crate) fn hash_primitive_values<T: Copy, P, F, B, H>(
     array: &PrimitiveArray<P>,
-    hashes: &mut [u64],
+    hashes: &mut [T],
     transform: F,
     hash_method: H,
 ) where
     P: ArrowPrimitiveType,
     F: Fn(P::Native) -> B,
     B: AsRef<[u8]>,
-    H: Fn(B, u64) -> u64,
+    H: Fn(B, T) -> T,
 {
     let values = array.values();
     if array.null_count() == 0 {
@@ -50,15 +50,15 @@ pub(crate) fn hash_primitive_values<P, F, B, H>(
 /// and their Large/View variants) and for arrays whose values need a small
 /// transform (e.g. booleans widened to `i32`, decimals to `i128` bytes).
 #[inline]
-pub(crate) fn hash_bytes_values<A, B, H>(
+pub(crate) fn hash_bytes_values<T: Copy, A, B, H>(
     array: &A,
-    hashes: &mut [u64],
+    hashes: &mut [T],
     value_at: impl Fn(&A, usize) -> B,
     hash_method: H,
 ) where
     A: Array,
     B: AsRef<[u8]>,
-    H: Fn(B, u64) -> u64,
+    H: Fn(B, T) -> T,
 {
     if array.null_count() == 0 {
         for (i, hash) in hashes.iter_mut().enumerate() {
@@ -76,16 +76,16 @@ pub(crate) fn hash_bytes_values<A, B, H>(
 /// Fallible variant of [`hash_bytes_values`]: `value_at` may return an error
 /// (used by the small-decimal path, where values may not fit in `i64`).
 #[inline]
-pub(crate) fn try_hash_bytes_values<A, B, H>(
+pub(crate) fn try_hash_bytes_values<T: Copy, A, B, H>(
     array: &A,
-    hashes: &mut [u64],
+    hashes: &mut [T],
     value_at: impl Fn(&A, usize) -> Result<B>,
     hash_method: H,
 ) -> Result<()>
 where
     A: Array,
     B: AsRef<[u8]>,
-    H: Fn(B, u64) -> u64,
+    H: Fn(B, T) -> T,
 {
     if array.null_count() == 0 {
         for (i, hash) in hashes.iter_mut().enumerate() {
