@@ -6,9 +6,65 @@ SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one
 
 # Apache DataFusion Spark-compatible Expressions
 
+[![Crates.io](https://img.shields.io/crates/v/datafusion-spark.svg)](https://crates.io/crates/datafusion-spark)
+[![docs.rs](https://docs.rs/datafusion-spark/badge.svg)](https://docs.rs/datafusion-spark)
+
 [Apache DataFusion] is an extensible query execution framework, written in Rust, that uses [Apache Arrow] as its in-memory format.
 
-This crate is a submodule of DataFusion that provides [Apache Spark] compatible expressions for use with DataFusion.
+`datafusion-spark` provides [Apache Spark] compatible expressions for use with DataFusion: scalar,
+aggregate, window and table functions that follow Spark's semantics, plus a Spark-aware expression
+planner.
+
+DataFusion's built-in functions follow PostgreSQL / DuckDB conventions, so a function with the same
+name can behave differently in Spark (NULL handling, overflow, string indexing, rounding, ANSI mode
+errors, ...). This crate is useful when you are:
+
+- building an engine on DataFusion that must produce the same results as Spark (for example
+  [Apache DataFusion Comet]), or
+- running SQL migrated from Spark on DataFusion.
+
+Not every Spark function is implemented yet. Progress is tracked in the
+[`datafusion-spark` epic]; see the [API documentation] for the functions available today.
+
+## Quick start
+
+Add the crate with the `core` feature, which provides the `SessionStateBuilderSpark` helper:
+
+```toml
+[dependencies]
+datafusion = "X"
+datafusion-spark = { version = "X", features = ["core"] }
+```
+
+Enable Spark features on a session. Call `with_spark_features` **after** `with_default_features`, since
+Spark functions replace DataFusion functions with the same name:
+
+```rust
+use datafusion::execution::SessionStateBuilder;
+use datafusion::prelude::SessionContext;
+use datafusion_spark::SessionStateBuilderSpark;
+
+let state = SessionStateBuilder::new()
+    .with_default_features()
+    .with_spark_features()
+    .build();
+let ctx = SessionContext::new_with_state(state);
+
+// `sha2` now has Spark semantics
+let df = ctx.sql("SELECT sha2('Spark', 256)").await?;
+```
+
+Without the `core` feature the crate only depends on DataFusion's building-block crates. You can then
+register functions with any `FunctionRegistry` using `datafusion_spark::register_all`, or pick
+individual functions from the `datafusion_spark::function::*` packages. Each package also has an
+`expr_fn` module for building expressions from Rust:
+
+```rust
+use datafusion_expr::{col, lit};
+use datafusion_spark::expr_fn::sha2;
+
+let expr = sha2(col("my_data"), lit(256));
+```
 
 ## Using the DataFusion CLI
 
@@ -22,43 +78,21 @@ datafusion-cli --spark
 The option is disabled by default because Spark-compatible functions can
 override DataFusion functions with the same name.
 
+## Things to know
+
+- **Spark functions override built-ins** with the same name for the session they are registered in.
+- **ANSI mode**: functions whose behavior depends on it honor `datafusion.execution.enable_ansi_mode`.
+- **Input types** are limited to those Spark supports (no unsigned integers, `Float16`, `Decimal64`).
+- **Explicit casts** are recommended in SQL, since DataFusion and Spark infer literal types differently.
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](https://github.com/apache/datafusion-spark/blob/main/CONTRIBUTING.md)
+and the [DataFusion contributor guide](https://datafusion.apache.org/contributor-guide/).
+
 [apache arrow]: https://arrow.apache.org/
 [apache datafusion]: https://datafusion.apache.org/
 [apache spark]: https://spark.apache.org/
-
-## Implementation Guidelines
-
-When implementing these functions, you can check if there are existing implementations
-in the [Sail] or [Comet] projects first. If you do port functionality from these
-sources, make sure to port over the corresponding tests too, to ensure correctness
-and compatibility.
-
-### `simplify()`
-
-DataFusion functions allow you to implement `simplify()` which can let you rewrite
-the function call during logical optimization, theoretically allowing you to avoid
-implementing physical execution via `invoke_with_args()` if the rewrite is unconditional
-(e.g. rewrite to an arithmetic operation).
-
-**However, `invoke_with_args()` must always be implemented for functions in this
-crate.** This is because downstream users such as Comet rely on DataFusion for physical
-execution, and not logical planning/optimization. That means if a function doesn't
-have a physical implementation (`invoke_with_args()`) it is not usable by Comet.
-
-### Supported types
-
-The functions in this crate need only support input types available to Spark; that
-is, they do not need to handle unsigned types or types such as `Float16` or `Decimal64`.
-
-[sail]: https://github.com/lakehq/sail
-[comet]: https://github.com/apache/datafusion-comet
-
-## Testing Guidelines
-
-Prefer adding tests via SQLLogicTests where possible, see the [Spark SQLLogicTest README].
-Resort to adding tests as Rust unit tests where it is impossible or difficult to
-test via SLT. This is because direct invocation via Rust skips steps such as input
-coercion, and is usually more verbose in the setup needed to pass data in (and
-assert output data).
-
-[spark sqllogictest readme]: ../sqllogictest/test_files/spark/README.md
+[apache datafusion comet]: https://datafusion.apache.org/comet/
+[api documentation]: https://docs.rs/datafusion-spark
+[`datafusion-spark` epic]: https://github.com/apache/datafusion/issues/15914
