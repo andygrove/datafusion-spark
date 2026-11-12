@@ -1,0 +1,114 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+# Tests for Spark-compatible regexp_extract
+# Reference: https://spark.apache.org/docs/latest/api/sql/index.html#regexp_extract
+# Expected values come from Spark's sql-tests/results/regexp-functions.sql.out.
+# Patterns use Rust regex syntax, so Java-only features are not covered.
+
+query T
+SELECT regexp_extract('1a 2b 14m', '\d+', 0);
+----
+1
+
+# Default group index is 1
+query T
+SELECT regexp_extract('1a 2b 14m', '(\d+)([a-z]+)');
+----
+1
+
+query T
+SELECT regexp_extract('1a 2b 14m', '(\d+)([a-z]+)', 0);
+----
+1a
+
+query T
+SELECT regexp_extract('1a 2b 14m', '(\d+)([a-z]+)', 1);
+----
+1
+
+query T
+SELECT regexp_extract('1a 2b 14m', '(\d+)([a-z]+)', 2);
+----
+a
+
+# A group that did not take part in the match, or no match at all, gives ''
+query T
+SELECT regexp_extract('1a 2b 14m', '(\d+)?', 1);
+----
+1
+
+query T
+SELECT regexp_extract('a b m', '(\d+)?', 1);
+----
+(empty)
+
+query T
+SELECT regexp_extract('1a 2b 14m', '(\d+)?([a-z]+)', 1);
+----
+1
+
+query T
+SELECT regexp_extract('a b m', '(\d+)?([a-z]+)', 1);
+----
+(empty)
+
+query T
+SELECT regexp_extract('abc', '(\d+)', 1);
+----
+(empty)
+
+# NULL in any argument gives NULL
+query T
+SELECT regexp_extract(NULL, '(\d+)', 1);
+----
+NULL
+
+query T
+SELECT regexp_extract('a1', NULL, 1);
+----
+NULL
+
+query T
+SELECT regexp_extract('a1', '(\d+)', NULL);
+----
+NULL
+
+# Group index out of range
+statement error INVALID_PARAMETER_VALUE.REGEX_GROUP_INDEX.*Expects group index between 0 and 0, but got 1
+SELECT regexp_extract('1a 2b 14m', '\d+');
+
+statement error Expects group index between 0 and 0, but got 1
+SELECT regexp_extract('1a 2b 14m', '\d+', 1);
+
+statement error Expects group index between 0 and 0, but got 2
+SELECT regexp_extract('1a 2b 14m', '\d+', 2);
+
+statement error Expects group index between 0 and 0, but got -1
+SELECT regexp_extract('1a 2b 14m', '\d+', -1);
+
+statement error Expects group index between 0 and 2, but got 3
+SELECT regexp_extract('1a 2b 14m', '(\d+)([a-z]+)', 3);
+
+statement error Expects group index between 0 and 2, but got -1
+SELECT regexp_extract('1a 2b 14m', '(\d+)([a-z]+)', -1);
+
+# Invalid pattern
+statement error INVALID_PARAMETER_VALUE.PATTERN
+SELECT regexp_extract('1a 2b 14m', '(?l)');
+
+# Wrong number of arguments
+statement error
+SELECT regexp_extract('abc');
+
+# Column input, including NULL rows and a per-row pattern
+statement ok
+CREATE TABLE regexp_extract_t AS VALUES ('100-200', '(\d+)-(\d+)'), (NULL, '(\d+)'), ('abc', '([a-z])');
+
+query T
+SELECT regexp_extract(column1, column2, 1) FROM regexp_extract_t;
+----
+100
+NULL
+a

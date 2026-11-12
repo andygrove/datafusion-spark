@@ -17,6 +17,7 @@ pub mod like;
 pub mod luhn_check;
 pub mod make_valid_utf8;
 pub mod quote;
+pub mod regexp_extract;
 pub mod soundex;
 pub mod space;
 pub mod substring;
@@ -45,6 +46,7 @@ make_udf_function!(soundex::SparkSoundex, soundex);
 make_udf_function!(make_valid_utf8::SparkMakeValidUtf8, make_valid_utf8);
 make_udf_function!(is_valid_utf8::SparkIsValidUtf8, is_valid_utf8);
 make_udf_function!(quote::SparkQuote, quote);
+make_udf_function!(regexp_extract::SparkRegexpExtract, regexp_extract);
 make_udf_function!(to_binary::SparkToBinary, to_binary);
 make_udf_function!(to_binary::SparkTryToBinary, try_to_binary);
 
@@ -171,6 +173,7 @@ pub fn functions() -> Vec<Arc<ScalarUDF>> {
         make_valid_utf8(),
         is_valid_utf8(),
         quote(),
+        regexp_extract(),
         to_binary(),
         try_to_binary(),
     ]
