@@ -79,15 +79,27 @@ impl ScalarUDFImpl for SparkDateFromUnixDate {
 mod tests {
     use std::sync::Arc;
 
-    use arrow::array::{Array, Date32Array, Int32Array};
+    use arrow::array::{Array, ArrayRef, Date32Array, Int32Array};
+    use arrow::datatypes::Field;
+    use datafusion_common::config::ConfigOptions;
 
     use super::*;
 
     #[test]
-    fn array_input_reinterprets_days() -> Result<()> {
-        let input: arrow::array::ArrayRef =
+    fn days_become_dates() -> Result<()> {
+        let input: ArrayRef =
             Arc::new(Int32Array::from(vec![Some(0), Some(1000), None, Some(-1)]));
-        let out = cast(&input, &DataType::Date32)?;
+        let result =
+            SparkDateFromUnixDate::new().invoke_with_args(ScalarFunctionArgs {
+                args: vec![ColumnarValue::Array(input)],
+                arg_fields: vec![Arc::new(Field::new("days", DataType::Int32, true))],
+                number_rows: 4,
+                return_field: Arc::new(Field::new("r", DataType::Date32, true)),
+                config_options: Arc::new(ConfigOptions::default()),
+            })?;
+        let ColumnarValue::Array(out) = result else {
+            panic!("expected an array");
+        };
         let expected = Date32Array::from(vec![Some(0), Some(1000), None, Some(-1)]);
         assert_eq!(out.to_data(), expected.to_data());
         Ok(())

@@ -4,8 +4,8 @@
 
 pub mod add_months;
 pub mod date_add;
-pub mod date_from_unix_date;
 pub mod date_diff;
+pub mod date_from_unix_date;
 pub mod date_part;
 pub mod date_sub;
 pub mod date_trunc;
@@ -29,11 +29,11 @@ use std::sync::Arc;
 
 make_udf_function!(add_months::SparkAddMonths, add_months);
 make_udf_function!(date_add::SparkDateAdd, date_add);
+make_udf_function!(date_diff::SparkDateDiff, date_diff);
 make_udf_function!(
     date_from_unix_date::SparkDateFromUnixDate,
     date_from_unix_date
 );
-make_udf_function!(date_diff::SparkDateDiff, date_diff);
 make_udf_function!(date_part::SparkDatePart, date_part);
 make_udf_function!(date_sub::SparkDateSub, date_sub);
 make_udf_function!(date_trunc::SparkDateTrunc, date_trunc);
