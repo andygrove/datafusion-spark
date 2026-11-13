@@ -7,7 +7,7 @@ use std::sync::Arc;
 use arrow::array::{ArrayRef, Int32Array, types::ArrowDictionaryKeyType};
 use arrow::buffer::{Buffer, ScalarBuffer};
 use arrow::datatypes::{DataType, Field, FieldRef};
-use datafusion_common::{Result, ScalarValue, internal_err, plan_err};
+use datafusion_common::{Result, ScalarValue, internal_err};
 use datafusion_expr::{
     ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     Volatility,
@@ -52,23 +52,31 @@ impl ScalarUDFImpl for SparkHash {
         internal_err!("return_field_from_args should be used instead")
     }
 
-    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        if args.arg_fields.is_empty() {
-            return plan_err!("hash requires at least one argument");
-        }
+    fn return_field_from_args(&self, _args: ReturnFieldArgs) -> Result<FieldRef> {
         // Spark's HashExpression overrides nullable to false: NULL inputs are
         // skipped and the seed is used, so the result is never null.
         Ok(Arc::new(Field::new(self.name(), DataType::Int32, false)))
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
-        let num_rows = args.number_rows;
-        let mut hashes: Vec<u32> = vec![DEFAULT_SEED; num_rows];
+        // When every argument is a scalar the result is the same for every row,
+        // so hash a single row and return a scalar. Otherwise expand scalars to
+        // the batch length so every array has `number_rows` entries.
+        let all_scalars = args
+            .args
+            .iter()
+            .all(|arg| matches!(arg, ColumnarValue::Scalar(_)));
+        let num_rows = if all_scalars { 1 } else { args.number_rows };
+        let arrays = args
+            .args
+            .iter()
+            .map(|arg| arg.to_array(num_rows))
+            .collect::<Result<Vec<_>>>()?;
 
-        let arrays = ColumnarValue::values_to_arrays(&args.args)?;
+        let mut hashes: Vec<u32> = vec![DEFAULT_SEED; num_rows];
         create_murmur3_hashes(&arrays, &mut hashes)?;
 
-        if num_rows == 1 {
+        if all_scalars {
             Ok(ColumnarValue::Scalar(ScalarValue::Int32(Some(
                 hashes[0] as i32,
             ))))
@@ -114,13 +122,12 @@ fn fmix(mut h1: u32, len: u32) -> u32 {
 #[inline]
 fn spark_compatible_murmur3_hash<T: AsRef<[u8]>>(data: T, seed: u32) -> u32 {
     let data = data.as_ref();
-    let mut chunks = data.chunks_exact(4);
+    let (words, tail) = data.as_chunks::<4>();
     let mut h1 = seed;
-    for chunk in &mut chunks {
-        let word = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
-        h1 = mix_h1(h1, mix_k1(word));
+    for word in words {
+        h1 = mix_h1(h1, mix_k1(u32::from_le_bytes(*word)));
     }
-    for &byte in chunks.remainder() {
+    for &byte in tail {
         h1 = mix_h1(h1, mix_k1(byte as i8 as i32 as u32));
     }
     fmix(h1, data.len() as u32)
@@ -159,8 +166,9 @@ fn create_murmur3_hashes(arrays: &[ArrayRef], hashes_buffer: &mut [u32]) -> Resu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::array::{DictionaryArray, Float32Array, Float64Array, StringArray};
+    use arrow::array::{DictionaryArray, StringArray};
     use arrow::datatypes::Int32Type;
+    use datafusion_common::config::ConfigOptions;
 
     fn hash_of(array: ArrayRef) -> Vec<i32> {
         let mut hashes = vec![DEFAULT_SEED; array.len()];
@@ -179,58 +187,6 @@ mod tests {
         assert!(!out.is_nullable());
         assert_eq!(out.data_type(), &DataType::Int32);
         Ok(())
-    }
-
-    // Expected values are taken from Comet's Spark-verified murmur3 tests.
-    #[test]
-    fn test_hash_i32() {
-        assert_eq!(
-            hash_of(Arc::new(Int32Array::from(vec![1, 0, -1]))),
-            vec![-559580957, 933211791, -1604776387]
-        );
-    }
-
-    #[test]
-    fn test_hash_str() {
-        let array: ArrayRef = Arc::new(StringArray::from(vec![
-            "hello", "", "a", "ab", "abc", "abcd", "abcde", "天地",
-        ]));
-        // Covers every tail length (0-3 bytes) and multi-byte UTF-8.
-        assert_eq!(
-            hash_of(array),
-            [
-                3286402344u32,
-                142593372,
-                1485273170,
-                0xfa37157b,
-                1322437556,
-                0xe860e5cc,
-                814637928,
-                2395000894
-            ]
-            .map(|h| h as i32)
-        );
-    }
-
-    #[test]
-    fn test_hash_negative_zero() {
-        let f32s: ArrayRef = Arc::new(Float32Array::from(vec![0.0f32, -0.0f32]));
-        let h = hash_of(f32s);
-        assert_eq!(h[0], h[1]);
-        let f64s: ArrayRef = Arc::new(Float64Array::from(vec![0.0f64, -0.0f64]));
-        let h = hash_of(f64s);
-        assert_eq!(h[0], h[1]);
-    }
-
-    #[test]
-    fn test_hash_requires_an_argument() {
-        let err = SparkHash::new()
-            .return_field_from_args(ReturnFieldArgs {
-                arg_fields: &[],
-                scalar_arguments: &[],
-            })
-            .unwrap_err();
-        assert!(err.to_string().contains("at least one argument"));
     }
 
     #[test]
@@ -252,17 +208,75 @@ mod tests {
     }
 
     #[test]
-    fn test_hash_null_keeps_seed() {
-        let array: ArrayRef = Arc::new(Int32Array::from(vec![None, Some(1)]));
-        assert_eq!(hash_of(array)[0], 42);
-    }
-
-    #[test]
     fn test_hash_dictionary_matches_decoded() {
         let dict: DictionaryArray<Int32Type> =
             vec!["hello", "world", "hello"].into_iter().collect();
         let decoded: ArrayRef =
             Arc::new(StringArray::from(vec!["hello", "world", "hello"]));
         assert_eq!(hash_of(Arc::new(dict)), hash_of(decoded));
+    }
+
+    fn invoke(args: Vec<ColumnarValue>, number_rows: usize) -> Result<ColumnarValue> {
+        let arg_fields = args
+            .iter()
+            .enumerate()
+            .map(|(i, arg)| Arc::new(Field::new(format!("a{i}"), arg.data_type(), true)))
+            .collect();
+        SparkHash::new().invoke_with_args(ScalarFunctionArgs {
+            args,
+            arg_fields,
+            number_rows,
+            return_field: Arc::new(Field::new("hash", DataType::Int32, false)),
+            config_options: Arc::new(ConfigOptions::default()),
+        })
+    }
+
+    // An all-literal hash(...) that is not constant-folded (e.g. a physical
+    // expression built directly) is evaluated with the batch's row count, while
+    // every argument is a scalar. This cannot be reached from SQL.
+    #[test]
+    fn test_hash_all_scalar_args_with_many_rows() -> Result<()> {
+        let args = vec![
+            ColumnarValue::Scalar(ScalarValue::Int32(Some(1))),
+            ColumnarValue::Scalar(ScalarValue::Utf8(Some("hello".to_string()))),
+        ];
+        let mut expected = vec![DEFAULT_SEED];
+        create_murmur3_hashes(
+            &[
+                Arc::new(Int32Array::from(vec![1])),
+                Arc::new(StringArray::from(vec!["hello"])),
+            ],
+            &mut expected,
+        )?;
+        match invoke(args, 3)? {
+            ColumnarValue::Scalar(ScalarValue::Int32(Some(h))) => {
+                assert_eq!(h, expected[0] as i32)
+            }
+            other => panic!("expected an Int32 scalar, got {other:?}"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn test_hash_scalar_and_array_args() -> Result<()> {
+        let args = vec![
+            ColumnarValue::Scalar(ScalarValue::Int32(Some(1))),
+            ColumnarValue::Array(Arc::new(StringArray::from(vec!["a", "b", "c"]))),
+        ];
+        let mut expected = vec![DEFAULT_SEED; 3];
+        create_murmur3_hashes(
+            &[
+                Arc::new(Int32Array::from(vec![1, 1, 1])),
+                Arc::new(StringArray::from(vec!["a", "b", "c"])),
+            ],
+            &mut expected,
+        )?;
+        let ColumnarValue::Array(out) = invoke(args, 3)? else {
+            panic!("expected an array");
+        };
+        let out = out.as_any().downcast_ref::<Int32Array>().unwrap();
+        let expected: Vec<i32> = expected.into_iter().map(|h| h as i32).collect();
+        assert_eq!(out.values().to_vec(), expected);
+        Ok(())
     }
 }

@@ -60,19 +60,29 @@ impl ScalarUDFImpl for SparkXxhash64 {
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
-        let num_rows = args.number_rows;
-        let mut hashes: Vec<u64> = vec![DEFAULT_SEED; num_rows];
+        // When every argument is a scalar the result is the same for every row,
+        // so hash a single row and return a scalar. Otherwise expand scalars to
+        // the batch length so every array has `number_rows` entries.
+        let all_scalars = args
+            .args
+            .iter()
+            .all(|arg| matches!(arg, ColumnarValue::Scalar(_)));
+        let num_rows = if all_scalars { 1 } else { args.number_rows };
+        let arrays = args
+            .args
+            .iter()
+            .map(|arg| arg.to_array(num_rows))
+            .collect::<Result<Vec<_>>>()?;
 
-        let arrays = ColumnarValue::values_to_arrays(&args.args)?;
+        let mut hashes: Vec<u64> = vec![DEFAULT_SEED; num_rows];
         create_xxhash64_hashes(&arrays, &mut hashes)?;
 
-        if num_rows == 1 {
+        if all_scalars {
             Ok(ColumnarValue::Scalar(ScalarValue::Int64(Some(
                 hashes[0] as i64,
             ))))
         } else {
-            // Reinterpret Vec<u64> as ScalarBuffer<i64> without copying — both
-            // types have identical layout, and `as i64` is a bitcast.
+            // Reinterpret Vec<u64> as ScalarBuffer<i64> without copying.
             let buffer = ScalarBuffer::<i64>::from(Buffer::from_vec(hashes));
             Ok(ColumnarValue::Array(Arc::new(Int64Array::new(
                 buffer, None,
@@ -501,5 +511,42 @@ mod tests {
             assert_ne!(*hash, DEFAULT_SEED);
         }
         assert_ne!(hashes[0], hashes[1]);
+    }
+    // An all-literal xxhash64(...) that is not constant-folded is evaluated with
+    // the batch's row count while every argument is a scalar. This cannot be
+    // reached from SQL.
+    #[test]
+    fn test_xxhash64_all_scalar_args_with_many_rows() -> Result<()> {
+        let args = vec![
+            ColumnarValue::Scalar(ScalarValue::Int32(Some(1))),
+            ColumnarValue::Scalar(ScalarValue::Utf8(Some("hello".to_string()))),
+        ];
+        let arg_fields = args
+            .iter()
+            .enumerate()
+            .map(|(i, arg)| Arc::new(Field::new(format!("a{i}"), arg.data_type(), true)))
+            .collect();
+        let out = SparkXxhash64::new().invoke_with_args(ScalarFunctionArgs {
+            args,
+            arg_fields,
+            number_rows: 3,
+            return_field: Arc::new(Field::new("xxhash64", DataType::Int64, false)),
+            config_options: Arc::new(datafusion_common::config::ConfigOptions::default()),
+        })?;
+        let mut expected = vec![DEFAULT_SEED];
+        create_xxhash64_hashes(
+            &[
+                Arc::new(Int32Array::from(vec![1])),
+                Arc::new(StringArray::from(vec!["hello"])),
+            ],
+            &mut expected,
+        )?;
+        match out {
+            ColumnarValue::Scalar(ScalarValue::Int64(Some(h))) => {
+                assert_eq!(h, expected[0] as i64)
+            }
+            other => panic!("expected an Int64 scalar, got {other:?}"),
+        }
+        Ok(())
     }
 }

@@ -51,7 +51,7 @@ pub(crate) fn hash_primitive_values<T: Copy, P, F, B, H>(
 /// Hash an array by calling `value_at(array, i)` to produce a byte slice for
 /// each non-null row. Used for byte-slice arrays (Utf8/Binary/FixedSizeBinary
 /// and their Large/View variants) and for arrays whose values need a small
-/// transform (e.g. booleans widened to `i32`, decimals to `i128` bytes).
+/// transform (e.g. booleans widened to `i32`).
 #[inline]
 pub(crate) fn hash_bytes_values<T: Copy, A, B, H>(
     array: &A,
@@ -136,6 +136,33 @@ pub(crate) fn hash_dictionary_values<K: ArrowDictionaryKeyType, T: Copy>(
         }
     }
     Ok(())
+}
+
+/// The minimal big-endian two's complement bytes of an `i128`, matching Java's
+/// `BigInteger.toByteArray()` (which Spark hashes for decimals with precision
+/// greater than 18).
+pub(crate) struct DecimalBytes {
+    bytes: [u8; 16],
+    start: usize,
+}
+
+impl AsRef<[u8]> for DecimalBytes {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        &self.bytes[self.start..]
+    }
+}
+
+/// Encode `value` like Java's `BigInteger.toByteArray()`: big-endian, dropping
+/// leading bytes that only repeat the sign while keeping one sign bit.
+#[inline]
+pub(crate) fn decimal_unscaled_bytes(value: i128) -> DecimalBytes {
+    let sign_bits = value.leading_zeros().max(value.leading_ones());
+    let start = (sign_bits.saturating_sub(1) / 8) as usize;
+    DecimalBytes {
+        bytes: value.to_be_bytes(),
+        start,
+    }
 }
 
 /// Downcast `$column` to `$array_type`, panicking with a useful error if the
@@ -254,16 +281,18 @@ macro_rules! hash_array_small_decimal {
     };
 }
 
-/// Hash a wide decimal array using the raw 128-bit byte representation.
+/// Hash a wide (precision > 18) decimal array the way Spark does: by hashing
+/// `unscaledValue().toByteArray()`, the minimal big-endian two's complement
+/// encoding of the unscaled value (see [`decimal_unscaled_bytes`]).
 #[macro_export]
 #[doc(hidden)]
 macro_rules! hash_array_decimal {
     ($array_type:ident, $column:ident, $hashes:ident, $hash_method:ident) => {
         let array = $crate::downcast_array!($column, $array_type);
-        $crate::function::hash::utils::hash_bytes_values(
+        $crate::function::hash::utils::hash_primitive_values(
             array,
             $hashes,
-            |a, i| a.value(i).to_le_bytes(),
+            $crate::function::hash::utils::decimal_unscaled_bytes,
             $hash_method,
         );
     };

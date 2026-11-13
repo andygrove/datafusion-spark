@@ -198,3 +198,100 @@ SELECT xxhash64(7, nullif(s, s)), xxhash64(7)
 FROM (SELECT named_struct('a', 1, 'b', 'x') AS s);
 ----
 -2864211556195259663 -2864211556195259663
+
+# Spark's documented example; DataFusion types 123 and 2 as BIGINT, Spark as INT
+query I
+SELECT xxhash64('Spark', [CAST(123 AS INT)], CAST(2 AS INT));
+----
+5602566077635097486
+
+# Decimals with precision <= 18 hash as the unscaled long
+query I
+SELECT xxhash64(CAST(123.45 AS DECIMAL(10, 2)));
+----
+8791244235932249694
+
+query I
+SELECT xxhash64(CAST(-123.45 AS DECIMAL(10, 2)));
+----
+-4814648695243699264
+
+# Decimals with precision > 18 hash the minimal big-endian two's complement
+# bytes of the unscaled value (Java's BigInteger.toByteArray)
+
+query I
+SELECT xxhash64(CAST(1 AS DECIMAL(20, 0)));
+----
+6668291691252061002
+
+query I
+SELECT xxhash64(CAST(0 AS DECIMAL(20, 0)));
+----
+-8959994473701255385
+
+query I
+SELECT xxhash64(CAST(-1 AS DECIMAL(20, 0)));
+----
+-4006032525457443936
+
+# 127 and -128 fit in one byte; 128 and -129 need a leading sign byte
+query I
+SELECT xxhash64(CAST(127 AS DECIMAL(20, 0)));
+----
+-5998106174972408993
+
+query I
+SELECT xxhash64(CAST(128 AS DECIMAL(20, 0)));
+----
+6715097930120473301
+
+query I
+SELECT xxhash64(CAST(-128 AS DECIMAL(20, 0)));
+----
+-7898411661632158123
+
+query I
+SELECT xxhash64(CAST(-129 AS DECIMAL(20, 0)));
+----
+-6459515886037897956
+
+query I
+SELECT xxhash64(CAST(1.5 AS DECIMAL(20, 1)));
+----
+7491490015795856943
+
+query I
+SELECT xxhash64(CAST('12345678901234567890.1234567890' AS DECIMAL(38, 10)));
+----
+7467050800690399880
+
+query I
+SELECT xxhash64(CAST('-12345678901234567890.1234567890' AS DECIMAL(38, 10)));
+----
+-5128632804645768173
+
+query I
+SELECT xxhash64(CAST('99999999999999999999999999999999999999' AS DECIMAL(38, 0)));
+----
+-47190729175993179
+
+query I
+SELECT xxhash64(CAST('-99999999999999999999999999999999999999' AS DECIMAL(38, 0)));
+----
+-2254039905620870768
+
+query I
+SELECT xxhash64(CAST(NULL AS DECIMAL(20, 0)));
+----
+42
+
+# Wide decimals inside lists and structs
+query I
+SELECT xxhash64([CAST(1 AS DECIMAL(20, 0)), CAST(-129 AS DECIMAL(20, 0))]);
+----
+7288194727865790865
+
+query I
+SELECT xxhash64(named_struct('a', CAST(1 AS DECIMAL(20, 0))));
+----
+6668291691252061002

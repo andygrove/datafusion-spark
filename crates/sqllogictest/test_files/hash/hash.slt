@@ -184,6 +184,213 @@ SELECT hash(1, 2) = hash(2, 1);
 ----
 false
 
+# Spark's documented example; DataFusion types 123 and 2 as BIGINT, Spark as INT
+query I
+SELECT hash('Spark', [CAST(123 AS INT)], CAST(2 AS INT));
+----
+-1321691492
+
+query I
+SELECT hash('Spark', [CAST(123 AS INT)]);
+----
+1262264271
+
+# Hashing several arguments equals hashing a struct of them
+query I
+SELECT hash(CAST(1 AS INT), 'x');
+----
+-1305545736
+
+# Decimals with precision <= 18 hash as the unscaled long
+
+query I
+SELECT hash(CAST(123.45 AS DECIMAL(10, 2)));
+----
+1416086240
+
+query I
+SELECT hash(CAST(-123.45 AS DECIMAL(10, 2)));
+----
+-1959512858
+
+# Decimals with precision > 18 hash the minimal big-endian two's complement
+# bytes of the unscaled value (Java's BigInteger.toByteArray)
+
+query I
+SELECT hash(CAST(1 AS DECIMAL(20, 0)));
+----
+-386724586
+
+query I
+SELECT hash(CAST(0 AS DECIMAL(20, 0)));
+----
+-783713497
+
+query I
+SELECT hash(CAST(-1 AS DECIMAL(20, 0)));
+----
+1398487324
+
+# 127 and -128 fit in one byte; 128 and -129 need a leading sign byte
+query I
+SELECT hash(CAST(127 AS DECIMAL(20, 0)));
+----
+1185089389
+
+query I
+SELECT hash(CAST(128 AS DECIMAL(20, 0)));
+----
+-544401882
+
+query I
+SELECT hash(CAST(-128 AS DECIMAL(20, 0)));
+----
+775851899
+
+query I
+SELECT hash(CAST(-129 AS DECIMAL(20, 0)));
+----
+-771458971
+
+query I
+SELECT hash(CAST(1.5 AS DECIMAL(20, 1)));
+----
+-357711666
+
+query I
+SELECT hash(CAST('12345678901234567890.1234567890' AS DECIMAL(38, 10)));
+----
+269448356
+
+query I
+SELECT hash(CAST('-12345678901234567890.1234567890' AS DECIMAL(38, 10)));
+----
+694017569
+
+query I
+SELECT hash(CAST('99999999999999999999999999999999999999' AS DECIMAL(38, 0)));
+----
+-817514053
+
+query I
+SELECT hash(CAST('-99999999999999999999999999999999999999' AS DECIMAL(38, 0)));
+----
+1400911110
+
+query I
+SELECT hash(CAST(NULL AS DECIMAL(20, 0)));
+----
+42
+
+# Lists hash each element in order, chaining the running hash; NULL elements
+# are skipped and an empty or NULL list leaves the seed unchanged
+
+query I
+SELECT hash([CAST(1 AS INT), CAST(2 AS INT), CAST(3 AS INT)]);
+----
+-912918097
+
+query I
+SELECT hash([1, 2, 3]);
+----
+1045631400
+
+query I
+SELECT hash(['a', 'b']);
+----
+190734147
+
+query I
+SELECT hash([CAST(1 AS INT), NULL, CAST(3 AS INT)]);
+----
+1066699649
+
+query I
+SELECT hash(arrow_cast([], 'List(Int32)'));
+----
+42
+
+query I
+SELECT hash(arrow_cast(NULL, 'List(Int32)'));
+----
+42
+
+query I
+SELECT hash([CAST(1 AS DECIMAL(20, 0)), CAST(-129 AS DECIMAL(20, 0))]);
+----
+-265473650
+
+query I
+SELECT hash([CAST(123.45 AS DECIMAL(10, 2))]);
+----
+1416086240
+
+# Nested lists flatten into the same chain as a flat list
+query I
+SELECT hash([[CAST(1 AS INT)], [CAST(2 AS INT), CAST(3 AS INT)]]);
+----
+-912918097
+
+# Structs hash each field in order; NULL fields are skipped
+
+query I
+SELECT hash(named_struct('a', CAST(1 AS INT), 'b', 'x'));
+----
+-1305545736
+
+query I
+SELECT hash(named_struct('a', CAST(1 AS INT), 'b', CAST(NULL AS VARCHAR)));
+----
+-559580957
+
+query I
+SELECT hash(named_struct('a', CAST(1 AS DECIMAL(20, 0))));
+----
+-386724586
+
+# Maps hash each key then its value, entry by entry. Spark 4.2.0 rejects hash on
+# maps by default (DATATYPE_MISMATCH.HASH_MAP_TYPE); these values are from Spark
+# with spark.sql.legacy.allowHashOnMapType=true.
+
+query I
+SELECT hash(map([CAST(1 AS INT), CAST(2 AS INT)], ['a', 'b']));
+----
+-1706464220
+
+query I
+SELECT hash(map(['a'], [CAST(1 AS INT)]));
+----
+532252686
+
+# Dictionary-encoded values hash like their decoded values
+
+query I
+SELECT hash(arrow_cast('hello', 'Dictionary(Int32, Utf8)'));
+----
+-1008564952
+
+query I
+SELECT hash(arrow_cast(CAST(1 AS INT), 'Dictionary(Int8, Int32)'));
+----
+-559580957
+
+query I
+SELECT hash(arrow_cast(column1, 'Dictionary(Int32, Utf8)'))
+FROM VALUES ('hello'), ('bar'), (NULL), ('hello');
+----
+-1008564952
+-1808790533
+42
+-1008564952
+
+# A dictionary after another argument is seeded per row by the running hash
+query I
+SELECT hash(CAST(1 AS INT), arrow_cast(column1, 'Dictionary(Int32, Utf8)'))
+FROM VALUES ('x'), ('x');
+----
+-1305545736
+-1305545736
+
 # Table data (VALUES integers are Int64, which hash as 8 bytes)
 statement ok
 CREATE TABLE hash_t AS VALUES (1, 'hello'), (NULL, 'bar'), (0, NULL);
@@ -203,5 +410,5 @@ SELECT hash(column2) FROM hash_t;
 42
 
 # Spark requires at least one argument
-statement error
+statement error does not support zero arguments
 SELECT hash();
