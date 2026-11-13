@@ -6,6 +6,7 @@ pub mod add_months;
 pub mod date_add;
 pub mod date_diff;
 pub mod date_part;
+mod date_part_name;
 pub mod date_sub;
 pub mod date_trunc;
 pub mod dayname;

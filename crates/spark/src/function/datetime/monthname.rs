@@ -4,16 +4,15 @@
 
 use std::sync::Arc;
 
-use arrow::array::{AsArray, StringArray};
-use arrow::compute::{DatePart, date_part};
+use arrow::compute::DatePart;
 use arrow::datatypes::{DataType, Field, FieldRef};
-use datafusion_common::types::{NativeType, logical_date};
 use datafusion_common::utils::take_function_args;
-use datafusion_common::{Result, ScalarValue, internal_err};
+use datafusion_common::{Result, internal_err};
 use datafusion_expr::{
-    Coercion, ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
-    Signature, TypeSignatureClass, Volatility,
+    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
 };
+
+use super::date_part_name::{date_part_name, date_signature};
 
 const MONTH_NAMES: [&str; 12] = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -41,14 +40,7 @@ impl Default for SparkMonthName {
 impl SparkMonthName {
     pub fn new() -> Self {
         Self {
-            signature: Signature::coercible(
-                vec![Coercion::new_implicit(
-                    TypeSignatureClass::Native(logical_date()),
-                    vec![TypeSignatureClass::Timestamp],
-                    NativeType::Date,
-                )],
-                Volatility::Immutable,
-            ),
+            signature: date_signature(),
         }
     }
 }
@@ -73,30 +65,6 @@ impl ScalarUDFImpl for SparkMonthName {
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         let [arg] = take_function_args(self.name(), args.args)?;
-        match arg {
-            ColumnarValue::Scalar(scalar) => {
-                if scalar.is_null() {
-                    return Ok(ColumnarValue::Scalar(ScalarValue::Utf8(None)));
-                }
-                let arr = scalar.to_array_of_size(1)?;
-                let month_arr = date_part(&arr, DatePart::Month)?;
-                let month_val = month_arr
-                    .as_primitive::<arrow::datatypes::Int32Type>()
-                    .value(0);
-                let name = month_number_to_name(month_val).map(|s| s.to_string());
-                Ok(ColumnarValue::Scalar(ScalarValue::Utf8(name)))
-            }
-            ColumnarValue::Array(arr) => {
-                let month_arr = date_part(&arr, DatePart::Month)?;
-                let int_arr = month_arr.as_primitive::<arrow::datatypes::Int32Type>();
-
-                let result: StringArray = int_arr
-                    .iter()
-                    .map(|maybe_month| maybe_month.and_then(month_number_to_name))
-                    .collect();
-
-                Ok(ColumnarValue::Array(Arc::new(result)))
-            }
-        }
+        date_part_name(arg, DatePart::Month, month_number_to_name)
     }
 }
