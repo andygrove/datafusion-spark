@@ -141,6 +141,11 @@ pub mod expr_fn {
         str
     ));
     export_functions!((
+        regexp_extract,
+        "Extracts the group `idx` (default 1, 0 for the whole match) of the first match of `regexp` in `str`.",
+        str regexp idx
+    ));
+    export_functions!((
         to_binary,
         "Converts the input str to a binary value based on the supplied fmt, which must be a case-insensitive literal of 'hex', 'utf-8', 'utf8' or 'base64'. Defaults to 'hex'.",
         str fmt

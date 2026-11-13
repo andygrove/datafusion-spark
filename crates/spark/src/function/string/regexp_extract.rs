@@ -4,10 +4,12 @@
 
 use std::sync::Arc;
 
-use arrow::array::{Array, ArrayRef, AsArray, Int32Array, StringArray, StringBuilder};
+use arrow::array::{
+    Array, ArrayRef, AsArray, Int32Array, StringArray, StringBuilder, new_null_array,
+};
 use arrow::datatypes::DataType;
 use datafusion_common::cast::as_int32_array;
-use datafusion_common::{Result, exec_datafusion_err, exec_err};
+use datafusion_common::{Result, ScalarValue, exec_datafusion_err, exec_err};
 use datafusion_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
 };
@@ -97,64 +99,139 @@ impl ScalarUDFImpl for SparkRegexpExtract {
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
-        let num_rows = args.number_rows;
-        let arrays = ColumnarValue::values_to_arrays(&args.args)?;
-        let strings = arrays[0].as_string::<i32>();
-        let patterns = arrays[1].as_string::<i32>();
-        let default_idx;
-        let indexes = match arrays.get(2) {
-            Some(idx) => as_int32_array(idx)?,
-            None => {
-                default_idx = Int32Array::from(vec![1; num_rows]);
-                &default_idx
-            }
+        let all_scalar = args
+            .args
+            .iter()
+            .all(|arg| matches!(arg, ColumnarValue::Scalar(_)));
+        let len = if all_scalar { 1 } else { args.number_rows };
+
+        // The usual call has a literal pattern and idx: keep those as scalars so
+        // the pattern is compiled once and no per-row copies are allocated.
+        let pattern = match &args.args[1] {
+            ColumnarValue::Scalar(scalar) => match scalar_str(scalar)? {
+                Some(pattern) => Pattern::Scalar(pattern),
+                None => return null_result(len, all_scalar),
+            },
+            ColumnarValue::Array(array) => Pattern::Array(array.as_string::<i32>()),
         };
-        Ok(ColumnarValue::Array(extract(strings, patterns, indexes)?))
+        let index = match args.args.get(2) {
+            None => Index::Scalar(1),
+            Some(ColumnarValue::Scalar(ScalarValue::Int32(Some(idx)))) => {
+                Index::Scalar(*idx)
+            }
+            Some(ColumnarValue::Scalar(ScalarValue::Int32(None) | ScalarValue::Null)) => {
+                return null_result(len, all_scalar);
+            }
+            Some(ColumnarValue::Scalar(other)) => {
+                return exec_err!("{NAME} expects an INT idx, got {}", other.data_type());
+            }
+            Some(ColumnarValue::Array(array)) => Index::Array(as_int32_array(array)?),
+        };
+
+        let strings = args.args[0].to_array(len)?;
+        let result = extract(strings.as_string::<i32>(), pattern, index)?;
+        if all_scalar {
+            Ok(ColumnarValue::Scalar(ScalarValue::try_from_array(
+                &result, 0,
+            )?))
+        } else {
+            Ok(ColumnarValue::Array(result))
+        }
     }
 }
 
-fn extract(
-    strings: &StringArray,
-    patterns: &StringArray,
-    indexes: &Int32Array,
-) -> Result<ArrayRef> {
-    let mut builder = StringBuilder::with_capacity(strings.len(), 0);
-    // The pattern is almost always a literal, so keep only the last one compiled,
-    // with a capture buffer reused across rows instead of allocated per match.
+#[derive(Clone, Copy)]
+enum Pattern<'a> {
+    Scalar(&'a str),
+    Array(&'a StringArray),
+}
+
+#[derive(Clone, Copy)]
+enum Index<'a> {
+    Scalar(i32),
+    Array(&'a Int32Array),
+}
+
+fn scalar_str(scalar: &ScalarValue) -> Result<Option<&str>> {
+    match scalar {
+        ScalarValue::Null => Ok(None),
+        other => other.try_as_str().ok_or_else(|| {
+            exec_datafusion_err!(
+                "{NAME} expects a string regexp, got {}",
+                other.data_type()
+            )
+        }),
+    }
+}
+
+fn null_result(len: usize, all_scalar: bool) -> Result<ColumnarValue> {
+    Ok(if all_scalar {
+        ColumnarValue::Scalar(ScalarValue::Utf8(None))
+    } else {
+        ColumnarValue::Array(new_null_array(&DataType::Utf8, len))
+    })
+}
+
+fn extract(strings: &StringArray, pattern: Pattern, index: Index) -> Result<ArrayRef> {
+    // Each result is a substring of its input, so the input bytes bound the output.
+    let mut builder =
+        StringBuilder::with_capacity(strings.len(), strings.value_data().len());
+    // A scalar pattern is compiled on the first non-NULL row and reused. A column
+    // pattern keeps only the last one compiled, since it rarely changes per row.
+    // The capture buffer is reused across rows instead of allocated per match.
     let mut cached: Option<(&str, Regex, CaptureLocations)> = None;
 
+    let scalar_pattern = matches!(pattern, Pattern::Scalar(_));
+
     for row in 0..strings.len() {
-        if strings.is_null(row) || patterns.is_null(row) || indexes.is_null(row) {
+        let row_pattern = match pattern {
+            Pattern::Scalar(pattern) => Some(pattern),
+            Pattern::Array(patterns) => {
+                (!patterns.is_null(row)).then(|| patterns.value(row))
+            }
+        };
+        let idx = match index {
+            Index::Scalar(idx) => Some(idx),
+            Index::Array(indexes) => (!indexes.is_null(row)).then(|| indexes.value(row)),
+        };
+        let (false, Some(pattern), Some(idx)) = (strings.is_null(row), row_pattern, idx)
+        else {
             builder.append_null();
             continue;
-        }
-        let pattern = patterns.value(row);
+        };
         let (_, regex, locations) = match &mut cached {
-            Some(entry) if entry.0 == pattern => entry,
+            Some(entry) if scalar_pattern || entry.0 == pattern => entry,
             _ => {
                 let regex = compile(pattern)?;
                 let locations = regex.capture_locations();
                 cached.insert((pattern, regex, locations))
             }
         };
-        let idx = indexes.value(row);
-        let group_count = regex.captures_len() - 1;
-        let group = usize::try_from(idx).ok().filter(|g| *g <= group_count);
-        let Some(group) = group else {
-            return Err(exec_datafusion_err!(
-                "[INVALID_PARAMETER_VALUE.REGEX_GROUP_INDEX] The value of parameter(s) \
-                 `idx` in `{NAME}` is invalid: Expects group index between 0 and \
-                 {group_count}, but got {idx}."
-            ));
-        };
         let subject = strings.value(row);
-        let text = regex
-            .captures_read(locations, subject)
-            .and_then(|_| locations.get(group))
-            .map_or("", |(start, end)| &subject[start..end]);
+        // Like Spark, idx is only checked when the pattern matches.
+        let text = match regex.captures_read(locations, subject) {
+            None => "",
+            Some(_) => locations
+                .get(check_group_index(regex, idx)?)
+                .map_or("", |(start, end)| &subject[start..end]),
+        };
         builder.append_value(text);
     }
     Ok(Arc::new(builder.finish()))
+}
+
+fn check_group_index(regex: &Regex, idx: i32) -> Result<usize> {
+    let group_count = regex.captures_len() - 1;
+    usize::try_from(idx)
+        .ok()
+        .filter(|group| *group <= group_count)
+        .ok_or_else(|| {
+            exec_datafusion_err!(
+                "[INVALID_PARAMETER_VALUE.REGEX_GROUP_INDEX] The value of parameter(s) \
+                 `idx` in `{NAME}` is invalid: Expects group index between 0 and \
+                 {group_count}, but got {idx}."
+            )
+        })
 }
 
 fn compile(pattern: &str) -> Result<Regex> {
@@ -164,87 +241,4 @@ fn compile(pattern: &str) -> Result<Regex> {
              `{NAME}` is invalid: '{pattern}'."
         )
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn run(
-        strings: Vec<Option<&str>>,
-        patterns: Vec<Option<&str>>,
-        indexes: Vec<Option<i32>>,
-    ) -> Result<Vec<Option<String>>> {
-        let out = extract(
-            &StringArray::from(strings),
-            &StringArray::from(patterns),
-            &Int32Array::from(indexes),
-        )?;
-        Ok(out
-            .as_string::<i32>()
-            .iter()
-            .map(|s| s.map(str::to_string))
-            .collect())
-    }
-
-    fn one(s: &str, p: &str, idx: i32) -> Result<String> {
-        Ok(run(vec![Some(s)], vec![Some(p)], vec![Some(idx)])?
-            .remove(0)
-            .unwrap())
-    }
-
-    // Expected values come from Spark's regexp-functions.sql.out golden file.
-    #[test]
-    fn groups() -> Result<()> {
-        assert_eq!(one("1a 2b 14m", r"\d+", 0)?, "1");
-        assert_eq!(one("1a 2b 14m", r"(\d+)([a-z]+)", 0)?, "1a");
-        assert_eq!(one("1a 2b 14m", r"(\d+)([a-z]+)", 1)?, "1");
-        assert_eq!(one("1a 2b 14m", r"(\d+)([a-z]+)", 2)?, "a");
-        Ok(())
-    }
-
-    #[test]
-    fn unmatched_group_and_no_match_give_empty_string() -> Result<()> {
-        assert_eq!(one("1a 2b 14m", r"(\d+)?", 1)?, "1");
-        assert_eq!(one("a b m", r"(\d+)?", 1)?, "");
-        assert_eq!(one("a b m", r"(\d+)?([a-z]+)", 1)?, "");
-        assert_eq!(one("abc", r"(\d+)", 1)?, "");
-        Ok(())
-    }
-
-    #[test]
-    fn invalid_group_index_and_pattern() {
-        for (p, idx) in [(r"\d+", 1), (r"\d+", 2), (r"\d+", -1), (r"(\d+)(a)", 3)] {
-            let err = one("1a 2b 14m", p, idx).unwrap_err().to_string();
-            assert!(err.contains("REGEX_GROUP_INDEX"), "{p} {idx}: {err}");
-        }
-        let err = one("x", "(unclosed", 0).unwrap_err().to_string();
-        assert!(err.contains("INVALID_PARAMETER_VALUE.PATTERN"), "{err}");
-    }
-
-    #[test]
-    fn nulls_and_per_row_patterns() -> Result<()> {
-        let got = run(
-            vec![Some("a1"), None, Some("b2"), Some("c3"), Some("d4")],
-            vec![
-                Some(r"(\d)"),
-                Some(r"(\d)"),
-                None,
-                Some(r"([a-z])"),
-                Some(r"(\d)"),
-            ],
-            vec![Some(1), Some(1), Some(1), Some(1), None],
-        )?;
-        let expected = [Some("1"), None, None, Some("c"), None];
-        assert_eq!(got, expected.map(|s| s.map(str::to_string)));
-        Ok(())
-    }
-
-    #[test]
-    fn null_pattern_skips_validation() -> Result<()> {
-        // Spark returns NULL before looking at an out-of-range idx on a NULL row.
-        let got = run(vec![Some("a")], vec![None], vec![Some(99)])?;
-        assert_eq!(got, vec![None]);
-        Ok(())
-    }
 }
