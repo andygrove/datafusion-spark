@@ -11,22 +11,67 @@
 #![deny(clippy::clone_on_ref_ptr)]
 #![cfg_attr(test, allow(clippy::needless_pass_by_value))]
 
-//! Spark Expression packages for [DataFusion].
+//! [Apache Spark]-compatible expressions for [Apache DataFusion].
 //!
-//! This crate contains a collection of various Spark function packages for DataFusion,
-//! implemented using the extension API.
+//! DataFusion's built-in functions follow PostgreSQL / DuckDB conventions. When
+//! the same function name exists in Apache Spark, the behavior often differs:
+//! NULL handling, integer overflow, string indexing (1-based, negative
+//! indices), rounding modes, date/time handling, error behavior in ANSI and
+//! non-ANSI mode, and so on. This crate provides implementations of Spark
+//! functions that follow Spark's semantics, so that engines built on DataFusion
+//! (for example [Apache DataFusion Comet]) and applications migrating SQL from
+//! Spark get the results Spark would produce.
 //!
-//! [DataFusion]: https://crates.io/crates/datafusion
+//! The crate depends only on the DataFusion building blocks (`datafusion-expr`,
+//! `datafusion-common`, ...), not on the full `datafusion` crate, unless the
+//! optional `core` feature is enabled.
 //!
+//! # Getting started
+//!
+//! ```toml
+//! [dependencies]
+//! datafusion = "X"
+//! # `core` enables `SessionStateBuilderSpark`, the easiest way to turn Spark mode on
+//! datafusion-spark = { version = "X", features = ["core"] }
+//! ```
 //!
 //! # Available Function Packages
-//! See the list of [modules](#modules) in this crate for available packages.
+//!
+//! Functions are grouped into packages by category (for example [`function::string`],
+//! [`function::datetime`], [`function::math`], [`function::hash`]). See the list of
+//! [modules](#modules) in this crate for the available packages. Each package
+//! provides:
+//!
+//! * a `functions()` method returning all of its UDFs for registration
+//! * an `expr_fn` module with helpers to build [`Expr`]s from Rust
+//! * one accessor per function (for example `function::hash::sha2()`) returning the UDF
+//!
+//! Not every Spark function is implemented yet; coverage is growing. The
+//! [`datafusion-spark` epic] tracks progress.
+//!
+//! # Semantics and caveats
+//!
+//! * **Registration overrides built-ins.** Spark functions are registered under
+//!   their Spark names. If DataFusion already has a function with that name,
+//!   the Spark one replaces it for the session. Register Spark functions after
+//!   DataFusion's defaults, and only when you want Spark behavior.
+//! * **Input types.** Only types available in Spark are supported (no unsigned
+//!   integers, `Float16`, `Decimal64`, ...).
+//! * **ANSI mode.** Functions whose Spark behavior depends on ANSI mode read
+//!   `datafusion.execution.enable_ansi_mode` from the session configuration.
+//! * **Type inference.** DataFusion and Spark do not infer literal types in the
+//!   same way, so add explicit casts (`CAST(1 AS INT)`) when exact types matter.
+//!
+//! [Apache Spark]: https://spark.apache.org/
+//! [Apache DataFusion]: https://datafusion.apache.org/
+//! [Apache DataFusion Comet]: https://datafusion.apache.org/comet/
+//! [`datafusion-spark` epic]: https://github.com/apache/datafusion/issues/15914
 //!
 //! # Example: using all function packages
 //!
 //! You can register all the functions in all packages using the [`register_all`]
-//! function as shown below. Any existing functions will be overwritten, with these
-//! Spark functions taking priority.
+//! function as shown below. Note that this replaces any built-in DataFusion
+//! functions with the same names; see [Semantics and caveats](#semantics-and-caveats).
 //!
 //! ```
 //! # use datafusion_expr::registry::FunctionRegistry;
@@ -98,7 +143,7 @@
 //! let df = ctx.sql("SELECT EXTRACT(YEAR FROM timestamp_col) FROM my_table").await?;
 //! ```
 //!
-//![`Expr`]: datafusion_expr::Expr
+//! [`Expr`]: datafusion_expr::Expr
 //!
 //! # Example: enabling Apache Spark features with SessionStateBuilder
 //!
@@ -107,13 +152,9 @@
 //! Apache Spark functions (scalar, aggregate, window, and table) as well as the Apache Spark
 //! expression planner.
 //!
-//! Enable the `core` feature in your `Cargo.toml`:
-//! ```toml
-//! datafusion-spark = { version = "X", features = ["core"] }
-//! ```
-//!
-//! Then use the extension trait - see [`SessionStateBuilderSpark::with_spark_features`]
-//! for an example.
+//! Enable the `core` feature in your `Cargo.toml` as shown in
+//! [Getting started](#getting-started), then use the extension trait - see
+//! [`SessionStateBuilderSpark::with_spark_features`] for an example.
 
 pub mod function;
 pub mod planner;

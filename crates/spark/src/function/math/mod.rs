@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+//! Spark math functions, such as `abs`, `ceil`, `floor`, `round`, `pmod`, `hex` and `width_bucket`.
+
 pub mod abs;
 pub mod atan2;
 pub mod bin;

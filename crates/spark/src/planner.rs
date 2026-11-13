@@ -6,6 +6,17 @@ use datafusion_expr::Expr;
 use datafusion_expr::expr::ScalarFunction;
 use datafusion_expr::planner::{ExprPlanner, PlannerResult};
 
+/// An [`ExprPlanner`] that plans SQL syntax using Apache Spark semantics.
+///
+/// Currently this maps:
+///
+/// * `EXTRACT(field FROM expr)` to the Spark `date_part` function
+/// * `SUBSTRING(expr FROM start FOR len)` to the Spark `substring` function
+///
+/// It is registered automatically by
+/// `SessionStateBuilderSpark::with_spark_features` (requires the `core`
+/// feature), or you can register it yourself with
+/// `SessionContext::register_expr_planner`.
 #[derive(Default, Debug)]
 pub struct SparkFunctionPlanner;
 
