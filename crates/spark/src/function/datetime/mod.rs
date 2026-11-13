@@ -2,6 +2,9 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+//! Spark date and time functions, such as `date_add`, `date_diff`, `date_trunc`,
+//! `last_day`, `make_interval` and `to_utc_timestamp`.
+
 pub mod add_months;
 pub mod date_add;
 pub mod date_diff;

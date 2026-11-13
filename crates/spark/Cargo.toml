@@ -10,6 +10,9 @@ homepage = { workspace = true }
 repository = { workspace = true }
 authors = { workspace = true }
 readme = "README.md"
+keywords = ["arrow", "datafusion", "query", "spark", "sql"]
+categories = ["database-implementations"]
+documentation = "https://docs.rs/datafusion-spark"
 license = { workspace = true }
 edition = { workspace = true }
 

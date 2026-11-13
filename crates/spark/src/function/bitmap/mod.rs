@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+//! Spark bitmap functions, such as `bitmap_bit_position`, `bitmap_bucket_number` and `bitmap_count`.
+
 pub mod bitmap_bit_position;
 pub mod bitmap_bucket_number;
 pub mod bitmap_count;

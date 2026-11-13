@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+//! Spark map functions, such as `map_from_arrays`, `map_from_entries` and `str_to_map`.
+
 pub mod map_from_arrays;
 pub mod map_from_entries;
 pub mod str_to_map;

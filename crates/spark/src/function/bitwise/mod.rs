@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+//! Spark bitwise functions, such as `bit_count`, `bit_get`, `shiftleft` and `shiftright`.
+
 pub mod bit_count;
 pub mod bit_get;
 pub mod bit_shift;
