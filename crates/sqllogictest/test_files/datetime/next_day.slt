@@ -164,3 +164,16 @@ query D
 SELECT next_day('2015-07-23', arrow_cast('Mon', 'Utf8View'));
 ----
 2015-07-27
+
+# With ANSI mode on, Spark raises ILLEGAL_DAY_OF_WEEK for an unrecognized day name.
+# This implementation always returns NULL (https://github.com/apache/datafusion-spark/issues/113).
+statement ok
+set datafusion.execution.enable_ansi_mode = true;
+
+query D
+SELECT next_day(DATE '2024-01-01', 'xx');
+----
+NULL
+
+statement ok
+set datafusion.execution.enable_ansi_mode = false;

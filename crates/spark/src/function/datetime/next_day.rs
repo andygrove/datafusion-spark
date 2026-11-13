@@ -26,7 +26,7 @@ use datafusion_macros::user_doc;
         Strings and timestamps are cast to DATE first. \
         Returns NULL if either input is NULL, or if `day_of_week` is not a recognized day name \
         (including names padded with whitespace). Spark raises an error for an unrecognized day name \
-        when ANSI mode is enabled; this implementation always returns NULL.",
+        when ANSI mode is enabled; this implementation always returns NULL ([#113](https://github.com/apache/datafusion-spark/issues/113)).",
     syntax_example = "next_day(start_date, day_of_week)",
     sql_example = r#"```sql
 > SELECT next_day(DATE '2015-01-14', 'TU');

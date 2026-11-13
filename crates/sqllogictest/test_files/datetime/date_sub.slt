@@ -68,3 +68,11 @@ query D
 SELECT date_sub(NULL::date, NULL::int);
 ----
 NULL
+
+# Spark implicitly casts a string to DATE (https://github.com/apache/datafusion-spark/issues/41)
+statement error Failed to coerce arguments to satisfy a call to 'date_sub' function
+SELECT date_sub('2024-01-01', 1::INT);
+
+# An integer literal is BIGINT here and INT in Spark, where this works (https://github.com/apache/datafusion-spark/issues/97)
+statement error Failed to coerce arguments to satisfy a call to 'date_sub' function
+SELECT date_sub(DATE '2024-01-01', 1);

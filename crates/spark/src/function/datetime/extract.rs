@@ -33,7 +33,7 @@ fn extract_signature() -> Signature {
     doc_section(label = "Time and Date Functions"),
     description = "Returns the hour of the day (0 to 23) of a timestamp, as an INT. \
         DataFusion has no built-in `hour`. \
-        Returns NULL if the input is NULL. The input must be a TIMESTAMP; strings are not implicitly cast.",
+        Returns NULL if the input is NULL. The input must be a TIMESTAMP; strings are not implicitly cast as they are in Spark ([#41](https://github.com/apache/datafusion-spark/issues/41)).",
     syntax_example = "hour(timestamp)",
     sql_example = r#"```sql
 > SELECT hour(TIMESTAMP '2009-07-30 12:58:59');
@@ -104,7 +104,7 @@ fn spark_hour(args: &[ArrayRef]) -> Result<ArrayRef> {
     doc_section(label = "Time and Date Functions"),
     description = "Returns the minute of the hour (0 to 59) of a timestamp, as an INT. \
         DataFusion has no built-in `minute`. \
-        Returns NULL if the input is NULL. The input must be a TIMESTAMP; strings are not implicitly cast.",
+        Returns NULL if the input is NULL. The input must be a TIMESTAMP; strings are not implicitly cast as they are in Spark ([#41](https://github.com/apache/datafusion-spark/issues/41)).",
     syntax_example = "minute(timestamp)",
     sql_example = r#"```sql
 > SELECT minute(TIMESTAMP '2009-07-30 12:58:59');
@@ -176,7 +176,7 @@ fn spark_minute(args: &[ArrayRef]) -> Result<ArrayRef> {
     description = "Returns the second of the minute (0 to 59) of a timestamp, as an INT. \
         Fractions of a second are dropped. \
         DataFusion has no built-in `second`. \
-        Returns NULL if the input is NULL. The input must be a TIMESTAMP; strings are not implicitly cast.",
+        Returns NULL if the input is NULL. The input must be a TIMESTAMP; strings are not implicitly cast as they are in Spark ([#41](https://github.com/apache/datafusion-spark/issues/41)).",
     syntax_example = "second(timestamp)",
     sql_example = r#"```sql
 > SELECT second(TIMESTAMP '2009-07-30 12:58:59');

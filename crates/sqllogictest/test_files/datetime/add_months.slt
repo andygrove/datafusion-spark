@@ -44,3 +44,11 @@ query D
 SELECT add_months(NULL::date, NULL::int);
 ----
 NULL
+
+# Spark implicitly casts a string to DATE and returns 2024-02-29 (https://github.com/apache/datafusion-spark/issues/41)
+statement error Failed to coerce arguments to satisfy a call to 'add_months' function
+SELECT add_months('2024-01-31', 1::INT);
+
+# An integer literal is BIGINT here and INT in Spark, where this returns 2024-02-29 (https://github.com/apache/datafusion-spark/issues/97)
+statement error Failed to coerce arguments to satisfy a call to 'add_months' function
+SELECT add_months(DATE '2024-01-31', 1);

@@ -37,3 +37,7 @@ query I
 SELECT second(NULL::timestamp);
 ----
 NULL
+
+# Spark implicitly casts a string to TIMESTAMP (https://github.com/apache/datafusion-spark/issues/41)
+statement error Function 'second' requires Timestamp, but received String
+SELECT second('2024-01-01 12:34:56');

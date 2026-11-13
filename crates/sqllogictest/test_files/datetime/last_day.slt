@@ -103,3 +103,7 @@ select last_day(last_day('2016-02-07'::string, 'foo'));
 
 statement error Failed to coerce arguments to satisfy a call to 'last_day' function
 select last_day(last_day('2016-02-31'::string));
+
+# Spark implicitly casts a string to DATE and returns 2016-02-29 (https://github.com/apache/datafusion-spark/issues/41)
+statement error Failed to coerce arguments to satisfy a call to 'last_day' function
+SELECT last_day('2016-02-07');

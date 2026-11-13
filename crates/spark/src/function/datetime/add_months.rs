@@ -25,8 +25,8 @@ use datafusion_macros::user_doc;
         If the day of the month does not exist in the result month, the last day of that month is returned \
         (so subtracting 5 months from 2016-07-30 gives 2016-02-29). \
         Returns NULL if either input is NULL. A result outside the supported date range returns an error. \
-        `num_months` must be an INT. Integer literals are BIGINT in DataFusion, so cast them (for example `1::INT`). \
-        `start_date` must be a DATE; strings are not implicitly cast.",
+        `num_months` must be an INT. Integer literals are BIGINT in DataFusion, so cast them (for example `1::INT`; see [#97](https://github.com/apache/datafusion-spark/issues/97)). \
+        `start_date` must be a DATE; strings are not implicitly cast as they are in Spark ([#41](https://github.com/apache/datafusion-spark/issues/41)).",
     syntax_example = "add_months(start_date, num_months)",
     sql_example = r#"```sql
 > SELECT add_months(DATE '2016-07-30', 1::INT);

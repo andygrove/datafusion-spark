@@ -24,7 +24,7 @@ use datafusion_macros::user_doc;
     description = "Returns the day of the week as an INT from 0 (Monday) to 6 (Sunday). \
         This differs from `dayofweek`, which counts from 1 (Sunday) to 7 (Saturday). \
         DataFusion has no built-in `weekday`. Timestamps are cast to DATE first. \
-        Strings are not implicitly cast. Returns NULL if the input is NULL.",
+        Strings are not implicitly cast as they are in Spark ([#41](https://github.com/apache/datafusion-spark/issues/41)). Returns NULL if the input is NULL.",
     syntax_example = "weekday(date)",
     sql_example = r#"```sql
 > SELECT weekday(DATE '2009-07-30');

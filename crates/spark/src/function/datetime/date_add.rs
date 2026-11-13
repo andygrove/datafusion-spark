@@ -29,7 +29,7 @@ use datafusion_macros::user_doc;
         Returns NULL if either input is NULL. \
         The arithmetic wraps around on overflow instead of returning an error. \
         `num_days` must be INT, SMALLINT or TINYINT. Integer literals are BIGINT in DataFusion, \
-        so cast them (for example `1::INT`). `start_date` must be a DATE; strings are not implicitly cast.",
+        so cast them (for example `1::INT`; see [#97](https://github.com/apache/datafusion-spark/issues/97)). `start_date` must be a DATE; strings are not implicitly cast as they are in Spark ([#41](https://github.com/apache/datafusion-spark/issues/41)).",
     syntax_example = "date_add(start_date, num_days)",
     alternative_syntax = "dateadd(start_date, num_days)",
     sql_example = r#"```sql

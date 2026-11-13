@@ -22,7 +22,7 @@ use datafusion_macros::user_doc;
     doc_section(label = "Time and Date Functions"),
     description = "Returns the last day of the month that `date` falls in, taking leap years into account. \
         DataFusion has no built-in `last_day`. Returns NULL if `date` is NULL. \
-        The input must be a DATE; strings and timestamps are not implicitly cast.",
+        The input must be a DATE; strings and timestamps are not implicitly cast as they are in Spark ([#41](https://github.com/apache/datafusion-spark/issues/41)).",
     syntax_example = "last_day(date)",
     sql_example = r#"```sql
 > SELECT last_day(DATE '2009-01-12');
