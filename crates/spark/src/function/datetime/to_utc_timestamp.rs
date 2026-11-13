@@ -18,20 +18,41 @@ use datafusion_common::{
     Result, exec_datafusion_err, exec_err, internal_datafusion_err, internal_err,
 };
 use datafusion_expr::{
-    Coercion, ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
-    Signature, TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs,
+    ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 
-/// Apache Spark `to_utc_timestamp` function.
+/// Spark-compatible `to_utc_timestamp` expression.
 ///
-/// Interprets the given timestamp in the provided timezone and then converts it to UTC.
-///
-/// Timestamp in Apache Spark represents number of microseconds from the Unix epoch, which is not
-/// timezone-agnostic. So in Apache Spark this function just shift the timestamp value from the given
-/// timezone to UTC timezone.
-///
-/// See <https://spark.apache.org/docs/latest/api/sql/index.html#to_utc_timestamp>
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#to_utc_timestamp>
+#[user_doc(
+    doc_section(label = "Time and Date Functions"),
+    description = "Treats `ts` as a wall-clock time in time zone `tz` and returns the UTC wall-clock time. \
+        This is the inverse of `from_utc_timestamp`. DataFusion has no built-in equivalent. A string `ts` is cast to a timestamp, \
+        so a string with an offset is first converted to UTC. The result has the same type as `ts`, including any time zone \
+        it carries. Returns NULL if either argument is NULL. Unlike `from_utc_timestamp`, `tz` is parsed by Arrow, \
+        so it accepts region IDs and `+HH:MM` offsets but not all of Spark's spellings (such as `GMT+1` or `PST`). \
+        An unknown zone is an error.",
+    syntax_example = "to_utc_timestamp(ts, tz)",
+    sql_example = r#"```sql
+> SELECT to_utc_timestamp('2016-08-31'::timestamp, 'Asia/Seoul');
+2016-08-30T15:00:00
+> SELECT to_utc_timestamp('2018-03-13T06:18:23+02:00', 'America/New_York');
+2018-03-13T08:18:23
+> SELECT to_utc_timestamp('2016-08-31'::timestamp, NULL);
+NULL
+```"#,
+    argument(
+        name = "ts",
+        description = "Timestamp expression, interpreted as a wall-clock time in `tz`. A string is cast to a timestamp. NULL returns NULL."
+    ),
+    argument(
+        name = "tz",
+        description = "String time zone that `ts` is in: a region ID such as `Asia/Seoul`, or an offset such as `+09:00`. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkToUtcTimestamp {
     signature: Signature,
@@ -64,6 +85,10 @@ impl SparkToUtcTimestamp {
 impl ScalarUDFImpl for SparkToUtcTimestamp {
     fn name(&self) -> &str {
         "to_utc_timestamp"
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn signature(&self) -> &Signature {

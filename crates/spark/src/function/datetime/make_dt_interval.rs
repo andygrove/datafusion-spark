@@ -14,11 +14,50 @@ use datafusion_common::{
     DataFusionError, Result, ScalarValue, internal_err, plan_datafusion_err,
 };
 use datafusion_expr::{
-    Coercion, ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
-    Signature, TypeSignature, TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs,
+    ScalarUDFImpl, Signature, TypeSignature, TypeSignatureClass, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 
+/// Spark-compatible `make_dt_interval` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#make_dt_interval>
+#[user_doc(
+    doc_section(label = "Time and Date Functions"),
+    description = "Returns a day-time interval built from days, hours, minutes and seconds. \
+        DataFusion has no built-in equivalent. All arguments are optional from the right and default to 0, \
+        so `make_dt_interval()` is a zero interval. Components can be negative and are added together, \
+        so `make_dt_interval(1, -24)` is zero. The result is a `Duration(Microsecond)` rather than an Arrow interval, \
+        because Arrow's day-time interval only has millisecond precision while Spark's has microsecond precision. \
+        Returns NULL if any argument is NULL or `secs` is NaN or infinite. Overflow returns NULL. \
+        Unlike Spark, where `secs` is a DECIMAL(18, 6), `secs` is cast to DOUBLE and the fraction is rounded to microseconds.",
+    syntax_example = "make_dt_interval([days[, hours[, mins[, secs]]]])",
+    sql_example = r#"```sql
+> SELECT make_dt_interval(1, 12, 30, 1.001001);
+1 days 12 hours 30 mins 1.001001 secs
+> SELECT make_dt_interval(2);
+2 days 0 hours 0 mins 0.000000 secs
+> SELECT make_dt_interval(100, NULL, 3);
+NULL
+```"#,
+    argument(
+        name = "days",
+        description = "Integer number of days, cast to INT. NULL returns NULL."
+    ),
+    argument(
+        name = "hours",
+        description = "Integer number of hours, cast to INT. NULL returns NULL."
+    ),
+    argument(
+        name = "mins",
+        description = "Integer number of minutes, cast to INT. NULL returns NULL."
+    ),
+    argument(
+        name = "secs",
+        description = "Numeric number of seconds, which may have a fraction, cast to DOUBLE. NULL, NaN or an infinite value returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkMakeDtInterval {
     signature: Signature,
@@ -70,6 +109,10 @@ impl SparkMakeDtInterval {
 impl ScalarUDFImpl for SparkMakeDtInterval {
     fn name(&self) -> &str {
         "make_dt_interval"
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn signature(&self) -> &Signature {

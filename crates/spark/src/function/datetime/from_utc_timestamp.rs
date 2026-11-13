@@ -21,36 +21,51 @@ use datafusion_common::types::{NativeType, logical_string};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, exec_datafusion_err, exec_err, internal_err};
 use datafusion_expr::{
-    Coercion, ColumnarValue, ExpressionPlacement, ReturnFieldArgs, ScalarFunctionArgs,
-    ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, ExpressionPlacement, ReturnFieldArgs,
+    ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 use datafusion_physical_expr_common::physical_expr::PhysicalExpr;
 
-/// Apache Spark `from_utc_timestamp` function.
-///
-/// Interprets the given timestamp as UTC and converts it to the given timezone.
-///
-/// Timestamp in Apache Spark represents number of microseconds from the Unix epoch, which is not
-/// timezone-agnostic. So in Apache Spark this function just shift the timestamp value from UTC timezone to
-/// the given timezone.
-///
-/// # Compatibility
-///
-/// This function accepts Spark's additional offset spellings, Java short IDs, and
-/// legacy SystemV zone IDs. They are parsed only when both arguments are non-null.
-/// Spark's generated execution may validate a foldable timezone before processing
-/// rows, so this implementation can return nulls where Spark raises an error.
-///
-/// Timezone conversion uses Chrono's calendar range, which is narrower than Spark's
-/// implemented timestamp range, although it includes Spark's documented range.
-/// Region timezone rules from `chrono-tz` may also differ after 2099 because it does
-/// not extrapolate later daylight saving time transitions.
+/// Spark-compatible `from_utc_timestamp` expression.
 ///
 /// This UDF operates on already-evaluated arguments. Callers that need conditional
 /// evaluation of computed timezone expressions should construct [`SparkFromUtcTimestampExpr`].
 ///
-/// See <https://spark.apache.org/docs/latest/api/sql/index.html#from_utc_timestamp>
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#from_utc_timestamp>
+#[user_doc(
+    doc_section(label = "Time and Date Functions"),
+    description = "Treats `ts` as a UTC wall-clock time and returns the wall-clock time in time zone `tz`. \
+        DataFusion has no built-in equivalent. A string `ts` is cast to a timestamp, so a string with an offset is first \
+        converted to UTC. The result has the same type as `ts`, including any time zone it carries. \
+        Returns NULL if either argument is NULL. `tz` accepts Spark's spellings: region IDs, offsets such as `+01:00`, \
+        `GMT+1`, `UTC+1:2` and `UT-010203`, Java short IDs such as `PST`, and legacy `SystemV/` IDs. \
+        An offset beyond 18 hours or an unknown zone is an error. \
+        Differences from Spark: `tz` is only parsed for rows where both arguments are non-NULL, so an invalid constant `tz` \
+        can return NULL where Spark raises an error; conversion is limited to Chrono's calendar range, which is narrower \
+        than the range Spark implements but covers Spark's documented range; and region rules from `chrono-tz` may differ \
+        after 2099, because it does not extrapolate later daylight saving time transitions.",
+    syntax_example = "from_utc_timestamp(ts, tz)",
+    sql_example = r#"```sql
+> SELECT from_utc_timestamp('2016-08-31'::timestamp, 'Asia/Seoul');
+2016-08-31T09:00:00
+> SELECT from_utc_timestamp('2018-03-13T06:18:23+02:00', 'America/New_York');
+2018-03-13T00:18:23
+> SELECT from_utc_timestamp('2024-07-01T00:00:00'::timestamp, 'GMT+1');
+2024-07-01T01:00:00
+> SELECT from_utc_timestamp('2016-08-31'::timestamp, NULL);
+NULL
+```"#,
+    argument(
+        name = "ts",
+        description = "Timestamp expression, interpreted as UTC. A string is cast to a timestamp. NULL returns NULL."
+    ),
+    argument(
+        name = "tz",
+        description = "String time zone to convert to. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkFromUtcTimestamp {
     signature: Signature,
@@ -83,6 +98,10 @@ impl SparkFromUtcTimestamp {
 impl ScalarUDFImpl for SparkFromUtcTimestamp {
     fn name(&self) -> &str {
         "from_utc_timestamp"
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn signature(&self) -> &Signature {
