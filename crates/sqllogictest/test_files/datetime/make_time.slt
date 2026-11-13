@@ -22,9 +22,35 @@ SELECT make_time(0, 0, 0);
 00:00:00
 
 query D
+SELECT make_time(1, 0, 0);
+----
+01:00:00
+
+query D
+SELECT make_time(0, 1, 0);
+----
+00:01:00
+
+query D
+SELECT make_time(0, 0, 1.5);
+----
+00:00:01.500
+
+query D
 SELECT make_time(23, 59, 59.999999);
 ----
 23:59:59.999999
+
+# Seconds with scale above 6 are rounded half up to DECIMAL(16, 6)
+query D
+SELECT make_time(1, 1, 59.9999994::DECIMAL(10, 7));
+----
+01:01:59.999999
+
+query D
+SELECT make_time(0, 0, -0.0000001::DECIMAL(10, 7));
+----
+00:00:00
 
 # NULL in any argument gives NULL
 query D
@@ -48,6 +74,26 @@ SELECT make_time('6', '30', '45.5');
 ----
 06:30:45.500
 
+# Other numeric types are cast to INT, INT and DECIMAL(16, 6)
+query D
+SELECT make_time(1::BIGINT, 2::BIGINT, 3.5::DOUBLE);
+----
+01:02:03.500
+
+query D
+SELECT make_time(1::TINYINT, 2::SMALLINT, 3::BIGINT);
+----
+01:02:03
+
+query D
+SELECT make_time(1::BIGINT, 2, 3.25::FLOAT);
+----
+01:02:03.250
+
+# Non-numeric, non-string arguments are rejected
+statement error make_time expects a numeric hour, got Boolean
+SELECT make_time(true, 0, 0);
+
 # Result type
 query T
 SELECT arrow_typeof(make_time(1, 18, 19.87));
@@ -66,6 +112,31 @@ SELECT make_time(1, 60, 19.87);
 
 statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 60
 SELECT make_time(1, 18, 60.0);
+
+# Hour and minute are checked before seconds in 60..=i32::MAX, like LocalTime.of
+statement error Invalid value for HourOfDay \(valid values 0 - 23\): 24
+SELECT make_time(24, 0, 60);
+
+statement error Invalid value for MinuteOfHour \(valid values 0 - 59\): 60
+SELECT make_time(1, 60, 60);
+
+statement error Invalid value for HourOfDay \(valid values 0 - 23\): -1
+SELECT make_time(-1, 0, 60);
+
+# Seconds that are negative or above i32::MAX are checked first
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): -1
+SELECT make_time(24, 0, -1);
+
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 4294967297
+SELECT make_time(24, 0, 4294967297.5);
+
+# Negative fractional seconds are floored for the check but truncated in the message
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 0
+SELECT make_time(1, 1, -0.5);
+
+# 59.9999995 rounds half up to 60.000000 in DECIMAL(16, 6)
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 60
+SELECT make_time(1, 1, 59.9999995::DECIMAL(10, 7));
 
 statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 9999999999
 SELECT make_time(1, 18, 9999999999.999999);

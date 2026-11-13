@@ -60,9 +60,11 @@ fn make_time(hours: i32, minutes: i32, secs_micros: i128) -> Result<i64> {
     let full_secs = secs_micros.div_euclid(MICROS_PER_SECOND);
     let frac_micros = secs_micros.rem_euclid(MICROS_PER_SECOND) as i64;
 
-    // Checked first, like Spark, so the message reports the whole seconds
-    // (truncated toward zero) rather than a wrapped value.
-    if !(0..=59).contains(&full_secs) {
+    // Like Spark's `DateTimeUtils.makeTime`, seconds outside `0..=i32::MAX`
+    // are rejected first, so the message reports the whole seconds
+    // (truncated toward zero) rather than a wrapped value. Otherwise
+    // `LocalTime.of` checks hour, then minute, then second.
+    if full_secs < 0 || full_secs > i128::from(i32::MAX) {
         return Err(out_of_bounds(
             "SecondOfMinute",
             "0 - 59",
@@ -74,6 +76,9 @@ fn make_time(hours: i32, minutes: i32, secs_micros: i128) -> Result<i64> {
     }
     if !(0..=59).contains(&minutes) {
         return Err(out_of_bounds("MinuteOfHour", "0 - 59", minutes));
+    }
+    if full_secs > 59 {
+        return Err(out_of_bounds("SecondOfMinute", "0 - 59", full_secs));
     }
 
     // Whole seconds of the day plus the fraction, in micros, then to nanos.
@@ -131,65 +136,5 @@ impl ScalarUDFImpl for SparkMakeTime {
             })
             .collect::<Result<_>>()?;
         Ok(ColumnarValue::Array(Arc::new(times)))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const HOUR: i64 = 3_600_000_000_000;
-    const MINUTE: i64 = 60_000_000_000;
-
-    #[test]
-    fn valid_times() {
-        assert_eq!(make_time(0, 0, 0).unwrap(), 0);
-        assert_eq!(make_time(1, 0, 0).unwrap(), HOUR);
-        assert_eq!(make_time(0, 1, 0).unwrap(), MINUTE);
-        assert_eq!(make_time(0, 0, 1_500_000).unwrap(), 1_500_000_000);
-        assert_eq!(make_time(23, 59, 59_999_999).unwrap(), 86_399_999_999_000);
-        // make_time(1, 18, 19.87) = 01:18:19.87
-        assert_eq!(
-            make_time(1, 18, 19_870_000).unwrap(),
-            HOUR + 18 * MINUTE + 19_870_000_000
-        );
-    }
-
-    #[test]
-    fn out_of_range_fields_report_the_spark_message() {
-        let msg = |r: Result<i64>| r.unwrap_err().to_string();
-        assert!(
-            msg(make_time(-1, 18, 19_870_000))
-                .contains("Invalid value for HourOfDay (valid values 0 - 23): -1")
-        );
-        assert!(msg(make_time(24, 0, 0)).contains("HourOfDay"));
-        assert!(
-            msg(make_time(1, 60, 19_870_000))
-                .contains("Invalid value for MinuteOfHour (valid values 0 - 59): 60")
-        );
-        assert!(
-            msg(make_time(1, 18, 60_000_000))
-                .contains("Invalid value for SecondOfMinute (valid values 0 - 59): 60")
-        );
-        // Whole seconds are truncated toward zero in the message, like Spark.
-        assert!(msg(make_time(1, 18, -999_999_999_999_999)).contains(": -999999999"));
-        assert!(msg(make_time(1, 18, 4_294_967_297_999_999)).contains(": 4294967297"));
-    }
-
-    #[test]
-    fn coerce_types_rules() -> Result<()> {
-        let f = SparkMakeTime::new();
-        let dec = DataType::Decimal128(SECONDS_PRECISION, SECONDS_SCALE);
-        let got =
-            f.coerce_types(&[DataType::Int64, DataType::Int8, DataType::Float64])?;
-        assert_eq!(got, vec![DataType::Int32, DataType::Int32, dec]);
-        // strings are cast like Spark; other types are rejected
-        let got = f.coerce_types(&[DataType::Utf8, DataType::Int32, DataType::Utf8])?;
-        assert_eq!(got[0], DataType::Int32);
-        assert!(
-            f.coerce_types(&[DataType::Boolean, DataType::Int32, DataType::Int32])
-                .is_err()
-        );
-        Ok(())
     }
 }
