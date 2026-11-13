@@ -11,6 +11,7 @@
 use std::sync::Arc;
 
 use arrow::array::{Array, ArrayRef, Float64Array};
+use arrow::compute::binary;
 use arrow::datatypes::DataType;
 
 use datafusion_common::utils::take_function_args;
@@ -110,14 +111,7 @@ impl ScalarUDFImpl for SparkPow {
             .downcast_ref::<Float64Array>()
             .expect("exponent must be Float64Array");
 
-        let result: Float64Array = base_f64
-            .iter()
-            .zip(exp_f64.iter())
-            .map(|(base, exp)| match (base, exp) {
-                (Some(base), Some(exp)) => Some(spark_pow(base, exp)),
-                _ => None,
-            })
-            .collect();
+        let result: Float64Array = binary(base_f64, exp_f64, spark_pow)?;
 
         Ok(ColumnarValue::Array(Arc::new(result)))
     }
