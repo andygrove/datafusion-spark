@@ -566,8 +566,8 @@ banner.
 
 Write this to the scratchpad as `spark_ground_truth.py`. It is deliberately not
 committed to the repo: `pyspark` is too heavy a dependency to add to the `uv`
-workspace in `dev/`, and `crates/spark/scripts/` is claimed by other
-in-flight work.
+workspace in `dev/`, and `crates/sqllogictest/scripts/` holds the PySpark
+`.slt` runner, which replays whole files rather than probing one expression.
 
 Write it unconditionally, overwriting whatever is already there. A previous
 audit may have left an older copy in the same scratchpad, and silently reusing

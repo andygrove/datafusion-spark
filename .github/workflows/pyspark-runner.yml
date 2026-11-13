@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+name: PySpark runner
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crates/sqllogictest/scripts/**"
+      - ".github/workflows/pyspark-runner.yml"
+  pull_request:
+    paths:
+      - "crates/sqllogictest/scripts/**"
+      - ".github/workflows/pyspark-runner.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    name: PySpark runner unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 -m unittest discover -s crates/sqllogictest/scripts
