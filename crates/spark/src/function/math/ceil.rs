@@ -9,22 +9,37 @@ use arrow::datatypes::{DataType, Decimal128Type, Float32Type, Float64Type, Int64
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue, exec_err};
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Volatility,
 };
+use datafusion_macros::user_doc;
 
-/// Spark-compatible `ceil` expression
+/// Spark-compatible `ceil` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#ceil>
-///
-/// Differences with DataFusion ceil:
-///  - Spark's ceil returns Int64 for float inputs; DataFusion preserves
-///    the input type (Float32→Float32, Float64→Float64)
-///  - Spark's ceil on Decimal128(p, s) returns Decimal128(p−s+1, 0), reducing scale
-///    to 0; DataFusion preserves the original precision and scale
-///  - Spark only supports Decimal128; DataFusion also supports Decimal32/64/256
-///  - Spark does not check for decimal overflow; DataFusion errors on overflow
-///
-/// 2-argument ceil(value, scale) is not yet implemented
-/// <https://github.com/apache/datafusion/issues/21560>
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Returns the smallest whole number not less than `expr`. \
+        Unlike DataFusion's `ceil`, which keeps the input type, integer and floating-point inputs return \
+        BIGINT, and `DECIMAL(p, s)` with `s > 0` returns `DECIMAL(p - s + 1, 0)`. Decimals with a scale of 0 \
+        are returned unchanged. Returns NULL if the input is NULL. \
+        Decimal32, Decimal64 and Decimal256 inputs are not supported, and the two-argument form \
+        `ceil(expr, scale)` is not implemented yet (<https://github.com/apache/datafusion/issues/21560>).",
+    syntax_example = "ceil(expr)",
+    alternative_syntax = "ceiling(expr)",
+    sql_example = r#"```sql
+> SELECT ceil(-1.1);
+-1
+> SELECT ceil(1.50::DECIMAL(10, 2));
+2
+> SELECT ceil(5::INT);
+5
+```"#,
+    argument(
+        name = "expr",
+        description = "Numeric expression: integer, floating-point or decimal. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkCeil {
     signature: Signature,
@@ -77,6 +92,10 @@ impl ScalarUDFImpl for SparkCeil {
 
     fn aliases(&self) -> &[String] {
         &self.aliases
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

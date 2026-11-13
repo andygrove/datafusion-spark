@@ -8,11 +8,32 @@ use arrow::datatypes::{DataType, Float64Type};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue};
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Volatility,
 };
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
+/// Spark-compatible `expm1` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#expm1>
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Returns `exp(expr) - 1` as a DOUBLE, computed without the precision loss of \
+        subtracting 1 from `exp(expr)` when `expr` is close to 0. DataFusion has no built-in `expm1`. \
+        Numeric arguments are cast to DOUBLE. Returns NULL if the input is NULL.",
+    syntax_example = "expm1(expr)",
+    sql_example = r#"```sql
+> SELECT expm1(0);
+0
+> SELECT expm1(1);
+1.718281828459045
+```"#,
+    argument(
+        name = "expr",
+        description = "Numeric expression, cast to DOUBLE. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkExpm1 {
     signature: Signature,
@@ -43,6 +64,10 @@ impl ScalarUDFImpl for SparkExpm1 {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(DataType::Float64)
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

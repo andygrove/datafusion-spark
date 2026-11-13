@@ -23,10 +23,34 @@ use datafusion_common::{
     exec_datafusion_err, exec_err,
 };
 use datafusion_expr::{
-    Coercion, ColumnarValue, EncodingPreservation, ScalarFunctionArgs, ScalarUDFImpl,
-    Signature, TypeSignature, TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, EncodingPreservation, ScalarFunctionArgs,
+    ScalarUDFImpl, Signature, TypeSignature, TypeSignatureClass, Volatility,
 };
+use datafusion_macros::user_doc;
+
+/// Spark-compatible `hex` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#hex>
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Returns the hexadecimal representation of `expr` as an upper-case string. \
+        Numbers are cast to BIGINT and rendered with no leading zeros; negative values are rendered as their \
+        64-bit two's complement (so -1 is `FFFFFFFFFFFFFFFF`). Strings are encoded as the hex of their UTF-8 bytes, \
+        and binary values as the hex of their bytes. DataFusion's `to_hex` only accepts integers and returns \
+        lower case. Dictionary-encoded input returns a dictionary-encoded string. \
+        Returns NULL if the input is NULL.",
+    syntax_example = "hex(expr)",
+    sql_example = r#"```sql
+> SELECT hex(1234);
+4D2
+> SELECT hex('Spark SQL');
+537061726B2053514C
+```"#,
+    argument(
+        name = "expr",
+        description = "Numeric, string or binary expression. Numbers are cast to BIGINT. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkHex {
     signature: Signature,
@@ -95,6 +119,10 @@ impl ScalarUDFImpl for SparkHex {
 
     fn aliases(&self) -> &[String] {
         &self.aliases
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 }
 

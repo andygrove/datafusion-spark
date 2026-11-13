@@ -8,13 +8,34 @@ use arrow::datatypes::{DataType, Float64Type};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue};
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Volatility,
 };
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
 static CSC_FUNCTION_NAME: &str = "csc";
 
+/// Spark-compatible `csc` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#csc>
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Returns the cosecant of `expr` (`1 / sin(expr)`) as a DOUBLE. DataFusion has no \
+        built-in `csc`. The argument is cast to DOUBLE. `csc(0)` returns Infinity rather than an error. \
+        Returns NULL if the input is NULL, and NaN if it is NaN.",
+    syntax_example = "csc(expr)",
+    sql_example = r#"```sql
+> SELECT csc(1);
+1.188395105778121
+> SELECT csc(0);
+Infinity
+```"#,
+    argument(
+        name = "expr",
+        description = "Numeric angle in radians, cast to DOUBLE. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkCsc {
     signature: Signature,
@@ -45,6 +66,10 @@ impl ScalarUDFImpl for SparkCsc {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(DataType::Float64)
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
@@ -80,7 +105,25 @@ fn spark_csc(arg: &ColumnarValue) -> Result<ColumnarValue> {
 
 static SEC_FUNCTION_NAME: &str = "sec";
 
+/// Spark-compatible `sec` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#sec>
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Returns the secant of `expr` (`1 / cos(expr)`) as a DOUBLE. DataFusion has no \
+        built-in `sec`. The argument is cast to DOUBLE. Returns NULL if the input is NULL, and NaN if it is NaN.",
+    syntax_example = "sec(expr)",
+    sql_example = r#"```sql
+> SELECT sec(0);
+1
+> SELECT sec(1);
+1.850815717680926
+```"#,
+    argument(
+        name = "expr",
+        description = "Numeric angle in radians, cast to DOUBLE. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkSec {
     signature: Signature,
@@ -111,6 +154,10 @@ impl ScalarUDFImpl for SparkSec {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(DataType::Float64)
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

@@ -7,12 +7,13 @@ use arrow::datatypes::{DataType, Field, FieldRef};
 use arrow::error::ArrowError;
 use datafusion_common::{DataFusionError, Result, ScalarValue, internal_err};
 use datafusion_expr::{
-    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
-    Volatility,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
+    Signature, Volatility,
 };
 use datafusion_functions::{
     downcast_named_arg, make_abs_function, make_wrapping_abs_function,
 };
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
 const ARITHMETIC_OVERFLOW_ERROR: &str = r#"[ARITHMETIC_OVERFLOW] overflow. If necessary set "spark.sql.ansi.enabled" to "false" to bypass this error. SQLSTATE: 22003"#;
@@ -21,18 +22,31 @@ fn arithmetic_overflow_error() -> ArrowError {
     ArrowError::ComputeError(ARITHMETIC_OVERFLOW_ERROR.to_string())
 }
 
-/// Spark-compatible `abs` expression
+/// Spark-compatible `abs` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#abs>
-///
-/// Returns the absolute value of input
-/// Returns NULL if input is NULL, returns NaN if input is NaN.
-///
-/// Differences with DataFusion abs:
-///  - Spark's ANSI-compliant dialect, when off (i.e. `spark.sql.ansi.enabled=false`), taking absolute value on the minimal value of a signed integer returns the value as is. DataFusion's abs throws "DataFusion error: Arrow error: Compute error" on arithmetic overflow
-///
-/// TODOs:
-///  - Spark's abs also supports ANSI interval types: YearMonthIntervalType and DayTimeIntervalType. DataFusion's abs doesn't.
-///
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Returns the absolute value of `expr`, with the same type as the input. \
+        Unlike DataFusion's `abs`, which always errors on overflow, the result for the minimum value of a \
+        signed integer type (for example `-2147483648` for INT) depends on ANSI mode: with \
+        `datafusion.execution.enable_ansi_mode` off it is returned unchanged, and with it on the function \
+        fails with `ARITHMETIC_OVERFLOW`. Returns NULL if the input is NULL and NaN if it is NaN, and \
+        the absolute value of -0.0 is 0. Spark's interval types are not supported yet.",
+    syntax_example = "abs(expr)",
+    sql_example = r#"```sql
+> SELECT abs(-1);
+1
+> SELECT abs(-99999999.99::DECIMAL(10, 2));
+99999999.99
+> SELECT abs((-2147483648)::INT);
+-2147483648
+```"#,
+    argument(
+        name = "expr",
+        description = "Numeric expression: integer, floating-point or decimal. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkAbs {
     signature: Signature,
@@ -73,6 +87,10 @@ impl ScalarUDFImpl for SparkAbs {
         let out_nullable = input_field.is_nullable();
 
         Ok(Arc::new(Field::new(self.name(), out_dt, out_nullable)))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
