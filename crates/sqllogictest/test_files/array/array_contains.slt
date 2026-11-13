@@ -125,3 +125,120 @@ query B
 SELECT array_contains(array(array(1, 2), array(3, 4)), array(5, 6));
 ----
 false
+
+###
+### Floating point equality
+###
+# Spark compares floating point values with -0.0 == 0.0 and NaN == NaN, at any depth.
+
+# Negative zero equals positive zero
+query B
+SELECT array_contains(array(-0.0::double), 0.0::double);
+----
+true
+
+query B
+SELECT array_contains(array(0.0::double), -0.0::double);
+----
+true
+
+query B
+SELECT array_contains(array(-0.0::float), 0.0::float);
+----
+true
+
+# NaN equals NaN, whatever its sign bit
+query B
+SELECT array_contains(array('NaN'::double), 'NaN'::double);
+----
+true
+
+query B
+SELECT array_contains(array('NaN'::double), -('NaN'::double));
+----
+true
+
+query B
+SELECT array_contains(array('NaN'::float), -('NaN'::float));
+----
+true
+
+# Different values still differ
+query B
+SELECT array_contains(array(1.5::double, 'NaN'::double), 0.0::double);
+----
+false
+
+# Null semantics are unchanged
+query B
+SELECT array_contains(array(1.5::double, NULL), -0.0::double);
+----
+NULL
+
+query B
+SELECT array_contains(array(-0.0::double, NULL), 0.0::double);
+----
+true
+
+# Other list types
+query B
+SELECT array_contains(arrow_cast(array(-0.0::double), 'LargeList(Float64)'), 0.0::double);
+----
+true
+
+query B
+SELECT array_contains(arrow_cast(array(-0.0::double), 'FixedSizeList(1, Float64)'), 0.0::double);
+----
+true
+
+# Nested elements
+query B
+SELECT array_contains(array(array(-0.0::double)), array(0.0::double));
+----
+true
+
+query B
+SELECT array_contains(array(array('NaN'::double)), array(-('NaN'::double)));
+----
+true
+
+query B
+SELECT array_contains(array(arrow_cast(array('NaN'::double), 'FixedSizeList(1, Float64)')), arrow_cast(array(-('NaN'::double)), 'FixedSizeList(1, Float64)'));
+----
+true
+
+query B
+SELECT array_contains(array(named_struct('a', 'NaN'::double, 'b', 1)), named_struct('a', -('NaN'::double), 'b', 1));
+----
+true
+
+query B
+SELECT array_contains(array(named_struct('a', -0.0::double, 'b', 1)), named_struct('a', 0.0::double, 'b', 1));
+----
+true
+
+query B
+SELECT array_contains(array(named_struct('a', 'NaN'::double, 'b', 1)), named_struct('a', -('NaN'::double), 'b', 2));
+----
+false
+
+# Columns
+statement ok
+CREATE TABLE test_float_arrays AS VALUES
+  (1, make_array(-0.0::double, 1.5::double), 0.0::double),
+  (2, make_array('NaN'::double), -('NaN'::double)),
+  (3, make_array(1.5::double), 0.0::double),
+  (4, make_array(0.0::double, NULL), -0.0::double);
+
+query IB
+SELECT column1, array_contains(column2, column3)
+FROM test_float_arrays
+ORDER BY column1;
+----
+1 true
+2 true
+3 false
+4 true
+
+statement ok
+DROP TABLE test_float_arrays;
