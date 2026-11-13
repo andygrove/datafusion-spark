@@ -30,7 +30,9 @@ use datafusion_macros::user_doc;
         so `make_dt_interval()` is a zero interval. Components can be negative and are added together, \
         so `make_dt_interval(1, -24)` is zero. The result is a `Duration(Microsecond)` rather than an Arrow interval, \
         because Arrow's day-time interval only has millisecond precision while Spark's has microsecond precision. \
-        Returns NULL if any argument is NULL or `secs` is NaN or infinite. Overflow returns NULL. \
+        Returns NULL if any argument is NULL or `secs` is NaN or infinite. Overflow returns NULL, where Spark raises an error ([#20](https://github.com/apache/datafusion-spark/issues/20)). \
+        Because hours and minutes are added up in 32-bit integers, more than 1,491,308 days also returns NULL, \
+        although Spark returns the interval ([#109](https://github.com/apache/datafusion-spark/issues/109)). \
         Unlike Spark, where `secs` is a DECIMAL(18, 6), `secs` is cast to DOUBLE and the fraction is rounded to microseconds.",
     syntax_example = "make_dt_interval([days[, hours[, mins[, secs]]]])",
     sql_example = r#"```sql

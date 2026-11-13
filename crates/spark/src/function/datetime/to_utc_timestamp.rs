@@ -34,7 +34,9 @@ use datafusion_macros::user_doc;
         so a string with an offset is first converted to UTC. The result has the same type as `ts`, including any time zone \
         it carries. Returns NULL if either argument is NULL. Unlike `from_utc_timestamp`, `tz` is parsed by Arrow, \
         so it accepts region IDs and `+HH:MM` offsets but not all of Spark's spellings (such as `GMT+1` or `PST`). \
-        An unknown zone is an error.",
+        An unknown zone is an error. Within a few hours of a daylight saving time change, the offset can be taken \
+        from the wrong side of the change, so the result can differ from Spark by the size of the change \
+        ([#110](https://github.com/apache/datafusion-spark/issues/110)).",
     syntax_example = "to_utc_timestamp(ts, tz)",
     sql_example = r#"```sql
 > SELECT to_utc_timestamp('2016-08-31'::timestamp, 'Asia/Seoul');
