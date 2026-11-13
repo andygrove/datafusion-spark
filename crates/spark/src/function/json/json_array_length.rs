@@ -10,29 +10,43 @@ use datafusion_common::types::logical_string;
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, exec_err};
 use datafusion_expr::{
-    Coercion, ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Coercion, ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     TypeSignatureClass, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 use serde::Deserialize;
 use serde::de::IgnoredAny;
 
-/// Spark-compatible `json_array_length(jsonArray)`.
+/// Spark-compatible `json_array_length` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#json_array_length>
-///
-/// Returns the number of elements in the outermost JSON array. The result is NULL
-/// for a NULL input, an invalid or truncated JSON string, an empty string, and any
-/// valid JSON value that is not an array. Only string arguments are accepted;
-/// Spark rejects other types such as integers at analysis time.
-///
-/// Like Spark, the array is read up to its closing bracket and anything after it
-/// is ignored.
-///
-/// Known differences from Spark, which parses with Jackson configured to accept
-/// single-quoted strings and unescaped control characters (Hive compatibility):
-/// `serde_json` rejects both, so those inputs give NULL here. Jackson also limits
-/// nesting to 1000 levels and returns NULL beyond that; skipped elements here have
-/// no depth limit, so deeper arrays are still counted.
+#[user_doc(
+    doc_section(label = "JSON Functions"),
+    description = "Returns the number of elements in the outermost JSON array. \
+        Returns NULL for a NULL input, an empty or blank string, invalid or truncated JSON, \
+        and any valid JSON value that is not an array. Like Spark, the array is read up to its \
+        closing bracket and anything after it is ignored. \
+        Known differences from Spark, which parses with Jackson configured to accept single-quoted \
+        strings and unescaped control characters (Hive compatibility): those inputs return NULL here. \
+        Jackson also limits nesting to 1000 levels and returns NULL beyond that, while deeper arrays \
+        are still counted here.",
+    syntax_example = "json_array_length(json_array)",
+    sql_example = r#"```sql
+> SELECT json_array_length('[1,2,3,[33,44],{"key":[2,3,4]}]');
+5
+> SELECT json_array_length('[1,2] trailing');
+2
+> SELECT json_array_length('{"key":"not a json array"}');
+NULL
+> SELECT json_array_length('[1,2');
+NULL
+```"#,
+    argument(
+        name = "json_array",
+        description = "String expression containing a JSON array. Other types are rejected at planning time. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct JsonArrayLength {
     signature: Signature,
@@ -68,6 +82,10 @@ impl ScalarUDFImpl for JsonArrayLength {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(DataType::Int32)
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
