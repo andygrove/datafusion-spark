@@ -24,51 +24,51 @@ SELECT floor(0.0), arrow_typeof(floor(0.0));
 
 # Float32 tests - returns Int64
 query IT
-SELECT floor(arrow_cast(1.5, 'Float32')), arrow_typeof(floor(arrow_cast(1.5, 'Float32')));
+SELECT floor(1.5::FLOAT), arrow_typeof(floor(1.5::FLOAT));
 ----
 1 Int64
 
 query IT
-SELECT floor(arrow_cast(-1.5, 'Float32')), arrow_typeof(floor(arrow_cast(-1.5, 'Float32')));
+SELECT floor((-1.5)::FLOAT), arrow_typeof(floor((-1.5)::FLOAT));
 ----
 -2 Int64
 
 # Integer tests - returns Int64
 query IT
-SELECT floor(arrow_cast(5, 'Int8')), arrow_typeof(floor(arrow_cast(5, 'Int8')));
+SELECT floor(5::TINYINT), arrow_typeof(floor(5::TINYINT));
 ----
 5 Int64
 
 query IT
-SELECT floor(arrow_cast(-5, 'Int16')), arrow_typeof(floor(arrow_cast(-5, 'Int16')));
+SELECT floor((-5)::SMALLINT), arrow_typeof(floor((-5)::SMALLINT));
 ----
 -5 Int64
 
 query IT
-SELECT floor(arrow_cast(1000, 'Int32')), arrow_typeof(floor(arrow_cast(1000, 'Int32')));
+SELECT floor(1000::INT), arrow_typeof(floor(1000::INT));
 ----
 1000 Int64
 
 query IT
-SELECT floor(arrow_cast(-1000, 'Int64')), arrow_typeof(floor(arrow_cast(-1000, 'Int64')));
+SELECT floor((-1000)::BIGINT), arrow_typeof(floor((-1000)::BIGINT));
 ----
 -1000 Int64
 
 # Decimal128 tests - returns Decimal128(p-s+1, 0)
 # Decimal(5,2) -> Decimal(4,0)
 query RT
-SELECT floor(arrow_cast(123.45, 'Decimal128(5,2)')), arrow_typeof(floor(arrow_cast(123.45, 'Decimal128(5,2)')));
+SELECT floor(123.45::DECIMAL(5, 2)), arrow_typeof(floor(123.45::DECIMAL(5, 2)));
 ----
 123 Decimal128(4, 0)
 
 query RT
-SELECT floor(arrow_cast(-123.45, 'Decimal128(5,2)')), arrow_typeof(floor(arrow_cast(-123.45, 'Decimal128(5,2)')));
+SELECT floor((-123.45)::DECIMAL(5, 2)), arrow_typeof(floor((-123.45)::DECIMAL(5, 2)));
 ----
 -124 Decimal128(4, 0)
 
 # Decimal with scale 0 - unchanged precision
 query RT
-SELECT floor(arrow_cast(123, 'Decimal128(10,0)')), arrow_typeof(floor(arrow_cast(123, 'Decimal128(10,0)')));
+SELECT floor(123::DECIMAL(10, 0)), arrow_typeof(floor(123::DECIMAL(10, 0)));
 ----
 123 Decimal128(10, 0)
 
@@ -162,13 +162,13 @@ SELECT floor(1.9::FLOAT), floor(-1.9::FLOAT);
 # Int8 boundaries (i8::MAX, i8::MIN) pass through as Int64
 # Note: i8::MIN written via arrow_cast to dodge the -(128) parse issue (128 > i8::MAX)
 query III
-SELECT floor(arrow_cast(127, 'Int8')), floor(arrow_cast(-128, 'Int8')), floor(NULL::TINYINT);
+SELECT floor(127::TINYINT), floor((-128)::TINYINT), floor(NULL::TINYINT);
 ----
 127 -128 NULL
 
 # Int64 boundary values pass through unchanged
 query II
-SELECT floor(arrow_cast(9223372036854775807, 'Int64')), floor(arrow_cast(-9223372036854775808, 'Int64'));
+SELECT floor(9223372036854775807::BIGINT), floor((-9223372036854775808)::BIGINT);
 ----
 9223372036854775807 -9223372036854775808
 
@@ -236,14 +236,14 @@ NULL
 # Int16 boundaries (i16::MAX, i16::MIN) pass through as Int64
 # Note: i16::MIN via arrow_cast to dodge the -(32768) parse issue
 query III
-SELECT floor(arrow_cast(32767, 'Int16')), floor(arrow_cast(-32768, 'Int16')), floor(NULL::SMALLINT);
+SELECT floor(32767::SMALLINT), floor((-32768)::SMALLINT), floor(NULL::SMALLINT);
 ----
 32767 -32768 NULL
 
 # Int32 boundaries (i32::MAX, i32::MIN) pass through as Int64
 # Note: i32::MIN via arrow_cast to dodge the -(2147483648) parse issue
 query III
-SELECT floor(arrow_cast(2147483647, 'Int32')), floor(arrow_cast(-2147483648, 'Int32')), floor(NULL::INT);
+SELECT floor(2147483647::INT), floor((-2147483648)::INT), floor(NULL::INT);
 ----
 2147483647 -2147483648 NULL
 

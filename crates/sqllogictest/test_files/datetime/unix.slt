@@ -128,7 +128,7 @@ CREATE TABLE unix_floor_us AS SELECT arrow_cast(column1, 'Timestamp(Microsecond,
 );
 
 query III
-SELECT arrow_cast(ts, 'Int64'), unix_millis(ts), unix_seconds(ts) FROM unix_floor_us;
+SELECT ts::BIGINT, unix_millis(ts), unix_seconds(ts) FROM unix_floor_us;
 ----
 -1 -1 -1
 -1000 -1 -1
