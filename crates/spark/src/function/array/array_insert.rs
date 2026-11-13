@@ -17,28 +17,55 @@ use datafusion_expr::type_coercion::binary::{
     binary_numeric_coercion, type_union_resolution,
 };
 use datafusion_expr::{
-    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
-    Volatility,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
+    Signature, Volatility,
 };
+use datafusion_macros::user_doc;
 
 /// `ByteArrayUtils.MAX_ROUNDED_ARRAY_LENGTH` (`Integer.MAX_VALUE - 15`) in Spark.
 const MAX_ROUNDED_ARRAY_LENGTH: i64 = 2_147_483_632;
 
-/// Spark-compatible `array_insert(array, pos, item)`.
+/// Spark-compatible `array_insert` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#array_insert>
 ///
-/// - Indexes are 1-based. A negative index counts from the end, where `-1`
-///   inserts after the last element.
-/// - An index past the end pads with NULLs. A negative index before the start
-///   places the item first, then NULL padding, then the original elements.
-/// - The result is NULL when the array or the index is NULL. A NULL item is
-///   inserted as a NULL element.
-/// - Index `0` is an error.
-/// - The index may be any integer type and is cast to INT, because DataFusion
-///   types bare integer literals as BIGINT.
-///
-/// Spark's `spark.sql.legacy.negativeIndexInArrayInsert` (default `false`) makes
-/// `-1` insert before the last element. Use [`Self::with_legacy_negative_index`].
+/// Use [`Self::with_legacy_negative_index`] for Spark's
+/// `spark.sql.legacy.negativeIndexInArrayInsert`.
+#[user_doc(
+    doc_section(label = "Array Functions"),
+    description = "Returns `array` with `item` inserted at index `pos`. DataFusion has no built-in `array_insert`. \
+        Indexes are 1-based, and a negative index counts from the end, so -1 inserts after the last element. \
+        An index past the end pads with NULLs before the item. A negative index before the start places the item first, \
+        then NULL padding, then the original elements. Returns NULL if `array` or `pos` is NULL. \
+        An index of 0 is an error (`INVALID_INDEX_OF_ZERO`), as is a result longer than Spark's maximum array length \
+        (`COLLECTION_SIZE_LIMIT_EXCEEDED`). With Spark's `spark.sql.legacy.negativeIndexInArrayInsert`, \
+        -1 inserts before the last element instead.",
+    syntax_example = "array_insert(array, pos, item)",
+    sql_example = r#"```sql
+> SELECT array_insert(make_array(1, 2, 3), 2, 10);
+[1, 10, 2, 3]
+> SELECT array_insert(make_array(5, 4, 3, 2), -1, 1);
+[5, 4, 3, 2, 1]
+> SELECT array_insert(make_array(1, 2, 3), 5, 100);
+[1, 2, 3, NULL, 100]
+> SELECT array_insert(make_array(1), -3, 100);
+[100, NULL, 1]
+> SELECT array_insert(make_array(1, 2), NULL::INT, 5);
+NULL
+```"#,
+    argument(
+        name = "array",
+        description = "Array expression to insert into. NULL returns NULL."
+    ),
+    argument(
+        name = "pos",
+        description = "Integer index, 1-based, of any integer type (cast to INT). A negative value counts from the end. 0 is an error. NULL returns NULL."
+    ),
+    argument(
+        name = "item",
+        description = "Value to insert. Must share a type family with the array's elements. A NULL item is inserted as a NULL element."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkArrayInsert {
     signature: Signature,
@@ -121,6 +148,10 @@ impl ScalarUDFImpl for SparkArrayInsert {
 
     fn signature(&self) -> &Signature {
         &self.signature
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
