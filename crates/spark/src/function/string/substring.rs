@@ -14,21 +14,56 @@ use datafusion_common::types::{
     NativeType, logical_int32, logical_int64, logical_string,
 };
 use datafusion_common::{Result, exec_err};
-use datafusion_expr::{Coercion, ReturnFieldArgs, TypeSignatureClass};
+use datafusion_expr::{Coercion, Documentation, ReturnFieldArgs, TypeSignatureClass};
 use datafusion_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
     Volatility,
 };
 use datafusion_functions::unicode::substr::{enable_ascii_fast_path, get_true_start_end};
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
 /// Spark-compatible `substring` expression
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#substring>
-///
-/// Returns the substring from string starting at position pos with length len.
-/// Position is 1-indexed. If pos is negative, it counts from the end of the string.
-/// Returns NULL if any input is NULL.
+#[user_doc(
+    doc_section(label = "String Functions"),
+    description = "Returns the substring of `str` that starts at `pos` and is `length` characters long. \
+        Positions are 1-based and count characters (bytes for binary input). A position of 0 is treated as 1. \
+        A negative position counts from the end of the string (-1 is the last character). If it reaches past the start, \
+        the part before the start comes off `length` (so `substring('abc', -10, 3)` is empty). A position past the end, \
+        or a length of 0 or less, returns an empty string, and a length that runs past the end is clamped. \
+        Returns NULL if any input is NULL. \
+        DataFusion's `substr` also takes the part before the start off `length`, but counts positions below 1 \
+        from the start instead of the end (0 is one before the first character, -1 two before), \
+        so `substring('abc', -3, 6)` returns `abc`, where DataFusion's `substr('abc', -3, 6)` returns `ab`.",
+    syntax_example = "substring(str, pos[, length])",
+    alternative_syntax = "substr(str, pos[, length])",
+    sql_example = r#"```sql
+> SELECT substring('Spark SQL', 5);
+k SQL
+> SELECT substring('Spark SQL', -3);
+SQL
+> SELECT substring('Spark SQL', 0);
+Spark SQL
+> SELECT substring('Spark SQL', 3, 0);
+-- empty string
+> SELECT substring('Spark SQL', NULL);
+NULL
+```"#,
+    argument(
+        name = "str",
+        description = "String or binary expression. For binary input, positions count bytes."
+    ),
+    argument(
+        name = "pos",
+        description = "Integer start position, 1-based. 0 is treated as 1. A negative value counts from the end of the string."
+    ),
+    argument(
+        name = "length",
+        description = "Optional integer maximum length. If omitted, the rest of the string is returned. A value of 0 or less returns an empty string."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkSubstring {
     signature: Signature,
@@ -90,6 +125,10 @@ impl ScalarUDFImpl for SparkSubstring {
 
     fn aliases(&self) -> &[String] {
         &self.aliases
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
