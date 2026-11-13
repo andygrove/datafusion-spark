@@ -9,8 +9,10 @@ use arrow::datatypes::{DataType, Decimal128Type, Int32Type, TimeUnit};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{DataFusionError, Result, exec_datafusion_err, exec_err};
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Volatility,
 };
+use datafusion_macros::user_doc;
 
 const MICROS_PER_SECOND: i128 = 1_000_000;
 const NANOS_PER_MICRO: i64 = 1_000;
@@ -19,13 +21,43 @@ const NANOS_PER_MICRO: i64 = 1_000;
 const SECONDS_PRECISION: u8 = 16;
 const SECONDS_SCALE: i8 = 6;
 
-/// Spark-compatible `make_time(hour, minute, second)` (Spark 4.1+).
-/// <https://spark.apache.org/docs/latest/api/sql/index.html#make_time>
+/// Spark-compatible `make_time` expression (Spark 4.1+).
 ///
-/// Creates a `TIME(6)` from hour (0-23), minute (0-59) and second
-/// (0-59.999999) fields, as nanoseconds since midnight (`Time64(Nanosecond)`).
-/// The result is NULL if any argument is NULL; out-of-range fields raise
-/// `DATETIME_FIELD_OUT_OF_BOUNDS`, regardless of ANSI mode.
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#make_time>
+#[user_doc(
+    doc_section(label = "Time and Date Functions"),
+    description = "Creates a time of day from hour, minute and second fields. The result is a \
+        `Time64(Nanosecond)` with microsecond precision, like Spark's `TIME(6)`. \
+        Returns NULL if any argument is NULL. \
+        Out-of-range fields raise a `DATETIME_FIELD_OUT_OF_BOUNDS` error whether or not ANSI mode is enabled. \
+        Seconds that are negative or above 2147483647 are checked first, then hour, minute and second, \
+        so the error names the same field as Spark's.",
+    syntax_example = "make_time(hour, minute, second)",
+    sql_example = r#"```sql
+> SELECT make_time(6, 30, 45.887);
+06:30:45.887
+> SELECT make_time(23, 59, 59.999999);
+23:59:59.999999
+> SELECT make_time(1, 18, NULL);
+NULL
+> SELECT make_time(24, 18, 19.87);
+-- error: Invalid value for HourOfDay (valid values 0 - 23): 24
+```"#,
+    argument(
+        name = "hour",
+        description = "Hour of the day, 0 to 23. Numeric and string values are cast to INT."
+    ),
+    argument(
+        name = "minute",
+        description = "Minute of the hour, 0 to 59. Numeric and string values are cast to INT."
+    ),
+    argument(
+        name = "second",
+        description = "Second of the minute with an optional fraction, 0 to 59.999999. \
+            Numeric and string values are cast to DECIMAL(16, 6), so extra fractional digits are rounded half up \
+            (59.9999995 becomes 60 and is out of range)."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkMakeTime {
     signature: Signature,
@@ -97,6 +129,10 @@ impl ScalarUDFImpl for SparkMakeTime {
 
     fn return_type(&self, _: &[DataType]) -> Result<DataType> {
         Ok(DataType::Time64(TimeUnit::Nanosecond))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn coerce_types(&self, arg_types: &[DataType]) -> Result<Vec<DataType>> {
