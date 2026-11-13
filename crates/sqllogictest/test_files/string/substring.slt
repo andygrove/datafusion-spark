@@ -28,6 +28,12 @@ SELECT substring('Spark SQL'::string, -3::int, 2::int);
 ----
 SQ
 
+# Negative start counts from the end: -3 is the first character of 'abc'
+query T
+SELECT substring('abc'::string, -3::int, 6::int);
+----
+abc
+
 # Test length exceeding string length
 query T
 SELECT substring('Spark SQL'::string, 2::int, 700::int);
