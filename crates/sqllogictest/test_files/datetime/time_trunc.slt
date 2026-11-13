@@ -15,9 +15,17 @@ SELECT time_trunc('MINUTE', '09:32:05.123456'::time);
 09:32:00
 
 query D
-SELECT time_trunc('MINS', '09:32:05.123456'::time);
+SELECT time_trunc('minute', '09:32:05.123456'::time);
 ----
 09:32:00
+
+query error
+SELECT time_trunc('MINS', '09:32:05.123456'::time);
+----
+DataFusion error: Optimizer rule 'simplify_expressions' failed
+caused by
+Error during planning: The value of parameter(s) `unit` in `time_trunc` is invalid: expects one of the units 'HOUR', 'MINUTE', 'SECOND', 'MILLISECOND', 'MICROSECOND', but got 'MINS'. SQLSTATE: 22023
+
 
 # SECOND - zero out fraction
 query D
@@ -52,8 +60,10 @@ NULL
 
 
 # Null handling
-query error DataFusion error: Optimizer rule 'simplify_expressions' failed\ncaused by\nError during planning: First argument of `TIME_TRUNC` must be non-null scalar Utf8
+query D
 SELECT time_trunc(NULL, '09:32:05.123456'::time);
+----
+NULL
 
 query D
 SELECT time_trunc('HOUR', NULL::time);
@@ -61,5 +71,9 @@ SELECT time_trunc('HOUR', NULL::time);
 NULL
 
 # incorrect format
-query error DataFusion error: Execution error: Unsupported date_trunc granularity: 'test'. Supported granularities are: microsecond, millisecond, second, minute, hour, day, week, month, quarter, year
+query error
 SELECT time_trunc('test', '09:32:05.123456'::time);
+----
+DataFusion error: Optimizer rule 'simplify_expressions' failed
+caused by
+Error during planning: The value of parameter(s) `unit` in `time_trunc` is invalid: expects one of the units 'HOUR', 'MINUTE', 'SECOND', 'MILLISECOND', 'MICROSECOND', but got 'test'. SQLSTATE: 22023

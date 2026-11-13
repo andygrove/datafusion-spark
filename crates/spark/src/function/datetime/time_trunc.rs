@@ -73,14 +73,29 @@ impl ScalarUDFImpl for SparkTimeTrunc {
     fn simplify(
         &self,
         args: Vec<Expr>,
-        _info: &SimplifyContext,
+        info: &SimplifyContext,
     ) -> Result<ExprSimplifyResult> {
         let fmt_expr = &args[0];
 
         match fmt_expr.as_literal() {
-            Some(ScalarValue::Utf8(Some(_)))
-            | Some(ScalarValue::Utf8View(Some(_)))
-            | Some(ScalarValue::LargeUtf8(Some(_))) => {}
+            Some(ScalarValue::Utf8(Some(unit)))
+            | Some(ScalarValue::Utf8View(Some(unit)))
+            | Some(ScalarValue::LargeUtf8(Some(unit))) => {
+                let valid = ["HOUR", "MINUTE", "SECOND", "MILLISECOND", "MICROSECOND"];
+                if !valid.iter().any(|v| v.eq_ignore_ascii_case(unit)) {
+                    return plan_err!(
+                        "The value of parameter(s) `unit` in `time_trunc` is invalid: expects one of the units 'HOUR', 'MINUTE', 'SECOND', 'MILLISECOND', 'MICROSECOND', but got '{unit}'. SQLSTATE: 22023"
+                    );
+                }
+            }
+            // A NULL unit returns NULL, like Spark
+            Some(value) if value.is_null() => {
+                let data_type = info.get_data_type(&args[1])?;
+                return Ok(ExprSimplifyResult::Simplified(Expr::Literal(
+                    ScalarValue::try_from(&data_type)?,
+                    None,
+                )));
+            }
             _ => {
                 return plan_err!(
                     "First argument of `TIME_TRUNC` must be non-null scalar Utf8"
