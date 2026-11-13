@@ -12,11 +12,36 @@ use arrow::datatypes::{
 use datafusion_common::cast::as_boolean_array;
 use datafusion_common::{Result, internal_err, plan_err};
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
-    Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    TypeSignature, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 
+/// Spark-compatible `bit_count` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#bit_count>
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Returns the number of bits that are set in `expr`, as an INT. \
+        As in Spark, signed integers are sign-extended to 64 bits before counting, \
+        so a negative value of any signed type counts the extra high bits (`bit_count(-1)` is 64 for TINYINT, SMALLINT, INT and BIGINT). \
+        Unsigned integers are counted at their own width. A boolean counts as 1 for true and 0 for false. \
+        NULL returns NULL. DataFusion has no built-in `bit_count`.",
+    syntax_example = "bit_count(expr)",
+    sql_example = r#"```sql
+> SELECT bit_count(7);
+3
+> SELECT bit_count(-1::int);
+64
+> SELECT bit_count(NULL::int);
+NULL
+```"#,
+    argument(
+        name = "expr",
+        description = "Boolean or integer expression (signed or unsigned, 8 to 64 bits). NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkBitCount {
     signature: Signature,
@@ -73,6 +98,10 @@ impl ScalarUDFImpl for SparkBitCount {
             DataType::Int32,
             args.arg_fields[0].is_nullable(),
         )))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

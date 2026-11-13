@@ -8,14 +8,38 @@ use arrow::datatypes::{DataType, FieldRef, Int8Type, Int16Type, Int32Type, Int64
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, internal_err};
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
-    Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    TypeSignature, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
-/// Spark-compatible `bitmap_bucket_number` expression
+/// Spark-compatible `bitmap_bucket_number` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#bitmap_bucket_number>
+#[user_doc(
+    doc_section(label = "Other Functions"),
+    description = "Returns the number of the bitmap bucket that a value falls in, as a BIGINT. \
+        Spark's bitmap functions split integers into buckets of 32768 values (one 4 KiB bitmap each); \
+        `bitmap_bit_position` gives the position within the bucket. \
+        A positive value maps to `1 + (value - 1) / 32768`, so 1 to 32768 are bucket 1. \
+        Zero or a negative value maps to `value / 32768`, rounded toward zero, so -32767 to 0 are bucket 0. \
+        NULL returns NULL. DataFusion has no built-in `bitmap_bucket_number`.",
+    syntax_example = "bitmap_bucket_number(expr)",
+    sql_example = r#"```sql
+> SELECT bitmap_bucket_number(1);
+1
+> SELECT bitmap_bucket_number(65537);
+3
+> SELECT bitmap_bucket_number(-65536);
+-2
+```"#,
+    argument(
+        name = "expr",
+        description = "TINYINT, SMALLINT, INT or BIGINT expression. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct BitmapBucketNumber {
     signature: Signature,
@@ -65,6 +89,10 @@ impl ScalarUDFImpl for BitmapBucketNumber {
             DataType::Int64,
             args.arg_fields[0].is_nullable(),
         )))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

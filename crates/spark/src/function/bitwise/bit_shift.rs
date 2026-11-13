@@ -17,10 +17,11 @@ use datafusion_common::types::{
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, internal_err};
 use datafusion_expr::{
-    Coercion, ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
-    Signature, TypeSignature, TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs,
+    ScalarUDFImpl, Signature, TypeSignature, TypeSignatureClass, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 
 /// Bitwise left shift on elements in `value` by corresponding `shift` amount.
 /// The shift amount is normalized to the bit width of the type, matching Spark/Java
@@ -179,6 +180,12 @@ enum BitShiftType {
     RightUnsigned,
 }
 
+/// Spark-compatible `shiftleft`, `shiftright` and `shiftrightunsigned` expressions.
+///
+/// One struct implements all three functions, so each function's documentation is
+/// attached to its own marker type below.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#shiftleft>
 #[derive(Debug, Hash, Eq, PartialEq)]
 pub struct SparkBitShift {
     signature: Signature,
@@ -249,6 +256,89 @@ impl SparkBitShift {
     }
 }
 
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Shifts the bits of `expr` left by `n` positions. Bits shifted past the top are lost, \
+        so the result can change sign or wrap to 0. \
+        As in Spark (and Java), the shift amount is taken modulo the bit width of `expr` (32 for INT, 64 for BIGINT), \
+        so `shiftleft(1::int, 32)` is 1 and a negative `n` shifts by the bit width plus `n`. \
+        TINYINT and SMALLINT are widened to INT, and the result has the type of the widened `expr`. \
+        Returns NULL if either input is NULL. DataFusion has no built-in `shiftleft` function.",
+    syntax_example = "shiftleft(expr, n)",
+    sql_example = r#"```sql
+> SELECT shiftleft(2::int, 1);
+4
+> SELECT shiftleft(2147483647::int, 1);
+-2
+> SELECT shiftleft(1::int, 32);
+1
+```"#,
+    argument(
+        name = "expr",
+        description = "Integer expression to shift. NULL returns NULL."
+    ),
+    argument(
+        name = "n",
+        description = "Integer number of bit positions, taken modulo the bit width of `expr`. NULL returns NULL."
+    )
+)]
+struct ShiftLeftDoc;
+
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Shifts the bits of `expr` right by `n` positions, copying the sign bit into the vacated high bits \
+        (an arithmetic shift, so negative values stay negative). \
+        As in Spark (and Java), the shift amount is taken modulo the bit width of `expr` (32 for INT, 64 for BIGINT), \
+        so `shiftright(1::int, 32)` is 1 and a negative `n` shifts by the bit width plus `n`. \
+        TINYINT and SMALLINT are widened to INT, and the result has the type of the widened `expr`. \
+        Returns NULL if either input is NULL. See `shiftrightunsigned` for a shift that fills with zeros. \
+        DataFusion has no built-in `shiftright` function.",
+    syntax_example = "shiftright(expr, n)",
+    sql_example = r#"```sql
+> SELECT shiftright(16::int, 3);
+2
+> SELECT shiftright(-16::int, 3);
+-2
+> SELECT shiftright(4::int, -1);
+0
+```"#,
+    argument(
+        name = "expr",
+        description = "Integer expression to shift. NULL returns NULL."
+    ),
+    argument(
+        name = "n",
+        description = "Integer number of bit positions, taken modulo the bit width of `expr`. NULL returns NULL."
+    )
+)]
+struct ShiftRightDoc;
+
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Shifts the bits of `expr` right by `n` positions, filling the vacated high bits with zeros \
+        (a logical shift, Java's `>>>`), so a negative value becomes a large positive one. \
+        As in Spark (and Java), the shift amount is taken modulo the bit width of `expr` (32 for INT, 64 for BIGINT), \
+        so `shiftrightunsigned(1::int, 32)` is 1 and a negative `n` shifts by the bit width plus `n`. \
+        TINYINT and SMALLINT are widened to INT, and the result has the type of the widened `expr`. \
+        Returns NULL if either input is NULL. DataFusion has no built-in `shiftrightunsigned` function.",
+    syntax_example = "shiftrightunsigned(expr, n)",
+    sql_example = r#"```sql
+> SELECT shiftrightunsigned(16::int, 3);
+2
+> SELECT shiftrightunsigned(-16::int, 3);
+536870910
+```"#,
+    argument(
+        name = "expr",
+        description = "Integer expression to shift. NULL returns NULL."
+    ),
+    argument(
+        name = "n",
+        description = "Integer number of bit positions, taken modulo the bit width of `expr`. NULL returns NULL."
+    )
+)]
+struct ShiftRightUnsignedDoc;
+
 impl ScalarUDFImpl for SparkBitShift {
     fn name(&self) -> &str {
         self.name
@@ -266,6 +356,14 @@ impl ScalarUDFImpl for SparkBitShift {
         let nullable = args.arg_fields.iter().any(|f| f.is_nullable());
         let data_type = args.arg_fields[0].data_type().clone();
         Ok(Arc::new(Field::new(self.name(), data_type, nullable)))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        match self.bit_shift_type {
+            BitShiftType::Left => ShiftLeftDoc.doc(),
+            BitShiftType::Right => ShiftRightDoc.doc(),
+            BitShiftType::RightUnsigned => ShiftRightUnsignedDoc.doc(),
+        }
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

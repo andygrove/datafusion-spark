@@ -15,11 +15,39 @@ use datafusion_common::types::{NativeType, logical_int32};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, internal_err};
 use datafusion_expr::{
-    Coercion, ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
-    Signature, TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs,
+    ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 
+/// Spark-compatible `bit_get` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#bit_get>
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Returns the bit (0 or 1) at position `pos` of an integer, as a TINYINT. \
+        Positions count from 0 at the least significant bit. \
+        Returns NULL if either input is NULL. \
+        Errors if `pos` is negative or not less than the bit width of the type of `expr`. \
+        Integer literals are BIGINT in DataFusion but INT in Spark, so for an uncast literal the limit is 64 here and 32 in Spark. \
+        DataFusion has no built-in `bit_get`.",
+    syntax_example = "bit_get(expr, pos)",
+    alternative_syntax = "getbit(expr, pos)",
+    sql_example = r#"```sql
+> SELECT bit_get(11, 0);
+1
+> SELECT bit_get(11, 2);
+0
+> SELECT bit_get(11, NULL);
+NULL
+```"#,
+    argument(name = "expr", description = "Integer expression. NULL returns NULL."),
+    argument(
+        name = "pos",
+        description = "Integer bit position, from 0 to the bit width of `expr` minus 1. Any other value is an error. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkBitGet {
     signature: Signature,
@@ -72,6 +100,10 @@ impl ScalarUDFImpl for SparkBitGet {
         // Spark derives nullability for BinaryExpression from its children
         let nullable = args.arg_fields.iter().any(|f| f.is_nullable());
         Ok(Arc::new(Field::new(self.name(), DataType::Int8, nullable)))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

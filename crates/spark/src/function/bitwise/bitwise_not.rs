@@ -8,11 +8,34 @@ use arrow::datatypes::{
     DataType, Field, FieldRef, Int8Type, Int16Type, Int32Type, Int64Type,
 };
 use datafusion_common::{Result, internal_err, plan_err};
-use datafusion_expr::{ColumnarValue, TypeSignature, Volatility};
+use datafusion_expr::{ColumnarValue, Documentation, TypeSignature, Volatility};
 use datafusion_expr::{ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature};
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
+/// Spark-compatible `bitwise_not` expression (the `~` operator in Spark SQL).
+///
+/// <https://spark.apache.org/docs/latest/api/python/reference/pyspark.sql/api/pyspark.sql.functions.bitwise_not.html>
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Returns the bitwise NOT of a signed integer, with every bit flipped, in the same type as the input. \
+        In two's complement this is `-expr - 1`, and it never overflows (`bitwise_not` of the maximum value is the minimum value). \
+        NULL returns NULL. Spark SQL spells this `~expr`. DataFusion has no built-in `bitwise_not` function.",
+    syntax_example = "bitwise_not(expr)",
+    sql_example = r#"```sql
+> SELECT bitwise_not(0::int);
+-1
+> SELECT bitwise_not(-3::int);
+2
+> SELECT bitwise_not(2147483647::int);
+-2147483648
+```"#,
+    argument(
+        name = "expr",
+        description = "TINYINT, SMALLINT, INT or BIGINT expression. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkBitwiseNot {
     signature: Signature,
@@ -61,6 +84,10 @@ impl ScalarUDFImpl for SparkBitwiseNot {
             args.arg_fields[0].data_type().clone(),
             args.arg_fields[0].is_nullable(),
         )))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

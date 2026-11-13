@@ -5,10 +5,43 @@
 use arrow::datatypes::DataType;
 use datafusion_common::{Result, internal_err, plan_err};
 use datafusion_expr::{
-    ColumnarValue, Expr, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
-    binary::try_type_union_resolution, simplify::ExprSimplifyResult, when,
+    ColumnarValue, Documentation, Expr, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Volatility, binary::try_type_union_resolution, simplify::ExprSimplifyResult, when,
 };
+use datafusion_macros::user_doc;
 
+/// Spark-compatible `if` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#if>
+#[user_doc(
+    doc_section(label = "Conditional Functions"),
+    description = "Returns `expr1` if `cond` is true, and `expr2` otherwise. A NULL condition counts as false. \
+        It is rewritten to `CASE WHEN cond THEN expr1 ELSE expr2 END`, so an error such as division by zero \
+        in the branch that isn't taken is not raised. \
+        `expr1` and `expr2` are coerced to a common type (`if(true, 10, 20.5)` returns a DOUBLE). \
+        It is an error if `cond` is not a boolean or NULL. DataFusion has no built-in `if`.",
+    syntax_example = "if(cond, expr1, expr2)",
+    sql_example = r#"```sql
+> SELECT if(1 < 2, 'a', 'b');
+a
+> SELECT if(NULL, 'yes', 'no');
+no
+> SELECT if(true, 1 / 1, 1 / 0);
+1
+```"#,
+    argument(
+        name = "cond",
+        description = "Boolean expression. NULL is treated as false."
+    ),
+    argument(
+        name = "expr1",
+        description = "Expression returned when `cond` is true."
+    ),
+    argument(
+        name = "expr2",
+        description = "Expression returned when `cond` is false or NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkIf {
     signature: Signature,
@@ -60,6 +93,10 @@ impl ScalarUDFImpl for SparkIf {
 
     fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
         Ok(arg_types[1].clone())
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, _args: ScalarFunctionArgs) -> Result<ColumnarValue> {
