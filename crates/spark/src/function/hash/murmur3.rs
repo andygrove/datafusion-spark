@@ -9,17 +9,52 @@ use arrow::buffer::{Buffer, ScalarBuffer};
 use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion_common::{Result, ScalarValue, internal_err};
 use datafusion_expr::{
-    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
-    Volatility,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
+    Signature, Volatility,
 };
+use datafusion_macros::user_doc;
 
 use super::utils::hash_dictionary_values;
 use crate::create_hashes_internal;
 
 const DEFAULT_SEED: u32 = 42;
 
-/// Spark-compatible `hash` function (32-bit Murmur3, seed 42).
+/// Spark-compatible `hash` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#hash>
+#[user_doc(
+    doc_section(label = "Hashing Functions"),
+    description = "Returns the 32-bit Murmur3 hash (seed 42) of the arguments as an INT, matching Spark's `hash`. \
+        DataFusion has no built-in equivalent. Arguments are hashed in order, and each argument's hash seeds the next, \
+        so `hash(a, b)` equals `hash(named_struct('a', a, 'b', b))` and argument order matters. \
+        NULL arguments, NULL list elements and NULL struct fields are skipped, so the result is never NULL: \
+        `hash(NULL)` returns 42. The result depends on the input type, as in Spark: INT hashes 4 bytes and BIGINT 8, \
+        and integer literals are BIGINT in DataFusion but INT in Spark, so cast them to INT to match Spark's results. \
+        `-0.0` hashes like `0.0`. Decimals with precision up to 18 hash as their unscaled long, and wider decimals hash \
+        the minimal big-endian two's complement bytes of the unscaled value. Lists hash each element in order \
+        (nested lists flatten into the same chain, and an empty list leaves the seed unchanged), structs hash each field, \
+        and maps hash each key then its value. Spark 4 rejects maps unless `spark.sql.legacy.allowHashOnMapType` is set. \
+        Dictionary-encoded values hash like their decoded values. At least one argument is required.",
+    syntax_example = "hash(expr1[, ..., exprN])",
+    sql_example = r#"```sql
+> SELECT hash('Spark', [CAST(123 AS INT)], CAST(2 AS INT));
+-1321691492
+> SELECT hash(CAST(1 AS INT));
+-559580957
+> SELECT hash(1);
+-1712319331
+> SELECT hash(NULL);
+42
+```"#,
+    argument(
+        name = "expr1",
+        description = "Expression of any type to hash. NULL is skipped."
+    ),
+    argument(
+        name = "exprN",
+        description = "Further expressions, hashed in order with the previous hash as the seed."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkHash {
     signature: Signature,
@@ -56,6 +91,10 @@ impl ScalarUDFImpl for SparkHash {
         // Spark's HashExpression overrides nullable to false: NULL inputs are
         // skipped and the seed is used, so the result is never null.
         Ok(Arc::new(Field::new(self.name(), DataType::Int32, false)))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
