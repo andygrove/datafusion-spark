@@ -26,6 +26,12 @@ SELECT second('2009-07-30 12:58:30'::timestamp);
 ----
 30
 
+# Fractions of a second are dropped
+query I
+SELECT second('2009-07-30 12:58:59.999'::timestamp);
+----
+59
+
 # Test with NULL
 query I
 SELECT second(NULL::timestamp);

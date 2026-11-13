@@ -10,10 +10,30 @@ use chrono::{Datelike, Duration, NaiveDate};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue, exec_datafusion_err, internal_err};
 use datafusion_expr::{
-    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
-    Volatility,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
+    Signature, Volatility,
 };
+use datafusion_macros::user_doc;
 
+/// Spark-compatible `last_day` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#last_day>
+#[user_doc(
+    doc_section(label = "Time and Date Functions"),
+    description = "Returns the last day of the month that `date` falls in, taking leap years into account. \
+        DataFusion has no built-in `last_day`. Returns NULL if `date` is NULL. \
+        The input must be a DATE; strings and timestamps are not implicitly cast.",
+    syntax_example = "last_day(date)",
+    sql_example = r#"```sql
+> SELECT last_day(DATE '2009-01-12');
+2009-01-31
+> SELECT last_day(DATE '2016-02-07');
+2016-02-29
+> SELECT last_day(NULL::DATE);
+NULL
+```"#,
+    argument(name = "date", description = "DATE expression. NULL returns NULL.")
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkLastDay {
     signature: Signature,
@@ -56,6 +76,10 @@ impl ScalarUDFImpl for SparkLastDay {
             DataType::Date32,
             field.is_nullable(),
         )))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

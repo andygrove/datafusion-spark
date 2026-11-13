@@ -8,10 +8,11 @@ use arrow::datatypes::DataType;
 use datafusion_common::Result;
 use datafusion_common::utils::take_function_args;
 use datafusion_expr::{
-    Coercion, ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Coercion, ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     TypeSignatureClass, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 
 /// Creates a signature for datetime extraction functions that accept timestamp types.
 fn extract_signature() -> Signature {
@@ -25,6 +26,26 @@ fn extract_signature() -> Signature {
 // SparkHour
 // -----------------------------------------------------------------------------
 
+/// Spark-compatible `hour` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#hour>
+#[user_doc(
+    doc_section(label = "Time and Date Functions"),
+    description = "Returns the hour of the day (0 to 23) of a timestamp, as an INT. \
+        DataFusion has no built-in `hour`. \
+        Returns NULL if the input is NULL. The input must be a TIMESTAMP; strings are not implicitly cast.",
+    syntax_example = "hour(timestamp)",
+    sql_example = r#"```sql
+> SELECT hour(TIMESTAMP '2009-07-30 12:58:59');
+12
+> SELECT hour(NULL::TIMESTAMP);
+NULL
+```"#,
+    argument(
+        name = "timestamp",
+        description = "TIMESTAMP expression. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkHour {
     signature: Signature,
@@ -57,6 +78,10 @@ impl ScalarUDFImpl for SparkHour {
         Ok(DataType::Int32)
     }
 
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
+    }
+
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         make_scalar_function(spark_hour, vec![])(&args.args)
     }
@@ -72,6 +97,26 @@ fn spark_hour(args: &[ArrayRef]) -> Result<ArrayRef> {
 // SparkMinute
 // -----------------------------------------------------------------------------
 
+/// Spark-compatible `minute` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#minute>
+#[user_doc(
+    doc_section(label = "Time and Date Functions"),
+    description = "Returns the minute of the hour (0 to 59) of a timestamp, as an INT. \
+        DataFusion has no built-in `minute`. \
+        Returns NULL if the input is NULL. The input must be a TIMESTAMP; strings are not implicitly cast.",
+    syntax_example = "minute(timestamp)",
+    sql_example = r#"```sql
+> SELECT minute(TIMESTAMP '2009-07-30 12:58:59');
+58
+> SELECT minute(NULL::TIMESTAMP);
+NULL
+```"#,
+    argument(
+        name = "timestamp",
+        description = "TIMESTAMP expression. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkMinute {
     signature: Signature,
@@ -104,6 +149,10 @@ impl ScalarUDFImpl for SparkMinute {
         Ok(DataType::Int32)
     }
 
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
+    }
+
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         make_scalar_function(spark_minute, vec![])(&args.args)
     }
@@ -119,6 +168,27 @@ fn spark_minute(args: &[ArrayRef]) -> Result<ArrayRef> {
 // SparkSecond
 // -----------------------------------------------------------------------------
 
+/// Spark-compatible `second` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#second>
+#[user_doc(
+    doc_section(label = "Time and Date Functions"),
+    description = "Returns the second of the minute (0 to 59) of a timestamp, as an INT. \
+        Fractions of a second are dropped. \
+        DataFusion has no built-in `second`. \
+        Returns NULL if the input is NULL. The input must be a TIMESTAMP; strings are not implicitly cast.",
+    syntax_example = "second(timestamp)",
+    sql_example = r#"```sql
+> SELECT second(TIMESTAMP '2009-07-30 12:58:59');
+59
+> SELECT second(NULL::TIMESTAMP);
+NULL
+```"#,
+    argument(
+        name = "timestamp",
+        description = "TIMESTAMP expression. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkSecond {
     signature: Signature,
@@ -149,6 +219,10 @@ impl ScalarUDFImpl for SparkSecond {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(DataType::Int32)
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

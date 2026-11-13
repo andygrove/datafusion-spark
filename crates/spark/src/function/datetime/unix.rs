@@ -2,21 +2,40 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 use arrow::datatypes::{DataType, Field, FieldRef, Int64Type, TimeUnit};
 use datafusion_common::cast::as_int64_array;
 use datafusion_common::types::logical_date;
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue, internal_err};
+use datafusion_doc::DocSection;
 use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
-    Coercion, ColumnarValue, Expr, ExprSchemable, ReturnFieldArgs, ScalarFunctionArgs,
-    ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, Expr, ExprSchemable, ReturnFieldArgs,
+    ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
 };
+use datafusion_macros::user_doc;
 
-/// Returns the number of days since epoch (1970-01-01) for the given date.
+/// Spark-compatible `unix_date` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#unix_date>
+#[user_doc(
+    doc_section(label = "Time and Date Functions"),
+    description = "Returns the number of days since 1970-01-01, as an INT. \
+        Dates before 1970-01-01 return a negative number. DataFusion has no built-in `unix_date`. \
+        Returns NULL if the input is NULL. The input must be a DATE; strings are not implicitly cast.",
+    syntax_example = "unix_date(date)",
+    sql_example = r#"```sql
+> SELECT unix_date(DATE '1970-01-02');
+1
+> SELECT unix_date(DATE '1900-01-02');
+-25566
+> SELECT unix_date(NULL::DATE);
+NULL
+```"#,
+    argument(name = "date", description = "DATE expression. NULL returns NULL.")
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkUnixDate {
     signature: Signature,
@@ -59,6 +78,10 @@ impl ScalarUDFImpl for SparkUnixDate {
         Ok(Arc::new(Field::new(self.name(), DataType::Int32, nullable)))
     }
 
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
+    }
+
     fn invoke_with_args(&self, _args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         internal_err!("invoke_with_args should not be called on SparkUnixDate")
     }
@@ -76,6 +99,10 @@ impl ScalarUDFImpl for SparkUnixDate {
     }
 }
 
+/// Spark-compatible `unix_micros`, `unix_millis` and `unix_seconds` expressions.
+///
+/// One struct serves all three functions, so the user docs are built per time unit
+/// in `unix_timestamp_doc` rather than with `#[user_doc]`.
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkUnixTimestamp {
     time_unit: TimeUnit,
@@ -150,6 +177,57 @@ impl ScalarUDFImpl for SparkUnixTimestamp {
         Ok(Arc::new(Field::new(self.name(), DataType::Int64, nullable)))
     }
 
+    fn documentation(&self) -> Option<&Documentation> {
+        static MICROS: LazyLock<Documentation> = LazyLock::new(|| {
+            unix_timestamp_doc(
+                "unix_micros",
+                "microseconds",
+                r#"```sql
+> SELECT unix_micros(TIMESTAMP '1970-01-01 00:00:01');
+1000000
+> SELECT unix_micros(TIMESTAMP '1900-01-01 00:00:01');
+-2208988799000000
+> SELECT unix_micros(NULL::TIMESTAMP);
+NULL
+```"#,
+            )
+        });
+        static MILLIS: LazyLock<Documentation> = LazyLock::new(|| {
+            unix_timestamp_doc(
+                "unix_millis",
+                "milliseconds",
+                r#"```sql
+> SELECT unix_millis(TIMESTAMP '1970-01-01 00:00:01');
+1000
+> SELECT unix_millis(TIMESTAMP '1969-12-31 23:59:59.9985');
+-2
+> SELECT unix_millis(NULL::TIMESTAMP);
+NULL
+```"#,
+            )
+        });
+        static SECONDS: LazyLock<Documentation> = LazyLock::new(|| {
+            unix_timestamp_doc(
+                "unix_seconds",
+                "seconds",
+                r#"```sql
+> SELECT unix_seconds(TIMESTAMP '1970-01-01 00:00:01');
+1
+> SELECT unix_seconds(TIMESTAMP '1969-12-31 23:59:58.5');
+-2
+> SELECT unix_seconds(NULL::TIMESTAMP);
+NULL
+```"#,
+            )
+        });
+        match self.time_unit {
+            TimeUnit::Microsecond => Some(&MICROS),
+            TimeUnit::Millisecond => Some(&MILLIS),
+            TimeUnit::Second => Some(&SECONDS),
+            TimeUnit::Nanosecond => None,
+        }
+    }
+
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         let [ts] = take_function_args(self.name(), args.args)?;
         let Some(divisor) = self.downscale_divisor(&ts.data_type()) else {
@@ -196,6 +274,29 @@ impl ScalarUDFImpl for SparkUnixTimestamp {
             .cast_to(&DataType::Int64, info.schema())?,
         ))
     }
+}
+
+/// Builds the user docs for `unix_micros`, `unix_millis` or `unix_seconds`.
+fn unix_timestamp_doc(name: &str, unit: &str, sql_example: &str) -> Documentation {
+    Documentation::builder(
+        DocSection {
+            include: true,
+            label: "Time and Date Functions",
+            description: None,
+        },
+        format!(
+            "Returns the number of {unit} since 1970-01-01 00:00:00 UTC, as a BIGINT. \
+            DataFusion has no built-in `{name}`. \
+            A timestamp without a time zone is read as UTC, and a timestamp's time zone does not change the result. \
+            Any finer part is rounded down (toward negative infinity, like Spark), \
+            so timestamps before 1970 with a fractional part move one unit further from zero. \
+            Returns NULL if the input is NULL. The input must be a TIMESTAMP; strings are not implicitly cast."
+        ),
+        format!("{name}(timestamp)"),
+    )
+    .with_sql_example(sql_example)
+    .with_argument("timestamp", "TIMESTAMP expression. NULL returns NULL.")
+    .build()
 }
 
 #[cfg(test)]

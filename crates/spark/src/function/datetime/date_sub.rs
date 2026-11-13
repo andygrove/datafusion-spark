@@ -12,11 +12,41 @@ use datafusion_common::cast::{
 };
 use datafusion_common::{Result, internal_err};
 use datafusion_expr::{
-    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
-    TypeSignature, Volatility,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
+    Signature, TypeSignature, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 
+/// Spark-compatible `date_sub` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#date_sub>
+#[user_doc(
+    doc_section(label = "Time and Date Functions"),
+    description = "Returns the date that is `num_days` days before `start_date`. \
+        A negative `num_days` moves the date forwards. DataFusion has no built-in `date_sub`. \
+        Returns NULL if either input is NULL. \
+        The arithmetic wraps around on overflow instead of returning an error. \
+        `num_days` must be INT, SMALLINT or TINYINT. Integer literals are BIGINT in DataFusion, \
+        so cast them (for example `1::INT`). `start_date` must be a DATE; strings are not implicitly cast.",
+    syntax_example = "date_sub(start_date, num_days)",
+    sql_example = r#"```sql
+> SELECT date_sub(DATE '2016-07-30', 1::INT);
+2016-07-29
+> SELECT date_sub(DATE '2016-07-30', -5::INT);
+2016-08-04
+> SELECT date_sub(NULL::DATE, 1::INT);
+NULL
+```"#,
+    argument(
+        name = "start_date",
+        description = "DATE expression. NULL returns NULL."
+    ),
+    argument(
+        name = "num_days",
+        description = "INT, SMALLINT or TINYINT number of days to subtract. Negative values add days. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkDateSub {
     signature: Signature,
@@ -63,6 +93,10 @@ impl ScalarUDFImpl for SparkDateSub {
             DataType::Date32,
             nullable,
         )))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

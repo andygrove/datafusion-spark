@@ -11,9 +11,10 @@ use datafusion_common::{
 use datafusion_expr::expr::ScalarFunction;
 use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
-    Coercion, ColumnarValue, Expr, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
-    Signature, TypeSignature, TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, Expr, ReturnFieldArgs, ScalarFunctionArgs,
+    ScalarUDFImpl, Signature, TypeSignature, TypeSignatureClass, Volatility,
 };
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
 /// Field names Spark accepts, one group per field, from `DatePart.parseExtractField`.
@@ -32,9 +33,42 @@ const SPARK_FIELDS: &[&str] = &[
     "second s sec seconds secs",
 ];
 
-/// Wrapper around datafusion date_part function to handle
-/// Spark behavior returning day of the week 1-indexed instead of 0-indexed and different part aliases.
+/// Spark-compatible `date_part` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#date_part>
+#[user_doc(
+    doc_section(label = "Time and Date Functions"),
+    description = "Extracts a field from a date or timestamp, as an INT. \
+        Unlike DataFusion's `date_part`, it accepts Spark's field names and abbreviations (case-insensitive), \
+        and `DAYOFWEEK`/`DOW` counts from 1 (Sunday) to 7 (Saturday) where DataFusion's `dow` counts from 0 (Sunday). \
+        `DAYOFWEEK_ISO`/`DOW_ISO` counts from 1 (Monday) to 7 (Sunday), and `YEAROFWEEK` is the ISO week-numbering year. \
+        A field name Spark does not accept (such as `QUARTERS` or `DAYOFYEAR`) is an error at planning time. \
+        A NULL field or source returns NULL. \
+        `SECOND` returns whole seconds; Spark returns DECIMAL(8, 6) including the fraction of a second.",
+    syntax_example = "date_part(field, source)",
+    alternative_syntax = "datepart(field, source)",
+    sql_example = r#"```sql
+> SELECT date_part('YEAR', DATE '2000-01-01');
+2000
+> SELECT date_part('DOW', DATE '2000-01-01');
+7
+> SELECT date_part('MINS', TIMESTAMP '2000-01-01 12:30:45');
+30
+> SELECT date_part('year', NULL::TIMESTAMP);
+NULL
+```"#,
+    argument(
+        name = "field",
+        description = "String literal naming the field to extract: `YEAR` (`Y`, `YEARS`, `YR`, `YRS`), `YEAROFWEEK`, \
+            `QUARTER` (`QTR`), `MONTH` (`MON`, `MONS`, `MONTHS`), `WEEK` (`W`, `WEEKS`), `DAY` (`D`, `DAYS`), \
+            `DAYOFWEEK` (`DOW`), `DAYOFWEEK_ISO` (`DOW_ISO`), `DOY`, `HOUR` (`H`, `HOURS`, `HR`, `HRS`), \
+            `MINUTE` (`M`, `MIN`, `MINS`, `MINUTES`) or `SECOND` (`S`, `SEC`, `SECONDS`, `SECS`). NULL returns NULL."
+    ),
+    argument(
+        name = "source",
+        description = "DATE or TIMESTAMP expression. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkDatePart {
     signature: Signature,
@@ -89,6 +123,10 @@ impl ScalarUDFImpl for SparkDatePart {
     // because they can be NULL for a non-null input
     fn return_field_from_args(&self, _args: ReturnFieldArgs) -> Result<FieldRef> {
         Ok(Arc::new(Field::new(self.name(), DataType::Int32, true)))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, _args: ScalarFunctionArgs) -> Result<ColumnarValue> {
