@@ -77,17 +77,17 @@ SELECT width_bucket(5.0, 0.0, 10.0, 0);
 NULL
 
 query I
-SELECT width_bucket(arrow_cast('NaN','Float64'),5.0, 0.0, 5)
+SELECT width_bucket('NaN'::DOUBLE,5.0, 0.0, 5)
 ----
 NULL
 
 query I
-SELECT width_bucket(5.0, arrow_cast('NaN','Float64'), 0.0, 5)
+SELECT width_bucket(5.0, 'NaN'::DOUBLE, 0.0, 5)
 ----
 NULL
 
 query I
-SELECT width_bucket(5.0, 0.0, arrow_cast('NaN','Float64'), 5)
+SELECT width_bucket(5.0, 0.0, 'NaN'::DOUBLE, 5)
 ----
 NULL
 

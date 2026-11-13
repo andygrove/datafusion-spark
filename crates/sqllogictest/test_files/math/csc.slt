@@ -25,7 +25,7 @@ Infinity
 NULL
 
 query R
-SELECT csc(a) FROM (VALUES (pi()), (-pi()), (pi()/2) , (arrow_cast('NAN','Float32'))) AS t(a);
+SELECT csc(a) FROM (VALUES (pi()), (-pi()), (pi()/2) , ('NAN'::FLOAT)) AS t(a);
 ----
 8165619676597685
 -8165619676597685

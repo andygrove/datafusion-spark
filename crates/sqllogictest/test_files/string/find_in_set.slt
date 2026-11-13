@@ -198,12 +198,12 @@ SELECT find_in_set(a, 'a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,a13,a14,a15,a16
 NULL
 
 query I
-SELECT find_in_set(arrow_cast('ab', 'Utf8View'), arrow_cast('abc,b,ab,c,def', 'Utf8View'));
+SELECT find_in_set('ab'::STRING, 'abc,b,ab,c,def'::STRING);
 ----
 3
 
 query I
-SELECT find_in_set(arrow_cast(a, 'Utf8View'), arrow_cast('abc,b,ab,c,def', 'Utf8View')) FROM (VALUES ('ab'::string), (''::string), (NULL::string)) AS t(a);
+SELECT find_in_set(a::STRING, 'abc,b,ab,c,def'::STRING) FROM (VALUES ('ab'::string), (''::string), (NULL::string)) AS t(a);
 ----
 3
 0

@@ -84,7 +84,7 @@ SELECT stack(3, i, 'a', s, -1, NULL, 'b', i) FROM (VALUES (1, 's1'), (NULL, 's2'
 
 # Values of one Spark type with different Arrow types are cast to the first one
 query ??T
-SELECT stack(2, 'a', v), stack(2, d, 'a'), arrow_typeof(stack(2, d, 'a')) FROM (VALUES (arrow_cast('b', 'Utf8View'), arrow_cast('b', 'Dictionary(Int32, Utf8)'))) AS t(v, d);
+SELECT stack(2, 'a', v), stack(2, d, 'a'), arrow_typeof(stack(2, d, 'a')) FROM (VALUES ('b'::STRING, arrow_cast('b', 'Dictionary(Int32, Utf8)'))) AS t(v, d);
 ----
 [{col0: a}, {col0: b}] [{col0: b}, {col0: a}] List(Struct("col0": Dictionary(Int32, Utf8)))
 

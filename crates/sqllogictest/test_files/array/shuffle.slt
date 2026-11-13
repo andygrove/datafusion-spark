@@ -34,7 +34,7 @@ NULL
 
 # Typed null lists have no child values to shuffle.
 query ??
-SELECT shuffle(arrow_cast(NULL, 'List(Int32)')), shuffle(arrow_cast(NULL, 'LargeList(Int32)'));
+SELECT shuffle(NULL::ARRAY<INT>), shuffle(arrow_cast(NULL, 'LargeList(Int32)'));
 ----
 NULL NULL
 

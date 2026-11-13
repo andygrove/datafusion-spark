@@ -112,14 +112,14 @@ SELECT encode('😀'::string, 'utf-32'::string);
 
 # Utf8View column input
 query ?
-SELECT encode(arrow_cast(s, 'Utf8View'), 'utf-8'::string) FROM (VALUES ('foo'::string), ('bar'::string)) AS t(s);
+SELECT encode(s::STRING, 'utf-8'::string) FROM (VALUES ('foo'::string), ('bar'::string)) AS t(s);
 ----
 666f6f
 626172
 
 # Binary input is decoded as UTF-8 (lossily), then re-encoded with the charset
 query ?
-SELECT encode(arrow_cast('Hello', 'Binary'), 'utf-8'::string);
+SELECT encode('Hello'::BINARY, 'utf-8'::string);
 ----
 48656c6c6f
 

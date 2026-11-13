@@ -250,17 +250,17 @@ SELECT MOD(10::int8, 3::int8) as mod_int8;
 1
 
 query I
-SELECT MOD(arrow_cast(10, 'Int16'), arrow_cast(3, 'Int16')) as mod_int16;
+SELECT MOD(10::SMALLINT, 3::SMALLINT) as mod_int16;
 ----
 1
 
 query I
-SELECT MOD(arrow_cast(10, 'Int32'), arrow_cast(3, 'Int32')) as mod_int32;
+SELECT MOD(10::INT, 3::INT) as mod_int32;
 ----
 1
 
 query I
-SELECT MOD(arrow_cast(10, 'Int64'), arrow_cast(3, 'Int64')) as mod_int64;
+SELECT MOD(10::BIGINT, 3::BIGINT) as mod_int64;
 ----
 1
 

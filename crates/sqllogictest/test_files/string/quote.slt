@@ -3,52 +3,52 @@
 # SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 query T
-SELECT quote(arrow_cast(127, 'Int8'));
+SELECT quote(127::TINYINT);
 ----
 '127'
 
 query T
-SELECT quote(arrow_cast(-128, 'Int8'));
+SELECT quote((-128)::TINYINT);
 ----
 '-128'
 
 query T
-SELECT quote(arrow_cast(32767, 'Int16'));
+SELECT quote(32767::SMALLINT);
 ----
 '32767'
 
 query T
-SELECT quote(arrow_cast(-32768, 'Int16'));
+SELECT quote((-32768)::SMALLINT);
 ----
 '-32768'
 
 query T
-SELECT quote(arrow_cast(2147483647, 'Int32'));
+SELECT quote(2147483647::INT);
 ----
 '2147483647'
 
 query T
-SELECT quote(arrow_cast(-2147483648, 'Int32'));
+SELECT quote((-2147483648)::INT);
 ----
 '-2147483648'
 
 query T
-SELECT quote(arrow_cast(9223372036854775807, 'Int64'));
+SELECT quote(9223372036854775807::BIGINT);
 ----
 '9223372036854775807'
 
 query T
-SELECT quote(arrow_cast(-9223372036854775808, 'Int64'));
+SELECT quote((-9223372036854775808)::BIGINT);
 ----
 '-9223372036854775808'
 
 query T
-SELECT quote(arrow_cast(3.14, 'Float32'));
+SELECT quote(3.14::FLOAT);
 ----
 '3.14'
 
 query T
-SELECT quote(arrow_cast(2.718281828459045, 'Float64'));
+SELECT quote(2.718281828459045::DOUBLE);
 ----
 '2.718281828459045'
 
@@ -118,7 +118,7 @@ SELECT quote('emoji: 😀🎉❤️🚀');
 'emoji: 😀🎉❤️🚀'
 
 query T
-SELECT quote(arrow_cast('2024-01-15', 'Date32'));
+SELECT quote('2024-01-15'::DATE);
 ----
 '2024-01-15'
 
@@ -170,12 +170,12 @@ SELECT quote(arrow_cast('', 'LargeUtf8'));
 ''
 
 query T
-SELECT quote(arrow_cast('it''s', 'Utf8View'));
+SELECT quote('it''s'::STRING);
 ----
 'it\'s'
 
 query T
-SELECT quote(arrow_cast('', 'Utf8View'));
+SELECT quote(''::STRING);
 ----
 ''
 
@@ -200,7 +200,7 @@ NULL
 # Mixes values that are inlined in the views (<= 12 bytes) with values held in a
 # data buffer, since the two are measured differently for the capacity hint.
 query T
-SELECT quote(arrow_cast(c, 'Utf8View'))
+SELECT quote(c::STRING)
 FROM VALUES ('a'), ('it''s'), (NULL), ('a value that is longer than twelve bytes and has an '' embedded quote') AS t(c);
 ----
 'a'

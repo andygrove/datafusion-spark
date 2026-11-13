@@ -204,88 +204,88 @@ FROM VALUES
 
 # Binary: basic substring with only pos
 query ?
-SELECT substring(arrow_cast('Spark SQL', 'Binary'), 5::int);
+SELECT substring('Spark SQL'::BINARY, 5::int);
 ----
 6b2053514c
 
 # Binary: substring with pos and length
 query ?
-SELECT substring(arrow_cast('Spark SQL', 'Binary'), 3::int, 1::int);
+SELECT substring('Spark SQL'::BINARY, 3::int, 1::int);
 ----
 61
 
 # Binary: zero pos is treated as 1
 query ?
-SELECT substring(arrow_cast('Spark SQL', 'Binary'), 0::int);
+SELECT substring('Spark SQL'::BINARY, 0::int);
 ----
 537061726b2053514c
 
 # Binary: negative pos counts from the end
 query ?
-SELECT substring(arrow_cast('Spark SQL', 'Binary'), -3::int);
+SELECT substring('Spark SQL'::BINARY, -3::int);
 ----
 53514c
 
 query ?
-SELECT substring(arrow_cast('Spark SQL', 'Binary'), -3::int, 2::int);
+SELECT substring('Spark SQL'::BINARY, -3::int, 2::int);
 ----
 5351
 
 # Binary: length exceeding input length
 query ?
-SELECT substring(arrow_cast('Spark SQL', 'Binary'), 2::int, 700::int);
+SELECT substring('Spark SQL'::BINARY, 2::int, 700::int);
 ----
 7061726b2053514c
 
 # Binary: pos beyond end returns empty binary
 query I
-SELECT character_length(substring(arrow_cast('Spark SQL', 'Binary'), 30::int));
+SELECT character_length(substring('Spark SQL'::BINARY, 30::int));
 ----
 0
 
 # Binary: large negative pos returns the full value
 query ?
-SELECT substring(arrow_cast('Spark SQL', 'Binary'), -30::int);
+SELECT substring('Spark SQL'::BINARY, -30::int);
 ----
 537061726b2053514c
 
 # Binary: negative length returns empty binary
 query I
-SELECT character_length(substring(arrow_cast('Spark SQL', 'Binary'), 3::int, -1::int));
+SELECT character_length(substring('Spark SQL'::BINARY, 3::int, -1::int));
 ----
 0
 
 # Binary: zero length returns empty binary
 query I
-SELECT character_length(substring(arrow_cast('Spark SQL', 'Binary'), 3::int, 0::int));
+SELECT character_length(substring('Spark SQL'::BINARY, 3::int, 0::int));
 ----
 0
 
 # Binary: NULL handling
 query ?
-SELECT substring(arrow_cast('Spark SQL', 'Binary'), NULL::int);
+SELECT substring('Spark SQL'::BINARY, NULL::int);
 ----
 NULL
 
 query ?
-SELECT substring(arrow_cast(NULL, 'Binary'), 5::int);
+SELECT substring(NULL::BINARY, 5::int);
 ----
 NULL
 
 query ?
-SELECT substring(arrow_cast('Spark SQL', 'Binary'), NULL::int, 1::int);
+SELECT substring('Spark SQL'::BINARY, NULL::int, 1::int);
 ----
 NULL
 
 query ?
-SELECT substring(arrow_cast('Spark SQL', 'Binary'), 3::int, NULL::int);
+SELECT substring('Spark SQL'::BINARY, 3::int, NULL::int);
 ----
 NULL
 
 # Binary: return type matches input type
 query ?T
-SELECT substring(arrow_cast('Spark SQL', 'Binary'), 3::int, 2::int),
-       arrow_typeof(substring(arrow_cast('Spark SQL', 'Binary'), 3::int, 2::int));
+SELECT substring('Spark SQL'::BINARY, 3::int, 2::int),
+       arrow_typeof(substring('Spark SQL'::BINARY, 3::int, 2::int));
 ----
 6172 Binary
 
@@ -317,7 +317,7 @@ SELECT substring(X'ff00aabb1122', -2::int, 2::int);
 
 # substr alias works with binary input
 query ?
-SELECT substr(arrow_cast('Spark SQL', 'Binary'), 5::int);
+SELECT substr('Spark SQL'::BINARY, 5::int);
 ----
 6b2053514c
 
@@ -333,16 +333,16 @@ query ?I
 SELECT substring(column1, column2, column3),
        character_length(substring(column1, column2, column3))
 FROM VALUES
-(arrow_cast('Spark SQL', 'Binary'), -3::int, 2::int),
-(arrow_cast('Spark SQL', 'Binary'), 3::int, 1::int),
-(arrow_cast('Spark SQL', 'Binary'), 3::int, 700::int),
-(arrow_cast('Spark SQL', 'Binary'), 3::int, -1::int),
-(arrow_cast('Spark SQL', 'Binary'), 3::int, 0::int),
-(arrow_cast('Spark SQL', 'Binary'), 300::int, 3::int),
-(arrow_cast('Spark SQL', 'Binary'), -300::int, 3::int),
-(arrow_cast(NULL, 'Binary'), 3::int, 1::int),
-(arrow_cast('Spark SQL', 'Binary'), NULL::int, 1::int),
-(arrow_cast('Spark SQL', 'Binary'), 3::int, NULL::int);
+('Spark SQL'::BINARY, -3::int, 2::int),
+('Spark SQL'::BINARY, 3::int, 1::int),
+('Spark SQL'::BINARY, 3::int, 700::int),
+('Spark SQL'::BINARY, 3::int, -1::int),
+('Spark SQL'::BINARY, 3::int, 0::int),
+('Spark SQL'::BINARY, 300::int, 3::int),
+('Spark SQL'::BINARY, -300::int, 3::int),
+(NULL::BINARY, 3::int, 1::int),
+('Spark SQL'::BINARY, NULL::int, 1::int),
+('Spark SQL'::BINARY, 3::int, NULL::int);
 ----
 5351 2
 61 1

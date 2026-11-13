@@ -6,39 +6,39 @@
 
 # Test spark_cast from int8 to timestamp
 query P
-SELECT spark_cast(arrow_cast(0, 'Int8'), 'timestamp');
+SELECT spark_cast(0::TINYINT, 'timestamp');
 ----
 1970-01-01T00:00:00Z
 
 query P
-SELECT spark_cast(arrow_cast(1, 'Int8'), 'timestamp');
+SELECT spark_cast(1::TINYINT, 'timestamp');
 ----
 1970-01-01T00:00:01Z
 
 query P
-SELECT spark_cast(arrow_cast(-1, 'Int8'), 'timestamp');
+SELECT spark_cast((-1)::TINYINT, 'timestamp');
 ----
 1969-12-31T23:59:59Z
 
 # Test spark_cast from int16 to timestamp
 query P
-SELECT spark_cast(arrow_cast(0, 'Int16'), 'timestamp');
+SELECT spark_cast(0::SMALLINT, 'timestamp');
 ----
 1970-01-01T00:00:00Z
 
 query P
-SELECT spark_cast(arrow_cast(3600, 'Int16'), 'timestamp');
+SELECT spark_cast(3600::SMALLINT, 'timestamp');
 ----
 1970-01-01T01:00:00Z
 
 # Test spark_cast from int32 to timestamp
 query P
-SELECT spark_cast(arrow_cast(0, 'Int32'), 'timestamp');
+SELECT spark_cast(0::INT, 'timestamp');
 ----
 1970-01-01T00:00:00Z
 
 query P
-SELECT spark_cast(arrow_cast(1704067200, 'Int32'), 'timestamp');
+SELECT spark_cast(1704067200::INT, 'timestamp');
 ----
 2024-01-01T00:00:00Z
 
@@ -55,17 +55,17 @@ SELECT spark_cast(1704067200::bigint, 'timestamp');
 
 # Test NULL handling
 query P
-SELECT spark_cast(arrow_cast(NULL, 'Int8'), 'timestamp');
+SELECT spark_cast(NULL::TINYINT, 'timestamp');
 ----
 NULL
 
 query P
-SELECT spark_cast(arrow_cast(NULL, 'Int16'), 'timestamp');
+SELECT spark_cast(NULL::SMALLINT, 'timestamp');
 ----
 NULL
 
 query P
-SELECT spark_cast(arrow_cast(NULL, 'Int32'), 'timestamp');
+SELECT spark_cast(NULL::INT, 'timestamp');
 ----
 NULL
 
@@ -82,23 +82,23 @@ NULL
 
 # Test Int8 boundary values
 query P
-SELECT spark_cast(arrow_cast(127, 'Int8'), 'timestamp');
+SELECT spark_cast(127::TINYINT, 'timestamp');
 ----
 1970-01-01T00:02:07Z
 
 query P
-SELECT spark_cast(arrow_cast(-128, 'Int8'), 'timestamp');
+SELECT spark_cast((-128)::TINYINT, 'timestamp');
 ----
 1969-12-31T23:57:52Z
 
 # Test Int16 boundary values
 query P
-SELECT spark_cast(arrow_cast(32767, 'Int16'), 'timestamp');
+SELECT spark_cast(32767::SMALLINT, 'timestamp');
 ----
 1970-01-01T09:06:07Z
 
 query P
-SELECT spark_cast(arrow_cast(-32768, 'Int16'), 'timestamp');
+SELECT spark_cast((-32768)::SMALLINT, 'timestamp');
 ----
 1969-12-31T14:53:52Z
 
@@ -189,9 +189,9 @@ SET datafusion.execution.time_zone = 'UTC';
 # Create test table with 4 int columns: null, min, max, regular value
 statement ok
 CREATE TABLE int_test AS SELECT
-    arrow_cast(column1, 'Int8') as i8_col,
-    arrow_cast(column2, 'Int16') as i16_col,
-    arrow_cast(column3, 'Int32') as i32_col,
+    column1::TINYINT as i8_col,
+    column2::SMALLINT as i16_col,
+    column3::INT as i32_col,
     column4::bigint as i64_col
 FROM (VALUES
     (NULL, NULL, NULL, NULL),

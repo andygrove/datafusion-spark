@@ -164,7 +164,7 @@ a - b - c
 
 ## Utf8View separator
 query TT
-SELECT concat_ws(arrow_cast(',', 'Utf8View'), 'a', 'b'), arrow_typeof(concat_ws(arrow_cast(',', 'Utf8View'), 'a', 'b'));
+SELECT concat_ws(','::STRING, 'a', 'b'), arrow_typeof(concat_ws(','::STRING, 'a', 'b'));
 ----
 a,b Utf8
 

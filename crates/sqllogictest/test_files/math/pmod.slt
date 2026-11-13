@@ -370,22 +370,22 @@ SELECT pmod(-10::int8, 3::int8) as pmod_int8_2;
 2
 
 query I
-SELECT pmod(arrow_cast(10, 'Int16'), arrow_cast(3, 'Int16')) as pmod_int16_1;
+SELECT pmod(10::SMALLINT, 3::SMALLINT) as pmod_int16_1;
 ----
 1
 
 query I
-SELECT pmod(arrow_cast(-10, 'Int16'), arrow_cast(3, 'Int16')) as pmod_int16_2;
+SELECT pmod((-10)::SMALLINT, 3::SMALLINT) as pmod_int16_2;
 ----
 2
 
 query I
-SELECT pmod(arrow_cast(10, 'Int64'), arrow_cast(3, 'Int64')) as pmod_int64_1;
+SELECT pmod(10::BIGINT, 3::BIGINT) as pmod_int64_1;
 ----
 1
 
 query I
-SELECT pmod(arrow_cast(-10, 'Int64'), arrow_cast(3, 'Int64')) as pmod_int64_2;
+SELECT pmod((-10)::BIGINT, 3::BIGINT) as pmod_int64_2;
 ----
 2
 

@@ -9,7 +9,7 @@ SparkSQL
 
 # Test two Utf8View inputs: value and return type
 query TT
-SELECT concat(arrow_cast('Spark', 'Utf8View'), arrow_cast('SQL', 'Utf8View')), arrow_typeof(concat(arrow_cast('Spark', 'Utf8View'), arrow_cast('SQL', 'Utf8View')));
+SELECT concat('Spark'::STRING, 'SQL'::STRING), arrow_typeof(concat('Spark'::STRING, 'SQL'::STRING));
 ----
 SparkSQL Utf8View
 
@@ -43,7 +43,7 @@ NULL
 
 # Test mixed types: Utf8View + Utf8
 query TT
-SELECT concat(arrow_cast('hello', 'Utf8View'), ' world'), arrow_typeof(concat(arrow_cast('hello', 'Utf8View'), ' world'));
+SELECT concat('hello'::STRING, ' world'), arrow_typeof(concat('hello'::STRING, ' world'));
 ----
 hello world Utf8View
 
@@ -55,25 +55,25 @@ ab LargeUtf8
 
 # Test all three types mixed together
 query TT
-SELECT concat('a', arrow_cast('b', 'LargeUtf8'), arrow_cast('c', 'Utf8View')), arrow_typeof(concat('a', arrow_cast('b', 'LargeUtf8'), arrow_cast('c', 'Utf8View')));
+SELECT concat('a', arrow_cast('b', 'LargeUtf8'), 'c'::STRING), arrow_typeof(concat('a', arrow_cast('b', 'LargeUtf8'), 'c'::STRING));
 ----
 abc Utf8View
 
 # Test mixed types: Utf8 + Binary
 query TT
-SELECT concat(arrow_cast('hello', 'Utf8'), arrow_cast(' world', 'Binary')), arrow_typeof(concat(arrow_cast('hello', 'Utf8'), arrow_cast(' world', 'Binary')));
+SELECT concat(arrow_cast('hello', 'Utf8'), ' world'::BINARY), arrow_typeof(concat(arrow_cast('hello', 'Utf8'), ' world'::BINARY));
 ----
 hello world Utf8
 
 # Test mixed types: Utf8View + Binary
 query TT
-SELECT concat(arrow_cast('hello', 'Utf8View'), arrow_cast(' world', 'Binary')), arrow_typeof(concat(arrow_cast('hello', 'Utf8View'), arrow_cast(' world', 'Binary')));
+SELECT concat('hello'::STRING, ' world'::BINARY), arrow_typeof(concat('hello'::STRING, ' world'::BINARY));
 ----
 hello world Utf8View
 
 # Test Binary + Binary
 query ?T
-SELECT concat(arrow_cast('hello', 'Binary'), arrow_cast(' world', 'Binary')), arrow_typeof(concat(arrow_cast('hello', 'Binary'), arrow_cast(' world', 'Binary')));
+SELECT concat('hello'::BINARY, ' world'::BINARY), arrow_typeof(concat('hello'::BINARY, ' world'::BINARY));
 ----
 68656c6c6f20776f726c64 Binary
 

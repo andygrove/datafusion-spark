@@ -102,7 +102,7 @@ CREATE TABLE decimal_negative AS
 SELECT
   arrow_cast(column1, 'Decimal32(7, 2)') AS d32,
   arrow_cast(column1, 'Decimal64(10, 2)') AS d64,
-  arrow_cast(column1, 'Decimal128(10, 2)') AS d128,
+  column1::DECIMAL(10, 2) AS d128,
   arrow_cast(column1, 'Decimal256(42, 2)') AS d256
 FROM (VALUES (1.23), (-4.50), (0.00), (NULL));
 

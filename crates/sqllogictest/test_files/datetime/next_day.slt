@@ -54,7 +54,7 @@ NULL
 
 # Preserve implicit weekday-to-string conversions.
 query D
-SELECT next_day(DATE '2015-07-23', arrow_cast('Mon', 'Binary'));
+SELECT next_day(DATE '2015-07-23', 'Mon'::BINARY);
 ----
 2015-07-27
 
@@ -90,12 +90,12 @@ NULL
 # arithmetic, rather than panicking. Cast the Date32 result to Int32 to assert
 # the epoch day directly (these dates are past the printable range).
 query I
-SELECT arrow_cast(next_day(arrow_cast(95026236, 'Date32'), 'Mon'::string), 'Int32');
+SELECT next_day(95026236::DATE, 'Mon'::string)::INT;
 ----
 95026243
 
 query I
-SELECT arrow_cast(next_day(arrow_cast(95026230, 'Date32'), 'Tue'::string), 'Int32');
+SELECT next_day(95026230::DATE, 'Tue'::string)::INT;
 ----
 95026237
 
@@ -150,7 +150,7 @@ SELECT next_day(arrow_cast('2015-07-23', 'LargeUtf8'), 'Mon');
 2015-07-27
 
 query D
-SELECT next_day(arrow_cast('2015-07-23', 'Utf8View'), 'Mon');
+SELECT next_day('2015-07-23'::STRING, 'Mon');
 ----
 2015-07-27
 
@@ -161,6 +161,6 @@ SELECT next_day('2015-07-23', arrow_cast('Mon', 'LargeUtf8'));
 2015-07-27
 
 query D
-SELECT next_day('2015-07-23', arrow_cast('Mon', 'Utf8View'));
+SELECT next_day('2015-07-23', 'Mon'::STRING);
 ----
 2015-07-27

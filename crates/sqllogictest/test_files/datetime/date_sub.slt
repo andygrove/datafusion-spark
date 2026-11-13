@@ -18,12 +18,12 @@ SELECT date_sub('2016-07-30'::date, 1::int);
 2016-07-29
 
 query D
-SELECT date_sub('2016-07-30'::date, arrow_cast(1, 'Int8'));
+SELECT date_sub('2016-07-30'::date, 1::TINYINT);
 ----
 2016-07-29
 
 query D
-SELECT date_sub('2016-07-30'::date, arrow_cast(1, 'Int16'));
+SELECT date_sub('2016-07-30'::date, 1::SMALLINT);
 ----
 2016-07-29
 

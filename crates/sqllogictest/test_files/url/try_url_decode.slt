@@ -15,7 +15,7 @@ https://spark.apache.org
 
 # Test with Utf8View
 query T
-SELECT try_url_decode(arrow_cast('https%3A%2F%2Fspark.apache.org', 'Utf8View'));
+SELECT try_url_decode('https%3A%2F%2Fspark.apache.org'::STRING);
 ----
 https://spark.apache.org
 

@@ -3,106 +3,106 @@
 # SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(1, 'Int8'));
+SELECT bitmap_bucket_number(1::TINYINT);
 ----
 1
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(127, 'Int8'));
+SELECT bitmap_bucket_number(127::TINYINT);
 ----
 1
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(-1, 'Int8'));
+SELECT bitmap_bucket_number((-1)::TINYINT);
 ----
 0
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(-64, 'Int8'));
+SELECT bitmap_bucket_number((-64)::TINYINT);
 ----
 0
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(-65, 'Int8'));
+SELECT bitmap_bucket_number((-65)::TINYINT);
 ----
 0
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(1, 'Int16'));
+SELECT bitmap_bucket_number(1::SMALLINT);
 ----
 1
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(257, 'Int16'));
+SELECT bitmap_bucket_number(257::SMALLINT);
 ----
 1
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(32767, 'Int16'));
+SELECT bitmap_bucket_number(32767::SMALLINT);
 ----
 1
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(-1, 'Int16'));
+SELECT bitmap_bucket_number((-1)::SMALLINT);
 ----
 0
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(-256, 'Int16'));
+SELECT bitmap_bucket_number((-256)::SMALLINT);
 ----
 0
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(1, 'Int32'));
+SELECT bitmap_bucket_number(1::INT);
 ----
 1
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(65537, 'Int32'));
+SELECT bitmap_bucket_number(65537::INT);
 ----
 3
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(2147483647, 'Int32'));
+SELECT bitmap_bucket_number(2147483647::INT);
 ----
 65536
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(-1, 'Int32'));
+SELECT bitmap_bucket_number((-1)::INT);
 ----
 0
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(-65536, 'Int32'));
+SELECT bitmap_bucket_number((-65536)::INT);
 ----
 -2
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(1, 'Int64'));
+SELECT bitmap_bucket_number(1::BIGINT);
 ----
 1
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(4294967297, 'Int64'));
+SELECT bitmap_bucket_number(4294967297::BIGINT);
 ----
 131073
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(9223372036854775807, 'Int64'));
+SELECT bitmap_bucket_number(9223372036854775807::BIGINT);
 ----
 281474976710656
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(-1, 'Int64'));
+SELECT bitmap_bucket_number((-1)::BIGINT);
 ----
 0
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(-4294967296, 'Int64'));
+SELECT bitmap_bucket_number((-4294967296)::BIGINT);
 ----
 -131072
 
 query I
-SELECT bitmap_bucket_number(arrow_cast(-9223372036854775808, 'Int64'));
+SELECT bitmap_bucket_number((-9223372036854775808)::BIGINT);
 ----
 -281474976710656

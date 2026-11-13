@@ -77,14 +77,14 @@ SELECT sha2(arrow_cast('foo', 'LargeUtf8'), bit_length) FROM VALUES (224::INT), 
 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
 
 query T
-SELECT sha2(arrow_cast('foo', 'Utf8View'), bit_length) FROM VALUES (224::INT), (256::INT) AS t(bit_length);
+SELECT sha2('foo'::STRING, bit_length) FROM VALUES (224::INT), (256::INT) AS t(bit_length);
 ----
 0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db
 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
 
 # All binary types
 query T
-SELECT sha2(arrow_cast('foo', 'Binary'), bit_length) FROM VALUES (224::INT), (256::INT) AS t(bit_length);
+SELECT sha2('foo'::BINARY, bit_length) FROM VALUES (224::INT), (256::INT) AS t(bit_length);
 ----
 0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db
 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae

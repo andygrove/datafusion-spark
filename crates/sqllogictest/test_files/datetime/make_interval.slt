@@ -37,7 +37,7 @@ SELECT
   y, m, w, d, h, mi, s,
   make_interval(y, m, w, d, h, mi, s) AS interval
 FROM VALUES
-  (0,   0,   0,   0,   0,   0,   arrow_cast('NaN','Float64'))
+  (0,   0,   0,   0,   0,   0,   'NaN'::DOUBLE)
 AS v(y, m, w, d, h, mi, s);
 ----
 0 0 0 0 0 0 NaN NULL

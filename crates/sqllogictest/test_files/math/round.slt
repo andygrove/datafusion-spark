@@ -59,24 +59,24 @@ SELECT round(123.456::double, 1::int);
 
 # round(float)
 query R
-SELECT round(arrow_cast(2.5, 'Float32'));
+SELECT round(2.5::FLOAT);
 ----
 3
 
 query R
-SELECT round(arrow_cast(-2.5, 'Float32'));
+SELECT round((-2.5)::FLOAT);
 ----
 -3
 
 # round(float) with scale
 query R
-SELECT round(arrow_cast(2.345, 'Float32'), 2::int);
+SELECT round(2.345::FLOAT, 2::int);
 ----
 2.35
 
 # round(float32) with negative scale
 query R
-SELECT round(arrow_cast(125.0, 'Float32'), -1::int);
+SELECT round(125.0::FLOAT, -1::int);
 ----
 130
 
@@ -211,13 +211,13 @@ SELECT round(25::bigint, -1::int);
 
 # round(bigint) should preserve exact values above Float64's exact integer range
 query IT
-SELECT round(arrow_cast(9007199254740993, 'Int64')), arrow_typeof(round(arrow_cast(9007199254740993, 'Int64')));
+SELECT round(9007199254740993::BIGINT), arrow_typeof(round(9007199254740993::BIGINT));
 ----
 9007199254740993 Int64
 
 # round(bigint, positive scale) should also preserve exact values above Float64's exact integer range
 query IT
-SELECT round(arrow_cast(9007199254740993, 'Int64'), 2::int), arrow_typeof(round(arrow_cast(9007199254740993, 'Int64'), 2::int));
+SELECT round(9007199254740993::BIGINT, 2::int), arrow_typeof(round(9007199254740993::BIGINT, 2::int));
 ----
 9007199254740993 Int64
 
@@ -229,7 +229,7 @@ SELECT round(25::smallint, -1::int);
 
 # round(tinyint, -1)
 query I
-SELECT round(arrow_cast(25, 'Int8'), -1::int);
+SELECT round(25::TINYINT, -1::int);
 ----
 30
 
@@ -493,13 +493,13 @@ SELECT round(3.14159::double, 2::int) + 1.0;
 
 # round(127::tinyint, -1) → 130, wraps as i8 → -126
 query I
-SELECT round(arrow_cast(127, 'Int8'), -1::int);
+SELECT round(127::TINYINT, -1::int);
 ----
 -126
 
 # round(32767::smallint, -1) → 32770, wraps as i16 → -32766
 query I
-SELECT round(arrow_cast(32767, 'Int16'), -1::int);
+SELECT round(32767::SMALLINT, -1::int);
 ----
 -32766
 
@@ -565,11 +565,11 @@ SELECT round(2147483647::int, -1::int);
 
 # ANSI mode: Int16 overflow should error
 query error DataFusion error: Execution error: Int16 overflow on round
-SELECT round(arrow_cast(32767, 'Int16'), -1::int);
+SELECT round(32767::SMALLINT, -1::int);
 
 # ANSI mode: Int8 overflow should error
 query error DataFusion error: Execution error: Int8 overflow on round
-SELECT round(arrow_cast(127, 'Int8'), -1::int);
+SELECT round(127::TINYINT, -1::int);
 
 # Reset ANSI mode
 statement ok

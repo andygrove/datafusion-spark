@@ -60,47 +60,47 @@ SELECT bit_count(-3::int);
 
 # Tests with different integer types
 query I
-SELECT bit_count(arrow_cast(0, 'Int8'));
+SELECT bit_count(0::TINYINT);
 ----
 0
 
 query I
-SELECT bit_count(arrow_cast(15, 'Int8'));
+SELECT bit_count(15::TINYINT);
 ----
 4
 
 query I
-SELECT bit_count(arrow_cast(-1, 'Int8'));
+SELECT bit_count((-1)::TINYINT);
 ----
 64
 
 query I
-SELECT bit_count(arrow_cast(0, 'Int16'));
+SELECT bit_count(0::SMALLINT);
 ----
 0
 
 query I
-SELECT bit_count(arrow_cast(255, 'Int16'));
+SELECT bit_count(255::SMALLINT);
 ----
 8
 
 query I
-SELECT bit_count(arrow_cast(-1, 'Int16'));
+SELECT bit_count((-1)::SMALLINT);
 ----
 64
 
 query I
-SELECT bit_count(arrow_cast(0, 'Int64'));
+SELECT bit_count(0::BIGINT);
 ----
 0
 
 query I
-SELECT bit_count(arrow_cast(255, 'Int64'));
+SELECT bit_count(255::BIGINT);
 ----
 8
 
 query I
-SELECT bit_count(arrow_cast(-1, 'Int64'));
+SELECT bit_count((-1)::BIGINT);
 ----
 64
 
@@ -147,12 +147,12 @@ SELECT bit_count(arrow_cast(18446744073709551615, 'UInt64'));
 
 # Tests with NULL values
 query I
-SELECT bit_count(arrow_cast(NULL, 'Int32'));
+SELECT bit_count(NULL::INT);
 ----
 NULL
 
 query I
-SELECT bit_count(arrow_cast(NULL, 'Int8'));
+SELECT bit_count(NULL::TINYINT);
 ----
 NULL
 
@@ -163,53 +163,53 @@ NULL
 
 # Tests with edge cases
 query I
-SELECT bit_count(arrow_cast(0, 'Int32')) as zero_count;
+SELECT bit_count(0::INT) as zero_count;
 ----
 0
 
 query I
-SELECT bit_count(arrow_cast(1, 'Int32')) as one_count;
+SELECT bit_count(1::INT) as one_count;
 ----
 1
 
 query I
-SELECT bit_count(arrow_cast(2, 'Int32')) as two_count;
+SELECT bit_count(2::INT) as two_count;
 ----
 1
 
 query I
-SELECT bit_count(arrow_cast(3, 'Int32')) as three_count;
+SELECT bit_count(3::INT) as three_count;
 ----
 2
 
 query I
-SELECT bit_count(arrow_cast(4, 'Int32')) as four_count;
+SELECT bit_count(4::INT) as four_count;
 ----
 1
 
 query I
-SELECT bit_count(arrow_cast(5, 'Int32')) as five_count;
+SELECT bit_count(5::INT) as five_count;
 ----
 2
 
 # Tests with large numbers
 query I
-SELECT bit_count(arrow_cast(2147483647, 'Int32'));
+SELECT bit_count(2147483647::INT);
 ----
 31
 
 query I
-SELECT bit_count(arrow_cast(-2147483648, 'Int32'));
+SELECT bit_count((-2147483648)::INT);
 ----
 33
 
 query I
-SELECT bit_count(arrow_cast(9223372036854775807, 'Int64'));
+SELECT bit_count(9223372036854775807::BIGINT);
 ----
 63
 
 query I
-SELECT bit_count(arrow_cast(-9223372036854775808, 'Int64'));
+SELECT bit_count((-9223372036854775808)::BIGINT);
 ----
 1
 
