@@ -8,17 +8,14 @@ use datafusion_common::utils::SingleRowListArrayBuilder;
 use datafusion_common::{Result, ScalarValue, internal_err};
 use datafusion_expr::function::{AccumulatorArgs, StateFieldsArgs};
 use datafusion_expr::utils::format_state_name;
-use datafusion_expr::{Accumulator, AggregateUDFImpl, Signature, Volatility};
+use datafusion_expr::{
+    Accumulator, AggregateUDFImpl, Documentation, Signature, Volatility,
+};
 use datafusion_functions_aggregate::array_agg::{
     ArrayAggAccumulator, DistinctArrayAggAccumulator,
 };
+use datafusion_macros::user_doc;
 use std::sync::Arc;
-
-// Spark implementation of collect_list/collect_set aggregate function.
-// Differs from DataFusion ArrayAgg in the following ways:
-// - ignores NULL inputs
-// - returns an empty list when all inputs are NULL
-// - does not support ordering
 
 /// Build an empty list `ScalarValue` for a `List(element_type)` data type.
 /// Used as the result for empty window frames and for groups whose inputs
@@ -33,7 +30,27 @@ fn empty_list_scalar(list_type: &DataType) -> Result<ScalarValue> {
     Ok(SingleRowListArrayBuilder::new(empty).build_list_scalar())
 }
 
-// <https://spark.apache.org/docs/latest/api/sql/index.html#collect_list>
+/// Spark-compatible `collect_list` aggregate expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#collect_list>
+#[user_doc(
+    doc_section(label = "General Functions"),
+    description = "Returns an array of the non-NULL values, including duplicates. \
+        Unlike DataFusion's `array_agg`, NULL values are skipped, so a group or window frame that is empty \
+        or holds only NULLs returns an empty array, where `array_agg` returns NULL or an array of NULLs. \
+        The order of the elements depends on the order of the rows, which may not be deterministic.",
+    syntax_example = "collect_list(expr)",
+    sql_example = r#"```sql
+> SELECT collect_list(a) FROM (VALUES (1), (2), (NULL), (1)) AS t(a);
+[1, 2, 1]
+> SELECT collect_list(a) FROM (VALUES (CAST(NULL AS INT))) AS t(a);
+[]
+```"#,
+    argument(
+        name = "expr",
+        description = "Expression of any type to collect. NULL values are skipped."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkCollectList {
     signature: Signature,
@@ -56,6 +73,10 @@ impl SparkCollectList {
 impl AggregateUDFImpl for SparkCollectList {
     fn name(&self) -> &str {
         "collect_list"
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn signature(&self) -> &Signature {
@@ -94,7 +115,26 @@ impl AggregateUDFImpl for SparkCollectList {
     }
 }
 
-// <https://spark.apache.org/docs/latest/api/sql/index.html#collect_set>
+/// Spark-compatible `collect_set` aggregate expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#collect_set>
+#[user_doc(
+    doc_section(label = "General Functions"),
+    description = "Returns an array of the distinct non-NULL values, in no particular order. \
+        Unlike DataFusion's `array_agg(DISTINCT ...)`, NULL values are skipped, so a group or window frame that is empty \
+        or holds only NULLs returns an empty array, where `array_agg` returns NULL or `[NULL]`.",
+    syntax_example = "collect_set(expr)",
+    sql_example = r#"```sql
+> SELECT array_sort(collect_set(a)) FROM (VALUES (1), (2), (NULL), (2)) AS t(a);
+[1, 2]
+> SELECT collect_set(a) FROM (VALUES (CAST(NULL AS INT))) AS t(a);
+[]
+```"#,
+    argument(
+        name = "expr",
+        description = "Expression of any type to collect. NULL values are skipped."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkCollectSet {
     signature: Signature,
@@ -117,6 +157,10 @@ impl SparkCollectSet {
 impl AggregateUDFImpl for SparkCollectSet {
     fn name(&self) -> &str {
         "collect_set"
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn signature(&self) -> &Signature {

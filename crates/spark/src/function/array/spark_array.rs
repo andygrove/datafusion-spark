@@ -9,15 +9,38 @@ use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion_common::utils::SingleRowListArrayBuilder;
 use datafusion_common::{Result, internal_err};
 use datafusion_expr::{
-    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
-    Volatility,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
+    Signature, Volatility,
 };
 use datafusion_functions_nested::make_array::{array_array, coerce_types_inner};
+use datafusion_macros::user_doc;
 
 use crate::function::functions_nested_utils::make_scalar_function;
 
 const ARRAY_FIELD_DEFAULT_NAME: &str = "element";
 
+/// Spark-compatible `array` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#array>
+#[user_doc(
+    doc_section(label = "Array Functions"),
+    description = "Returns an array of the given elements, coerced to a common type. NULL elements are kept, \
+        and with no arguments the result is an empty array. \
+        Unlike DataFusion's `make_array`, the list's element field is named `element`, as in Spark, rather than `item`.",
+    syntax_example = "array(expr, ...)",
+    sql_example = r#"```sql
+> SELECT array(1, 2, 3);
+[1, 2, 3]
+> SELECT array(1, NULL, 3);
+[1, NULL, 3]
+> SELECT array();
+[]
+```"#,
+    argument(
+        name = "expr",
+        description = "Zero or more elements of any type that can be coerced to a common type."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkArray {
     signature: Signature,
@@ -77,6 +100,10 @@ impl ScalarUDFImpl for SparkArray {
             return_type,
             false,
         )))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

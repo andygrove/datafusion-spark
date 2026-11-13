@@ -10,26 +10,39 @@ use arrow::datatypes::{DataType, Field, FieldRef, Fields};
 use datafusion_common::cast::as_string_array;
 use datafusion_common::{Result, exec_err, internal_err};
 use datafusion_expr::{
-    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
-    Volatility,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
+    Signature, Volatility,
 };
+use datafusion_macros::user_doc;
 
-/// Spark-compatible `json_tuple` expression
+/// Spark-compatible `json_tuple` expression.
 ///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#json_tuple>
-///
-/// Extracts top-level fields from a JSON string and returns them as a struct.
-///
-/// `json_tuple(json_string, field1, field2, ...) -> Struct<c0: Utf8, c1: Utf8, ...>`
-///
-/// Note: In Spark, `json_tuple` is a Generator that produces multiple columns directly.
-/// In DataFusion, a ScalarUDF can only return one value per row, so the result is wrapped
-/// in a Struct. The caller (e.g. Comet) is expected to destructure the struct fields.
-///
-/// - Returns NULL for each field that is missing from the JSON object
-/// - Returns NULL for all fields if the input is NULL or not valid JSON
-/// - Non-string JSON values are converted to their JSON string representation
-/// - JSON `null` values are returned as NULL (not the string "null")
+#[user_doc(
+    doc_section(label = "JSON Functions"),
+    description = "Returns the values of the given top-level fields of a JSON object, as a struct with one string \
+        field per key, named `c0`, `c1`, ... DataFusion has no built-in `json_tuple`. \
+        In Spark, `json_tuple` is a generator that returns one column per key. A scalar function returns one value \
+        per row, so here the columns are wrapped in a struct, which the caller (e.g. Comet) is expected to unpack. \
+        Keys are case-sensitive. A missing field, a JSON `null` value or a NULL key gives a NULL field, \
+        and non-string values such as numbers are returned as their JSON text. \
+        Returns NULL if the input is NULL, is not valid JSON, or is not a JSON object.",
+    syntax_example = "json_tuple(json_str, key1[, key2, ...])",
+    sql_example = r#"```sql
+> SELECT json_tuple('{"a":1, "b":"x"}', 'a', 'b', 'c');
+{c0: 1, c1: x, c2: NULL}
+> SELECT json_tuple('[1, 2]', 'a');
+NULL
+```"#,
+    argument(
+        name = "json_str",
+        description = "String containing a JSON object. NULL, invalid JSON or JSON that is not an object returns NULL."
+    ),
+    argument(
+        name = "key",
+        description = "One or more string keys of top-level fields to return. A NULL key gives a NULL field."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct JsonTuple {
     signature: Signature,
@@ -81,6 +94,10 @@ impl ScalarUDFImpl for JsonTuple {
             DataType::Struct(fields),
             true,
         )))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
