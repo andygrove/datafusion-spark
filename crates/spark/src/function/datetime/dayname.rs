@@ -9,8 +9,10 @@ use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, internal_err};
 use datafusion_expr::{
-    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
+    Signature,
 };
+use datafusion_macros::user_doc;
 
 use super::date_part_name::{date_part_name, date_signature};
 
@@ -22,10 +24,27 @@ fn day_number_to_name(day: i32) -> Option<&'static str> {
 }
 
 /// Spark-compatible `dayname` expression (Spark 4.0+).
-/// Returns the three-letter abbreviated English day name (`Mon` to `Sun`) of a date.
-/// Timestamps are cast to dates first, like Spark's implicit cast.
 ///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#dayname>
+#[user_doc(
+    doc_section(label = "Time and Date Functions"),
+    description = "Returns the three-letter abbreviated English day name (`Mon` to `Sun`) of a date. \
+        Timestamps are cast to dates first, like Spark's implicit cast. Returns NULL if the input is NULL. \
+        DataFusion has no built-in `dayname`.",
+    syntax_example = "dayname(date)",
+    sql_example = r#"```sql
+> SELECT dayname('2008-02-20'::DATE);
+Wed
+> SELECT dayname(arrow_cast('2024-05-20 23:59:59', 'Timestamp(Microsecond, None)'));
+Mon
+> SELECT dayname(NULL::DATE);
+NULL
+```"#,
+    argument(
+        name = "date",
+        description = "Date or timestamp expression. Timestamps are cast to dates. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkDayName {
     signature: Signature,
@@ -61,6 +80,10 @@ impl ScalarUDFImpl for SparkDayName {
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
         let nullable = args.arg_fields.iter().any(|f| f.is_nullable());
         Ok(Arc::new(Field::new(self.name(), DataType::Utf8, nullable)))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
