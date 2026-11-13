@@ -115,8 +115,11 @@
 //! Then use the extension trait - see [`SessionStateBuilderSpark::with_spark_features`]
 //! for an example.
 
+mod eval_mode;
 pub mod function;
 pub mod planner;
+
+pub use eval_mode::EvalMode;
 
 #[cfg(feature = "core")]
 mod session_state;

@@ -2,7 +2,8 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
-use crate::function::url::parse_url::{ParseUrl, spark_handled_parse_url};
+use crate::EvalMode;
+use crate::function::url::parse_url::{ParseUrl, spark_parse_url};
 use arrow::array::ArrayRef;
 use arrow::datatypes::DataType;
 use datafusion_common::Result;
@@ -52,13 +53,9 @@ impl ScalarUDFImpl for TryParseUrl {
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         let ScalarFunctionArgs { args, .. } = args;
-        make_scalar_function(spark_try_parse_url, vec![])(&args)
+        make_scalar_function(
+            |arrays: &[ArrayRef]| spark_parse_url(arrays, EvalMode::Try),
+            vec![],
+        )(&args)
     }
-}
-
-fn spark_try_parse_url(args: &[ArrayRef]) -> Result<ArrayRef> {
-    spark_handled_parse_url(args, |x| match x {
-        Err(_) => Ok(None),
-        result => result,
-    })
 }
