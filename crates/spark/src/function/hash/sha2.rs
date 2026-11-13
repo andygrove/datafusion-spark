@@ -13,17 +13,38 @@ use datafusion_common::utils::hex::{HexCase, encode_bytes_into};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue, internal_err};
 use datafusion_expr::{
-    Coercion, ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Coercion, ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     TypeSignatureClass, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 use sha2::{self, Digest};
 use std::sync::Arc;
 
-/// Differs from DataFusion version in allowing array input for bit lengths, and
-/// also hex encoding the output.
+/// Spark-compatible `sha2` expression.
 ///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#sha2>
+#[user_doc(
+    doc_section(label = "Hashing Functions"),
+    description = "Returns the SHA-2 digest of the input as a lowercase hex string. \
+        Unlike DataFusion's `sha224`/`sha256`/..., the result is a hex string rather than binary, \
+        and the bit length may vary per row. An unsupported bit length returns NULL rather than an error.",
+    syntax_example = "sha2(expr, bit_length)",
+    sql_example = r#"```sql
+> SELECT sha2('Spark', 256);
+529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
+> SELECT sha2('Spark', 128);
+NULL
+```"#,
+    argument(
+        name = "expr",
+        description = "String or binary expression to hash. Strings are hashed as UTF-8 bytes. NULL returns NULL."
+    ),
+    argument(
+        name = "bit_length",
+        description = "Integer SHA-2 variant: 224, 256, 384 or 512. 0 is treated as 256. Any other value, or NULL, returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkSha2 {
     signature: Signature,
@@ -68,6 +89,10 @@ impl ScalarUDFImpl for SparkSha2 {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(DataType::Utf8)
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
