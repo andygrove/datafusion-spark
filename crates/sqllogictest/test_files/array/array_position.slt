@@ -49,10 +49,15 @@ SELECT array_position(CAST(NULL AS ARRAY<INT>), 1);
 ----
 NULL
 
+# Spark coerces an untyped NULL element to the array's element type, so this returns NULL.
 query I
 SELECT array_position(array(1, 2, 3), NULL);
 ----
 NULL
+
+# Spark rejects an untyped NULL array with DATATYPE_MISMATCH.NULL_TYPE
+query error
+SELECT array_position(NULL, 1);
 
 query I
 SELECT array_position(array(), 1);
@@ -181,11 +186,11 @@ SELECT array_position(array(array(CAST(1.0 AS DOUBLE), CAST(NULL AS DOUBLE))), a
 
 statement ok
 CREATE TABLE t AS VALUES
-  (make_array(1, 2, 3), 3),
-  (make_array(1, NULL, 3), 3),
-  (make_array(1, 2), 5),
+  (array(1, 2, 3), 3),
+  (array(1, NULL, 3), 3),
+  (array(1, 2), 5),
   (NULL, 1),
-  (make_array(1, 2), NULL);
+  (array(1, 2), NULL);
 
 query I
 SELECT array_position(column1, column2) FROM t;
@@ -195,3 +200,136 @@ SELECT array_position(column1, column2) FROM t;
 0
 NULL
 NULL
+
+# A batch sliced by OFFSET: the list offsets do not start at 0
+query I
+SELECT array_position(column1, column2) FROM (SELECT * FROM t LIMIT 3 OFFSET 1);
+----
+3
+0
+NULL
+
+statement ok
+DROP TABLE t;
+
+###
+### LargeList
+###
+
+query I
+SELECT array_position(arrow_cast(array(1, 2, 3), 'LargeList(Int64)'), 3);
+----
+3
+
+query I
+SELECT array_position(arrow_cast(array(1, 2, 3), 'LargeList(Int64)'), 5);
+----
+0
+
+query I
+SELECT array_position(arrow_cast(array(1, NULL, 3), 'LargeList(Int64)'), 3);
+----
+3
+
+query I
+SELECT array_position(arrow_cast(array(1, 2, 3), 'LargeList(Int64)'), CAST(NULL AS BIGINT));
+----
+NULL
+
+query I
+SELECT array_position(arrow_cast(array(CAST('-0.0' AS DOUBLE), CAST('NaN' AS DOUBLE)), 'LargeList(Float64)'), CAST('NaN' AS DOUBLE));
+----
+2
+
+query I
+SELECT array_position(arrow_cast(array(CAST('-0.0' AS DOUBLE), CAST('NaN' AS DOUBLE)), 'LargeList(Float64)'), CAST(0.0 AS DOUBLE));
+----
+1
+
+###
+### Column inputs with floats and strings
+###
+
+statement ok
+CREATE TABLE floats AS VALUES
+  (array(CAST(1.0 AS DOUBLE), CAST('NaN' AS DOUBLE)), CAST('NaN' AS DOUBLE)),
+  (array(CAST('-0.0' AS DOUBLE), CAST(1.0 AS DOUBLE)), CAST(0.0 AS DOUBLE)),
+  (array(CAST(0.0 AS DOUBLE), CAST(1.0 AS DOUBLE)), CAST('-0.0' AS DOUBLE)),
+  (array(CAST(1.0 AS DOUBLE), CAST(NULL AS DOUBLE)), CAST(2.0 AS DOUBLE)),
+  (array(CAST(1.0 AS DOUBLE), CAST(2.0 AS DOUBLE)), CAST(NULL AS DOUBLE)),
+  (CAST(NULL AS ARRAY<DOUBLE>), CAST(1.0 AS DOUBLE));
+
+query I
+SELECT array_position(column1, column2) FROM floats;
+----
+2
+1
+1
+0
+NULL
+NULL
+
+statement ok
+DROP TABLE floats;
+
+statement ok
+CREATE TABLE strings AS VALUES
+  (array('a', 'b', 'c'), 'c'),
+  (array('a', NULL, 'b'), 'b'),
+  (array('a', 'b'), 'z'),
+  (array('', 'a'), ''),
+  (array('a', 'b'), CAST(NULL AS STRING)),
+  (CAST(NULL AS ARRAY<STRING>), 'a');
+
+query I
+SELECT array_position(column1, column2) FROM strings;
+----
+3
+3
+0
+1
+NULL
+NULL
+
+statement ok
+DROP TABLE strings;
+
+###
+### Nested floats and structs in column inputs
+###
+
+statement ok
+CREATE TABLE nested AS VALUES
+  (array(array(CAST(1.0 AS DOUBLE)), array(CAST('NaN' AS DOUBLE), CAST('-0.0' AS DOUBLE))), array(CAST('NaN' AS DOUBLE), CAST(0.0 AS DOUBLE))),
+  (array(array(CAST(0.0 AS DOUBLE)), array(CAST(1.0 AS DOUBLE))), array(CAST('-0.0' AS DOUBLE))),
+  (array(array(CAST(1.0 AS DOUBLE), CAST(NULL AS DOUBLE))), array(CAST(1.0 AS DOUBLE), CAST(NULL AS DOUBLE))),
+  (array(array(CAST(1.0 AS DOUBLE))), array(CAST(2.0 AS DOUBLE)));
+
+query I
+SELECT array_position(column1, column2) FROM nested;
+----
+2
+1
+1
+0
+
+statement ok
+DROP TABLE nested;
+
+statement ok
+CREATE TABLE structs AS VALUES
+  (array(named_struct('a', CAST(1.0 AS DOUBLE), 'b', 1), named_struct('a', CAST('-0.0' AS DOUBLE), 'b', 2)), named_struct('a', CAST(0.0 AS DOUBLE), 'b', 2)),
+  (array(named_struct('a', CAST(0.0 AS DOUBLE), 'b', 1)), named_struct('a', CAST('-0.0' AS DOUBLE), 'b', 1)),
+  (array(named_struct('a', CAST('NaN' AS DOUBLE), 'b', 1)), named_struct('a', CAST('NaN' AS DOUBLE), 'b', 1)),
+  (array(named_struct('a', CAST(0.0 AS DOUBLE), 'b', 1)), named_struct('a', CAST(0.0 AS DOUBLE), 'b', 2));
+
+query I
+SELECT array_position(column1, column2) FROM structs;
+----
+2
+1
+1
+0
+
+statement ok
+DROP TABLE structs;

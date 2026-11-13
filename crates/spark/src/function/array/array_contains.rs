@@ -103,7 +103,10 @@ fn contains_float(data_type: &DataType) -> bool {
     }
 }
 
-fn normalize_array(array: &ArrayRef) -> Result<ArrayRef> {
+/// Rewrites `-0.0` to `0.0` and every NaN to the canonical NaN at any depth of list, large
+/// list, fixed-size list and struct, so that bitwise or total-order comparisons follow
+/// Spark's float equality.
+pub(super) fn normalize_array(array: &ArrayRef) -> Result<ArrayRef> {
     if !contains_float(array.data_type()) {
         return Ok(Arc::clone(array));
     }

@@ -2,14 +2,14 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+use super::array_contains::normalize_array;
 use arrow::array::{
-    Array, ArrayRef, AsArray, GenericListArray, Int64Array, OffsetSizeTrait,
-    make_comparator,
+    Array, ArrayRef, GenericListArray, Int64Array, OffsetSizeTrait, make_comparator,
 };
 use arrow::buffer::{NullBuffer, ScalarBuffer};
 use arrow::compute::SortOptions;
-use arrow::datatypes::{DataType, Float32Type, Float64Type};
-use datafusion_common::{Result, ScalarValue, exec_err, not_impl_err};
+use arrow::datatypes::DataType;
+use datafusion_common::{Result, ScalarValue, exec_err};
 use datafusion_expr::{
     ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     Volatility,
@@ -102,90 +102,6 @@ impl ScalarUDFImpl for SparkArrayPosition {
     }
 }
 
-type Equality = Box<dyn Fn(usize, usize) -> bool + Send + Sync>;
-
-fn has_float(data_type: &DataType) -> bool {
-    match data_type {
-        DataType::Float32 | DataType::Float64 => true,
-        DataType::List(f) | DataType::LargeList(f) | DataType::FixedSizeList(f, _) => {
-            has_float(f.data_type())
-        }
-        DataType::Struct(fields) => fields.iter().any(|f| has_float(f.data_type())),
-        DataType::Map(f, _) => has_float(f.data_type()),
-        _ => false,
-    }
-}
-
-/// Wraps a non-null equality so that NULL equals NULL and NULL differs from any value, which
-/// is how Spark compares values nested inside arrays and structs.
-fn null_aware(
-    left: &ArrayRef,
-    right: &ArrayRef,
-    eq: impl Fn(usize, usize) -> bool + Send + Sync + 'static,
-) -> Equality {
-    let (left, right) = (Arc::clone(left), Arc::clone(right));
-    Box::new(move |i, j| match (left.is_null(i), right.is_null(j)) {
-        (true, true) => true,
-        (false, false) => eq(i, j),
-        _ => false,
-    })
-}
-
-/// Builds `eq(left_index, right_index)` in Spark's equality, where NaN equals NaN and -0.0
-/// equals 0.0 at any depth. Subtrees without a float use Arrow's comparator.
-fn equality(left: &ArrayRef, right: &ArrayRef) -> Result<Equality> {
-    macro_rules! float_eq {
-        ($t:ty) => {{
-            let (l, r) = (
-                left.as_primitive::<$t>().clone(),
-                right.as_primitive::<$t>().clone(),
-            );
-            null_aware(left, right, move |i, j| {
-                let (a, b) = (l.value(i), r.value(j));
-                a == b || (a.is_nan() && b.is_nan())
-            })
-        }};
-    }
-    Ok(match left.data_type() {
-        DataType::Float32 => float_eq!(Float32Type),
-        DataType::Float64 => float_eq!(Float64Type),
-        DataType::List(_) => list_equality::<i32>(left, right)?,
-        DataType::LargeList(_) => list_equality::<i64>(left, right)?,
-        DataType::Struct(_) => {
-            let (l, r) = (left.as_struct(), right.as_struct());
-            let fields = l
-                .columns()
-                .iter()
-                .zip(r.columns())
-                .map(|(lc, rc)| equality(lc, rc))
-                .collect::<Result<Vec<_>>>()?;
-            null_aware(left, right, move |i, j| fields.iter().all(|eq| eq(i, j)))
-        }
-        dt if has_float(dt) => {
-            return not_impl_err!("array_position does not support {dt} with floats");
-        }
-        _ => {
-            let cmp =
-                make_comparator(left.as_ref(), right.as_ref(), SortOptions::default())?;
-            Box::new(move |i, j| cmp(i, j).is_eq())
-        }
-    })
-}
-
-fn list_equality<O: OffsetSizeTrait>(
-    left: &ArrayRef,
-    right: &ArrayRef,
-) -> Result<Equality> {
-    let (l, r) = (left.as_list::<O>().clone(), right.as_list::<O>().clone());
-    let inner = equality(l.values(), r.values())?;
-    Ok(null_aware(left, right, move |i, j| {
-        let (lo, ro) = (l.value_offsets(), r.value_offsets());
-        let (ls, le) = (lo[i].as_usize(), lo[i + 1].as_usize());
-        let (rs, re) = (ro[j].as_usize(), ro[j + 1].as_usize());
-        le - ls == re - rs && (0..le - ls).all(|k| inner(ls + k, rs + k))
-    }))
-}
-
 fn position<O: OffsetSizeTrait>(
     array: &ArrayRef,
     element: &ArrayRef,
@@ -196,9 +112,12 @@ fn position<O: OffsetSizeTrait>(
         .ok_or_else(|| {
             datafusion_common::DataFusionError::Internal("expected list array".into())
         })?;
-    let values = list.values();
+    // Canonicalize NaN and -0.0 at any depth so that the comparator follows Spark's float
+    // equality. The comparator treats NULLs nested inside the compared values as equal.
+    let values = normalize_array(list.values())?;
+    let element = normalize_array(element)?;
     let nulls = NullBuffer::union(list.nulls(), element.nulls());
-    let eq = equality(values, element)?;
+    let cmp = make_comparator(values.as_ref(), element.as_ref(), SortOptions::default())?;
 
     let result: Vec<i64> = list
         .offsets()
@@ -210,10 +129,61 @@ fn position<O: OffsetSizeTrait>(
             }
             let (start, end) = (w[0].as_usize(), w[1].as_usize());
             (start..end)
-                .find(|&i| values.is_valid(i) && eq(i, row))
+                .find(|&i| values.is_valid(i) && cmp(i, row).is_eq())
                 .map_or(0, |i| (i - start + 1) as i64)
         })
         .collect();
 
     Ok(Arc::new(Int64Array::new(ScalarBuffer::from(result), nulls)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arrow::array::{FixedSizeListArray, Float64Array, Int32Array, ListArray};
+    use arrow::buffer::OffsetBuffer;
+    use arrow::datatypes::{Field, Int32Type};
+
+    #[test]
+    fn sliced_list() {
+        let list = ListArray::from_iter_primitive::<Int32Type, _, _>(vec![
+            Some(vec![Some(9), Some(9)]),
+            Some(vec![Some(1), Some(2), Some(3)]),
+            Some(vec![Some(3), Some(4)]),
+        ]);
+        let array: ArrayRef = Arc::new(list.slice(1, 2));
+        let element: ArrayRef = Arc::new(Int32Array::from(vec![3, 4]));
+        let result = position::<i32>(&array, &element).unwrap();
+        assert_eq!(result.as_ref(), &Int64Array::from(vec![3, 2]));
+    }
+
+    #[test]
+    fn fixed_size_list_of_floats() {
+        let item = Arc::new(Field::new("item", DataType::Float64, true));
+        let fsl = |values: Vec<f64>| -> ArrayRef {
+            Arc::new(
+                FixedSizeListArray::try_new(
+                    Arc::clone(&item),
+                    1,
+                    Arc::new(Float64Array::from(values)),
+                    None,
+                )
+                .unwrap(),
+            )
+        };
+        let values = fsl(vec![1.0, -0.0, f64::NAN]);
+        let field = Arc::new(Field::new("item", values.data_type().clone(), true));
+        let array: ArrayRef = Arc::new(
+            ListArray::try_new(
+                field,
+                OffsetBuffer::new(vec![0, 3, 6].into()),
+                Arc::new(arrow::compute::concat(&[&values, &values]).unwrap()),
+                None,
+            )
+            .unwrap(),
+        );
+        let element = fsl(vec![0.0, -f64::NAN]);
+        let result = position::<i32>(&array, &element).unwrap();
+        assert_eq!(result.as_ref(), &Int64Array::from(vec![2, 3]));
+    }
 }
