@@ -38,7 +38,8 @@ fn empty_list_scalar(list_type: &DataType) -> Result<ScalarValue> {
     description = "Returns an array of the non-NULL values, including duplicates. \
         Unlike DataFusion's `array_agg`, NULL values are skipped, so a group or window frame that is empty \
         or holds only NULLs returns an empty array, where `array_agg` returns NULL or an array of NULLs. \
-        The order of the elements depends on the order of the rows, which may not be deterministic.",
+        The order of the elements depends on the order of the rows, which may not be deterministic. \
+        `ORDER BY` inside the call is not supported and fails with an internal error ([#112](https://github.com/apache/datafusion-spark/issues/112)).",
     syntax_example = "collect_list(expr)",
     sql_example = r#"```sql
 > SELECT collect_list(a) FROM (VALUES (1), (2), (NULL), (1)) AS t(a);

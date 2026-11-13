@@ -35,7 +35,7 @@ use std::sync::Arc;
     doc_section(label = "General Functions"),
     description = "Returns the average of the non-NULL values as a DOUBLE, or NULL if there are none. \
         All numeric input is cast to DOUBLE first. So unlike DataFusion's `avg` and Spark's, \
-        DECIMAL input returns a DOUBLE rather than a DECIMAL.",
+        DECIMAL input returns a DOUBLE rather than a DECIMAL ([#111](https://github.com/apache/datafusion-spark/issues/111)).",
     syntax_example = "avg(expr)",
     sql_example = r#"```sql
 > SELECT avg(a) FROM (VALUES (40), (23), (17), (40), (NULL)) AS t(a);
