@@ -24,7 +24,7 @@ use std::sync::Arc;
     description = "Returns a string of `n` spaces. \
         A value of 0 or less returns an empty string, and NULL returns NULL. \
         DataFusion has no built-in equivalent. \
-        `n` must be an INT, and integer literals are BIGINT in DataFusion, so cast them (`space(2::INT)`).",
+        `n` must be an INT, and integer literals are BIGINT in DataFusion, so cast them (`space(2::INT)`; see [#97](https://github.com/apache/datafusion-spark/issues/97)).",
     syntax_example = "space(n)",
     sql_example = r#"```sql
 > SELECT concat(space(2::INT), 'Spark');
