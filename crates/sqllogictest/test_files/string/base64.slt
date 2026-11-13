@@ -150,3 +150,182 @@ SELECT unbase64('YQ==YQ=='::string);
 
 query error Error during planning: Function 'unbase64' requires Binary, but received Int32 \(DataType: Int32\)
 SELECT unbase64(12::integer);
+
+# Utf8View, LargeUtf8, BinaryView and LargeBinary inputs, including NULLs
+query T
+SELECT arrow_cast(unbase64(arrow_cast('U3BhcmsgU1FM', 'Utf8View')), 'Utf8');
+----
+Spark SQL
+
+query T
+SELECT arrow_cast(unbase64(arrow_cast('U3BhcmsgU1FM', 'LargeUtf8')), 'Utf8');
+----
+Spark SQL
+
+query T
+SELECT arrow_cast(unbase64(arrow_cast('U3BhcmsgU1FM', 'BinaryView')), 'Utf8');
+----
+Spark SQL
+
+query T
+SELECT arrow_cast(unbase64(arrow_cast('U3BhcmsgU1FM', 'LargeBinary')), 'Utf8');
+----
+Spark SQL
+
+query TTTT
+SELECT arrow_typeof(unbase64(arrow_cast('YQ==', 'Utf8View'))), arrow_typeof(unbase64(arrow_cast('YQ==', 'LargeUtf8'))), arrow_typeof(unbase64(arrow_cast('YQ==', 'BinaryView'))), arrow_typeof(unbase64(arrow_cast('YQ==', 'LargeBinary')));
+----
+Binary LargeBinary Binary LargeBinary
+
+query ?
+SELECT unbase64(arrow_cast(NULL, 'Utf8View'));
+----
+NULL
+
+query ?
+SELECT unbase64(arrow_cast(NULL, 'LargeUtf8'));
+----
+NULL
+
+query ?
+SELECT unbase64(arrow_cast(NULL, 'BinaryView'));
+----
+NULL
+
+query ?
+SELECT unbase64(arrow_cast(NULL, 'LargeBinary'));
+----
+NULL
+
+query T
+SELECT arrow_cast(unbase64(column1), 'Utf8')
+FROM VALUES
+(arrow_cast('U3BhcmsgU1FM', 'Utf8View')),
+(arrow_cast('U3BhcmsgU1E=', 'Utf8View')),
+(arrow_cast(NULL, 'Utf8View'));
+----
+Spark SQL
+Spark SQ
+NULL
+
+query T
+SELECT arrow_cast(unbase64(column1), 'Utf8')
+FROM VALUES
+(arrow_cast('U3BhcmsgU1FM', 'LargeUtf8')),
+(arrow_cast('U3BhcmsgU1E=', 'LargeUtf8')),
+(arrow_cast(NULL, 'LargeUtf8'));
+----
+Spark SQL
+Spark SQ
+NULL
+
+query T
+SELECT arrow_cast(unbase64(column1), 'Utf8')
+FROM VALUES
+(arrow_cast('U3BhcmsgU1FM', 'BinaryView')),
+(arrow_cast('U3BhcmsgU1E=', 'BinaryView')),
+(arrow_cast(NULL, 'BinaryView'));
+----
+Spark SQL
+Spark SQ
+NULL
+
+query T
+SELECT arrow_cast(unbase64(column1), 'Utf8')
+FROM VALUES
+(arrow_cast('U3BhcmsgU1FM', 'LargeBinary')),
+(arrow_cast('U3BhcmsgU1E=', 'LargeBinary')),
+(arrow_cast(NULL, 'LargeBinary'));
+----
+Spark SQL
+Spark SQ
+NULL
+
+# 'YQ= =' has a space between the two padding bytes. The MIME decoder does
+# not skip whitespace while reading the second '=', so this is rejected.
+# A space before the padding ('YQ ==') is skipped in the main loop.
+query error Failed to decode value using base64: Input byte array has wrong 4-byte ending unit
+SELECT unbase64('YQ= ='::string);
+
+query error Failed to decode value using base64: Input byte array has wrong 4-byte ending unit
+SELECT unbase64('YQ= ='::bytea);
+
+query T
+SELECT hex(unbase64('YQ =='::string));
+----
+61
+
+# URL-safe characters are outside the MIME alphabet and are skipped, so
+# 'YQ-_' decodes as 'YQ' ('a'). Standard '+/' is decoded as usual.
+query T
+SELECT hex(unbase64('YQ-_'::string));
+----
+61
+
+query T
+SELECT hex(unbase64('YQ-_'::bytea));
+----
+61
+
+query T
+SELECT hex(unbase64(arrow_cast('YQ-_', 'Utf8View')));
+----
+61
+
+query T
+SELECT hex(unbase64(arrow_cast('YQ-_', 'LargeUtf8')));
+----
+61
+
+query T
+SELECT hex(unbase64(arrow_cast('YQ-_', 'BinaryView')));
+----
+61
+
+query T
+SELECT hex(unbase64('YQ+/'::string));
+----
+610FBF
+
+# CR/LF inside the input is skipped the same way as a space
+query T
+SELECT hex(unbase64(X'59574A6A0D0A5A47566D'));
+----
+616263646566
+
+# trailing non-alphabet after padding is ignored, including extra '='
+query T
+SELECT hex(unbase64('YQ==  '::string));
+----
+61
+
+query T
+SELECT hex(unbase64('YQ==='::string));
+----
+61
+
+query T
+SELECT hex(unbase64('YQ==!!'::string));
+----
+61
+
+# trailing base64 after padding is still rejected, even with a space
+query error Failed to decode value using base64: Input byte array has incorrect ending byte
+SELECT unbase64('YQ== YQ'::string);
+
+# non-ASCII bytes are skipped. 'YéQ' is Y, U+00E9, Q; both the UTF-8
+# encoding and a raw Latin-1 0xE9 sit outside the alphabet, leaving 'YQ'
+query T
+SELECT hex(unbase64('YéQ'::string));
+----
+61
+
+query T
+SELECT hex(unbase64(X'59C3A951'));
+----
+61
+
+query T
+SELECT hex(unbase64(X'59E951'));
+----
+61
