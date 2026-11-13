@@ -5,7 +5,8 @@
 use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion_common::types::logical_date;
 use datafusion_common::{
-    Result, ScalarValue, internal_err, types::logical_string, utils::take_function_args,
+    Result, ScalarValue, internal_err, plan_err, types::logical_string,
+    utils::take_function_args,
 };
 use datafusion_expr::expr::ScalarFunction;
 use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
@@ -14,6 +15,22 @@ use datafusion_expr::{
     Signature, TypeSignature, TypeSignatureClass, Volatility,
 };
 use std::sync::Arc;
+
+/// Field names Spark accepts, one group per field, from `DatePart.parseExtractField`.
+const SPARK_FIELDS: &[&str] = &[
+    "year y years yr yrs",
+    "yearofweek",
+    "quarter qtr",
+    "month mon mons months",
+    "week w weeks",
+    "day d days",
+    "dayofweek dow",
+    "dayofweek_iso dow_iso",
+    "doy",
+    "hour h hours hr hrs",
+    "minute m min mins minutes",
+    "second s sec seconds secs",
+];
 
 /// Wrapper around datafusion date_part function to handle
 /// Spark behavior returning day of the week 1-indexed instead of 0-indexed and different part aliases.
@@ -81,14 +98,30 @@ impl ScalarUDFImpl for SparkDatePart {
     fn simplify(
         &self,
         args: Vec<Expr>,
-        _info: &SimplifyContext,
+        info: &SimplifyContext,
     ) -> Result<ExprSimplifyResult> {
         let [part_expr, date_expr] = take_function_args(self.name(), args)?;
 
         let part = match part_expr.as_literal() {
             Some(ScalarValue::Utf8(Some(v)))
             | Some(ScalarValue::Utf8View(Some(v)))
-            | Some(ScalarValue::LargeUtf8(Some(v))) => v.to_lowercase(),
+            | Some(ScalarValue::LargeUtf8(Some(v))) => {
+                let part = v.to_lowercase();
+                if !SPARK_FIELDS.iter().any(|g| g.split(' ').any(|f| f == part)) {
+                    let data_type = info.get_data_type(&date_expr)?;
+                    return plan_err!(
+                        "Cannot extract `{v}` from {data_type}. SQLSTATE: 42601"
+                    );
+                }
+                part
+            }
+            // A NULL field returns NULL, like Spark
+            Some(value) if value.is_null() => {
+                return Ok(ExprSimplifyResult::Simplified(Expr::Literal(
+                    ScalarValue::Int32(None),
+                    None,
+                )));
+            }
             _ => {
                 return internal_err!(
                     "First argument of `DATE_PART` must be non-null scalar Utf8"
@@ -98,7 +131,7 @@ impl ScalarUDFImpl for SparkDatePart {
 
         // Map Spark-specific date part aliases to DataFusion ones.
         let part = match part.as_str() {
-            "yearofweek" | "year_iso" => "isoyear",
+            "yearofweek" => "isoyear",
             "dayofweek" | "dow" => "dow1",
             "dayofweek_iso" | "dow_iso" => "isodow",
             other => other,

@@ -45,10 +45,13 @@ SELECT date_part('QTR'::string, '2000-01-01'::date);
 ----
 1
 
-query I
+query error
 SELECT date_part('QUARTERS'::string, '2000-01-01'::date);
 ----
-1
+DataFusion error: Optimizer rule 'simplify_expressions' failed
+caused by
+Error during planning: Cannot extract `QUARTERS` from Date32. SQLSTATE: 42601
+
 
 # MONTH
 query I
@@ -131,10 +134,13 @@ SELECT date_part('DOY'::string, '2000-01-01'::date);
 ----
 1
 
-query I
+query error
 SELECT date_part('DAYOFYEAR'::string, '2000-01-01'::date);
 ----
-1
+DataFusion error: Optimizer rule 'simplify_expressions' failed
+caused by
+Error during planning: Cannot extract `DAYOFYEAR` from Date32. SQLSTATE: 42601
+
 
 # HOUR
 query I
@@ -220,12 +226,19 @@ SELECT date_part('year'::string, NULL::timestamp);
 ----
 NULL
 
-query error Internal error: First argument of `DATE_PART` must be non-null scalar Utf8
+query I
 SELECT date_part(NULL::string, '2000-01-01'::date);
+----
+NULL
 
 # Invalid part
-query error DataFusion error: Execution error: Date part 'test' not supported
+query error
 SELECT date_part('test'::string, '2000-01-01'::date);
+----
+DataFusion error: Optimizer rule 'simplify_expressions' failed
+caused by
+Error during planning: Cannot extract `test` from Date32. SQLSTATE: 42601
+
 
 query I
 SELECT date_part('year', column1)
