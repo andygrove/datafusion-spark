@@ -13,7 +13,9 @@ use arrow::buffer::{NullBuffer, OffsetBuffer};
 use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, exec_err, internal_err};
-use datafusion_expr::type_coercion::binary::binary_numeric_coercion;
+use datafusion_expr::type_coercion::binary::{
+    binary_numeric_coercion, type_union_resolution,
+};
 use datafusion_expr::{
     ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     Volatility,
@@ -70,6 +72,46 @@ fn list_element_field(data_type: &DataType) -> Option<&FieldRef> {
         }
         _ => None,
     }
+}
+
+/// Whether `a` and `b` pair a string or binary type with a type of another
+/// kind, at the top level or inside a list or struct.
+///
+/// DataFusion's `type_union_resolution` coerces such pairs (for example INT
+/// and STRING to STRING), but Spark's `findTightestCommonType` does not.
+fn mixes_string_or_binary(a: &DataType, b: &DataType) -> bool {
+    #[derive(PartialEq)]
+    enum Kind {
+        String,
+        Binary,
+        Other,
+    }
+    fn kind(t: &DataType) -> Kind {
+        match t {
+            DataType::Dictionary(_, v) => kind(v),
+            DataType::RunEndEncoded(_, v) => kind(v.data_type()),
+            DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => Kind::String,
+            DataType::Binary
+            | DataType::LargeBinary
+            | DataType::BinaryView
+            | DataType::FixedSizeBinary(_) => Kind::Binary,
+            _ => Kind::Other,
+        }
+    }
+    if *a == DataType::Null || *b == DataType::Null {
+        return false;
+    }
+    if let (Some(fa), Some(fb)) = (list_element_field(a), list_element_field(b)) {
+        return mixes_string_or_binary(fa.data_type(), fb.data_type());
+    }
+    if let (DataType::Struct(fa), DataType::Struct(fb)) = (a, b) {
+        return fa.iter().any(|fa| {
+            fb.iter()
+                .find(|fb| fb.name() == fa.name())
+                .is_some_and(|fb| mixes_string_or_binary(fa.data_type(), fb.data_type()))
+        });
+    }
+    kind(a) != kind(b)
 }
 
 impl ScalarUDFImpl for SparkArrayInsert {
@@ -134,12 +176,20 @@ impl ScalarUDFImpl for SparkArrayInsert {
         }
 
         // Spark uses the tightest common type of the element and the item.
+        // Besides numeric widening, that unifies types of the same family, such
+        // as Utf8 and Utf8View (parquet's default for strings), timestamps of
+        // different units, and nested types that differ only in nullability.
         let elem_type = elem.data_type();
         let common = if elem_type == item || *item == DataType::Null {
             elem_type.clone()
         } else if *elem_type == DataType::Null {
             item.clone()
         } else if let Some(common) = binary_numeric_coercion(elem_type, item) {
+            common
+        } else if let Some(common) =
+            type_union_resolution(&[elem_type.clone(), item.clone()])
+                .filter(|_| !mixes_string_or_binary(elem_type, item))
+        {
             common
         } else {
             return exec_err!(
@@ -298,7 +348,7 @@ fn array_insert<O: OffsetSizeTrait>(
 mod tests {
     use super::*;
     use arrow::array::ListArray;
-    use arrow::datatypes::Int32Type;
+    use arrow::datatypes::{Int32Type, TimeUnit};
 
     fn run(
         rows: Vec<Option<Vec<Option<i32>>>>,
@@ -316,57 +366,9 @@ mod tests {
         ListArray::from_iter_primitive::<Int32Type, _, _>(rows)
     }
 
-    // Expected values are taken from Comet's Spark-verified array_insert tests.
-    #[test]
-    fn positive_positions() -> Result<()> {
-        let got = run(
-            vec![
-                Some(vec![Some(1), Some(2), Some(3)]),
-                Some(vec![Some(4), Some(5)]),
-                Some(vec![None]),
-                Some(vec![Some(1), Some(2), Some(3)]),
-                Some(vec![Some(1), Some(2), Some(3)]),
-                None,
-            ],
-            vec![Some(2), Some(1), Some(1), Some(5), Some(6), Some(1)],
-            vec![Some(10), Some(20), Some(30), Some(100), Some(100), Some(40)],
-            false,
-        )?;
-        let expected = list(vec![
-            Some(vec![Some(1), Some(10), Some(2), Some(3)]),
-            Some(vec![Some(20), Some(4), Some(5)]),
-            Some(vec![Some(30), None]),
-            Some(vec![Some(1), Some(2), Some(3), None, Some(100)]),
-            Some(vec![Some(1), Some(2), Some(3), None, None, Some(100)]),
-            None,
-        ]);
-        assert_eq!(got.to_data(), expected.to_data());
-        Ok(())
-    }
-
-    #[test]
-    fn negative_positions() -> Result<()> {
-        let got = run(
-            vec![
-                Some(vec![Some(1), Some(2), Some(3)]),
-                Some(vec![Some(4), Some(5)]),
-                Some(vec![Some(1)]),
-                None,
-            ],
-            vec![Some(-2), Some(-1), Some(-3), Some(-1)],
-            vec![Some(10), Some(20), Some(100), Some(30)],
-            false,
-        )?;
-        let expected = list(vec![
-            Some(vec![Some(1), Some(2), Some(10), Some(3)]),
-            Some(vec![Some(4), Some(5), Some(20)]),
-            Some(vec![Some(100), None, Some(1)]),
-            None,
-        ]);
-        assert_eq!(got.to_data(), expected.to_data());
-        Ok(())
-    }
-
+    // Most behavior is covered by array_insert.slt. These cover what SQL
+    // cannot reach: legacy mode (a session config), `i32::MIN`, and sliced
+    // input. Expected values were checked against Spark 4.2.0.
     #[test]
     fn legacy_negative_index() -> Result<()> {
         let got = run(
@@ -374,57 +376,71 @@ mod tests {
                 Some(vec![Some(1), Some(2), Some(3)]),
                 Some(vec![Some(4), Some(5)]),
                 None,
+                // before the start: the item, four NULLs, then the elements
+                Some(vec![Some(1)]),
+                // -(len + 1) pads one NULL in legacy mode
+                Some(vec![Some(1), Some(2), Some(3)]),
+                // -len inserts first with no padding in legacy mode
+                Some(vec![Some(1), Some(2), Some(3)]),
             ],
-            vec![Some(-1), Some(-1), Some(-1)],
-            vec![Some(10), Some(20), Some(30)],
+            vec![Some(-1), Some(-1), Some(-1), Some(-5), Some(-4), Some(-3)],
+            vec![Some(10), Some(20), Some(30), Some(9), Some(10), Some(10)],
             true,
         )?;
         let expected = list(vec![
             Some(vec![Some(1), Some(2), Some(10), Some(3)]),
             Some(vec![Some(4), Some(20), Some(5)]),
             None,
+            Some(vec![Some(9), None, None, None, None, Some(1)]),
+            Some(vec![Some(10), None, Some(1), Some(2), Some(3)]),
+            Some(vec![Some(10), Some(1), Some(2), Some(3)]),
         ]);
         assert_eq!(got.to_data(), expected.to_data());
         Ok(())
     }
 
     #[test]
-    fn null_item_is_inserted_and_null_pos_gives_null() -> Result<()> {
-        let got = run(
-            vec![Some(vec![Some(0), None, Some(0)]), Some(vec![Some(1)])],
-            vec![Some(1), None],
-            vec![None, Some(9)],
-            false,
-        )?;
-        let expected = list(vec![Some(vec![None, Some(0), None, Some(0)]), None]);
+    fn min_index_exceeds_size_limit() {
+        // -i32::MIN overflows i32; Spark reports 2147483648 (2147483649 in legacy mode).
+        for (legacy, size) in [(false, "2147483648"), (true, "2147483649")] {
+            let err = run(
+                vec![Some(vec![Some(1), Some(2), Some(3)])],
+                vec![Some(i32::MIN)],
+                vec![Some(10)],
+                legacy,
+            )
+            .unwrap_err()
+            .to_string();
+            assert!(err.contains("COLLECTION_SIZE_LIMIT_EXCEEDED"), "{err}");
+            assert!(
+                err.contains(&format!("create array with {size} elements")),
+                "{err}"
+            );
+        }
+    }
+
+    #[test]
+    fn sliced_list() -> Result<()> {
+        // Row offsets of a sliced list do not start at zero.
+        let full = list(vec![
+            Some(vec![Some(1), Some(2), Some(3)]),
+            Some(vec![Some(4), Some(5)]),
+            None,
+            Some(vec![Some(1)]),
+            Some(vec![Some(7)]),
+        ]);
+        let sliced = full.slice(1, 3);
+        let field = Arc::new(Field::new_list_field(DataType::Int32, true));
+        let item: ArrayRef = Arc::new(Int32Array::from(vec![20, 30, 100]));
+        let pos = Int32Array::from(vec![-1, 1, -3]);
+        let got = array_insert(&sliced, &item, &pos, false, field)?;
+        let expected = list(vec![
+            Some(vec![Some(4), Some(5), Some(20)]),
+            None,
+            Some(vec![Some(100), None, Some(1)]),
+        ]);
         assert_eq!(got.to_data(), expected.to_data());
         Ok(())
-    }
-
-    #[test]
-    fn zero_index_is_an_error() {
-        let err = run(
-            vec![Some(vec![Some(1)])],
-            vec![Some(0)],
-            vec![Some(1)],
-            false,
-        )
-        .unwrap_err();
-        assert!(err.to_string().contains("INVALID_INDEX_OF_ZERO"));
-    }
-
-    #[test]
-    fn size_limit_is_checked_before_allocating() {
-        for pos in [i32::MAX, i32::MIN] {
-            let err = run(
-                vec![Some(vec![Some(1)])],
-                vec![Some(pos)],
-                vec![Some(1)],
-                false,
-            )
-            .unwrap_err();
-            assert!(err.to_string().contains("COLLECTION_SIZE_LIMIT_EXCEEDED"));
-        }
     }
 
     #[test]
@@ -443,6 +459,48 @@ mod tests {
         let got =
             f.coerce_types(&[list_of(DataType::Utf8), DataType::Int32, DataType::Null])?;
         assert_eq!(got[2], DataType::Utf8);
+        // Utf8View / LargeUtf8 elements accept a Utf8 item
+        for elem in [DataType::Utf8View, DataType::LargeUtf8] {
+            let got = f.coerce_types(&[
+                list_of(elem.clone()),
+                DataType::Int64,
+                DataType::Utf8,
+            ])?;
+            assert_eq!(got, vec![list_of(elem.clone()), DataType::Int32, elem]);
+        }
+        // timestamps of different units share a common type
+        let got = f.coerce_types(&[
+            list_of(DataType::Timestamp(TimeUnit::Microsecond, None)),
+            DataType::Int32,
+            DataType::Timestamp(TimeUnit::Second, None),
+        ])?;
+        assert!(matches!(got[2], DataType::Timestamp(_, None)));
+        assert_eq!(got[0], list_of(got[2].clone()));
+        // nested types that differ only in nullability
+        let inner_nullable = list_of(DataType::Int32);
+        let inner_non_null =
+            DataType::List(Arc::new(Field::new_list_field(DataType::Int32, false)));
+        let got =
+            f.coerce_types(&[list_of(inner_nullable), DataType::Int32, inner_non_null])?;
+        assert_eq!(got[0], list_of(got[2].clone()));
+        // a string item does not widen numeric or nested numeric elements,
+        // matching Spark's ARRAY_FUNCTION_DIFF_TYPES error
+        assert!(
+            f.coerce_types(&[list_of(DataType::Int32), DataType::Int32, DataType::Utf8])
+                .is_err()
+        );
+        assert!(
+            f.coerce_types(&[
+                list_of(list_of(DataType::Int32)),
+                DataType::Int32,
+                list_of(DataType::Utf8),
+            ])
+            .is_err()
+        );
+        assert!(
+            f.coerce_types(&[list_of(DataType::Binary), DataType::Int32, DataType::Utf8])
+                .is_err()
+        );
         // non-integer index and non-array first argument are rejected
         assert!(
             f.coerce_types(&[list_of(DataType::Int32), DataType::Utf8, DataType::Int32])

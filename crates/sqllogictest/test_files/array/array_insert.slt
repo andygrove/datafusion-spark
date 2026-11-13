@@ -4,7 +4,8 @@
 
 # Tests for Spark-compatible array_insert
 # Reference: https://spark.apache.org/docs/latest/api/sql/index.html#array_insert
-# Expected values come from the Spark docs and Comet's Spark-verified tests.
+# Expected values come from the Spark docs and Comet's Spark-verified tests,
+# and were checked against Spark 4.2.0.
 
 # Examples from the Spark documentation
 query ?
@@ -33,7 +34,24 @@ SELECT array_insert(make_array(4, 5), 1, 20);
 ----
 [20, 4, 5]
 
+# Directly after the last element: no padding
+query ?
+SELECT array_insert(make_array(1, 2, 3), 4, 10);
+----
+[1, 2, 3, 10]
+
+# Insert into an array holding only a NULL
+query ?
+SELECT array_insert(make_array(NULL::INT), 1, 30);
+----
+[30, NULL]
+
 # Beyond the end pads with NULLs
+query ?
+SELECT array_insert(make_array(1, 2, 3), 5, 100);
+----
+[1, 2, 3, NULL, 100]
+
 query ?
 SELECT array_insert(make_array(1, 2, 3), 6, 100);
 ----
@@ -56,6 +74,22 @@ SELECT array_insert(make_array(1), -3, 100);
 ----
 [100, NULL, 1]
 
+query ?
+SELECT array_insert(make_array(1), -5, 9);
+----
+[9, NULL, NULL, NULL, 1]
+
+# Exactly -(len + 1) inserts first with no padding; one further pads one NULL
+query ?
+SELECT array_insert(make_array(1, 2, 3), -4, 10);
+----
+[10, 1, 2, 3]
+
+query ?
+SELECT array_insert(make_array(1, 2, 3), -5, 10);
+----
+[10, NULL, 1, 2, 3]
+
 # A NULL item is inserted as a NULL element
 query ?
 SELECT array_insert(make_array(0, NULL, 0), 1, NULL);
@@ -73,13 +107,16 @@ SELECT array_insert(make_array(1, 2), NULL::INT, 5);
 ----
 NULL
 
-# Table data, with per-row positions
+# Table data, with per-row positions and items
 statement ok
 CREATE TABLE array_insert_t AS VALUES
   (make_array(1, 2, 3), 2, 10),
   (make_array(4, 5), -1, 20),
   (NULL, 1, 30),
-  (make_array(7), NULL, 40);
+  (make_array(7), NULL, 40),
+  (make_array(0, NULL, 0), 1, NULL),
+  (make_array(1), -3, 100),
+  (make_array(1, 2, 3), 6, 100);
 
 query ?
 SELECT array_insert(column1, column2, column3) FROM array_insert_t;
@@ -88,6 +125,13 @@ SELECT array_insert(column1, column2, column3) FROM array_insert_t;
 [4, 5, 20]
 NULL
 NULL
+[NULL, 0, NULL, 0]
+[100, NULL, 1]
+[1, 2, 3, NULL, NULL, 100]
+
+# Index 0 is invalid for a column position too
+statement error INVALID_INDEX_OF_ZERO
+SELECT array_insert(column1, 0, column3) FROM array_insert_t WHERE column1 IS NOT NULL;
 
 # Index 0 is invalid
 statement error INVALID_INDEX_OF_ZERO
@@ -101,11 +145,63 @@ SELECT array_insert(make_array(1, 2), 2147483647, 5);
 statement error
 SELECT array_insert(make_array(1, 2), 'a', 5);
 
+# The item must share a type family with the elements
+statement error array_insert cannot insert a value of type Utf8 into an array of Int64
+SELECT array_insert(make_array(1), 1, 'x');
+
 # String elements
 query ?
 SELECT array_insert(make_array('a', 'c'), 2, 'b');
 ----
 [a, b, c]
+
+# NULL padding with string elements
+query ?
+SELECT array_insert(make_array('a', 'b'), 5, 'c');
+----
+[a, b, NULL, NULL, c]
+
+query ?
+SELECT array_insert(make_array('a'), -3, 'z');
+----
+[z, NULL, a]
+
+# Utf8View elements (parquet's default for strings) with a Utf8 item
+query ?
+SELECT array_insert(arrow_cast(make_array('a', 'b'), 'List(Utf8View)'), 1, 'x');
+----
+[x, a, b]
+
+query T
+SELECT arrow_typeof(array_insert(arrow_cast(make_array('a', 'b'), 'List(Utf8View)'), 1, 'x'));
+----
+List(Utf8View)
+
+statement ok
+CREATE TABLE array_insert_view AS
+  SELECT arrow_cast(make_array('a', 'b'), 'List(Utf8View)') AS arr;
+
+query ?
+SELECT array_insert(arr, -1, 'x') FROM array_insert_view;
+----
+[a, b, x]
+
+# LargeUtf8 elements with a Utf8 item
+query ?
+SELECT array_insert(arrow_cast(make_array('a', 'b'), 'List(LargeUtf8)'), 2, 'x');
+----
+[a, x, b]
+
+# NULL padding with nested elements
+query ?
+SELECT array_insert(make_array(make_array(1)), 3, make_array(2));
+----
+[[1], NULL, [2]]
+
+query ?
+SELECT array_insert(make_array(make_array(1)), -3, make_array(2));
+----
+[[2], NULL, [1]]
 
 # The item widens to the common numeric type
 query ?
