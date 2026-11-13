@@ -28,8 +28,8 @@ use datafusion_macros::user_doc;
     description = "Rounds `expr` to `scale` decimal places, rounding halves away from zero \
         (HALF_UP: 2.5 becomes 3, -2.5 becomes -3). A negative `scale` rounds to the left of the decimal point, \
         so `round(25, -1)` is 30. The result has the same type as `expr`: integers stay integers, and decimals \
-        keep their precision and scale (`round(2.345::DECIMAL(10, 3), 2)` is 2.350), where DataFusion's `round` \
-        reduces the decimal scale. Integer overflow depends on ANSI mode: with \
+        keep their precision and scale (`round(2.345::DECIMAL(10, 3), 2)` is 2.350), where Spark and DataFusion's `round` \
+        reduce the decimal scale (Spark returns 2.35 as DECIMAL(10, 2); see [#37](https://github.com/apache/datafusion-spark/issues/37)). Integer overflow depends on ANSI mode: with \
         `datafusion.execution.enable_ansi_mode` off the result wraps around (`round(2147483647, -1)` is -2147483646), \
         and with it on the function fails with an overflow error. A `scale` beyond the precision of the value returns \
         the value unchanged for positive `scale` and 0 for negative `scale`. Infinity and NaN are returned unchanged. \
