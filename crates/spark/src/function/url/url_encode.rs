@@ -14,11 +14,36 @@ use datafusion_common::cast::{
 use datafusion_common::utils::offset_span_len;
 use datafusion_common::{Result, exec_err, plan_err};
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 use url::form_urlencoded::byte_serialize;
 
+/// Spark-compatible `url_encode` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#url_encode>
+#[user_doc(
+    doc_section(label = "URL Functions"),
+    description = "Encodes a string in `application/x-www-form-urlencoded` format, like Java's `URLEncoder` \
+        with UTF-8, which Spark uses. DataFusion has no built-in `url_encode`. Letters, digits and `.`, `-`, \
+        `*` and `_` are kept, a space becomes `+`, and every other byte of the UTF-8 encoding becomes `%XX` \
+        with uppercase hex digits. Returns NULL if the input is NULL.",
+    syntax_example = "url_encode(str)",
+    sql_example = r#"```sql
+> SELECT url_encode('https://spark.apache.org');
+https%3A%2F%2Fspark.apache.org
+> SELECT url_encode('Spark SQL');
+Spark+SQL
+> SELECT url_encode('你好');
+%E4%BD%A0%E5%A5%BD
+```"#,
+    argument(
+        name = "str",
+        description = "String expression to encode. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct UrlEncode {
     signature: Signature,
@@ -57,6 +82,10 @@ impl ScalarUDFImpl for UrlEncode {
         }
         // As the type signature is already checked, we can safely return the type of the first argument
         Ok(arg_types[0].clone())
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

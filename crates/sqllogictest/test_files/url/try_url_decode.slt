@@ -54,3 +54,9 @@ query T
 SELECT try_url_decode('https%3%2F%2Fspark.apache.org'::string);
 ----
 NULL
+
+# Bytes that are not valid UTF-8 give NULL
+query T
+SELECT try_url_decode('%FF'::string);
+----
+NULL

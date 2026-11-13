@@ -5,9 +5,10 @@
 use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion_common::{Result, internal_err};
 use datafusion_expr::{
-    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
-    Volatility,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
+    Signature, Volatility,
 };
+use datafusion_macros::user_doc;
 
 use arrow::array::{Array, ArrayRef, BooleanArray};
 use arrow::buffer::BooleanBuffer;
@@ -19,8 +20,29 @@ use datafusion_functions::utils::make_scalar_function;
 
 use std::sync::Arc;
 
-/// Spark-compatible `is_valid_utf8` expression
+/// Spark-compatible `is_valid_utf8` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#is_valid_utf8>
+#[user_doc(
+    doc_section(label = "String Functions"),
+    description = "Returns true if the input is valid UTF-8. DataFusion has no built-in `is_valid_utf8`. \
+        String input is always valid. Binary input is invalid if it has truncated sequences, stray \
+        continuation bytes, overlong encodings, encoded surrogates (U+D800 to U+DFFF) or code points \
+        above U+10FFFF. Empty input is valid. Returns NULL if the input is NULL.",
+    syntax_example = "is_valid_utf8(str)",
+    sql_example = r#"```sql
+> SELECT is_valid_utf8('Spark');
+true
+> SELECT is_valid_utf8(X'C2A9');
+true
+> SELECT is_valid_utf8(X'61C262');
+false
+```"#,
+    argument(
+        name = "str",
+        description = "String or binary expression. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkIsValidUtf8 {
     signature: Signature,
@@ -66,6 +88,10 @@ impl ScalarUDFImpl for SparkIsValidUtf8 {
 
     fn return_field_from_args(&self, _args: ReturnFieldArgs) -> Result<FieldRef> {
         Ok(Arc::new(Field::new(self.name(), DataType::Boolean, true)))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

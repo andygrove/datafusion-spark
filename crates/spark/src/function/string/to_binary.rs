@@ -12,9 +12,10 @@ use base64::engine::DecodePaddingMode;
 use base64::engine::general_purpose::{GeneralPurpose, GeneralPurposeConfig};
 use datafusion_common::{Result, ScalarValue, exec_err, plan_err};
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
-    Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    TypeSignature, Volatility,
 };
+use datafusion_macros::user_doc;
 
 use crate::function::math::unhex::unhex_scalar;
 
@@ -48,12 +49,35 @@ impl fmt::Display for BinaryFormat {
     }
 }
 
-/// Spark-compatible `to_binary` expression
-/// <https://spark.apache.org/docs/latest/api/sql/index.html#to_binary>
+/// Spark-compatible `to_binary` expression.
 ///
-/// `to_binary(str[, fmt])` converts `str` to binary using `fmt`, which must be a
-/// case-insensitive literal of `hex`, `utf-8`, `utf8` or `base64`. `fmt` defaults
-/// to `hex`. The result is NULL if any input is NULL.
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#to_binary>
+#[user_doc(
+    doc_section(label = "Binary String Functions"),
+    description = "Converts a string to binary using the given format. DataFusion has no built-in `to_binary`. \
+        `hex` decodes hex digits, and an odd number of digits is padded with a leading zero. `utf-8` (or `utf8`) \
+        returns the string's UTF-8 bytes. `base64` decodes like Java's MIME decoder, as Spark does: padding is \
+        optional and characters outside the base64 alphabet are skipped. An empty string converts to empty binary \
+        in every format. A value that cannot be converted, or a format that is not recognised, is an error; \
+        use `try_to_binary` to get NULL instead. Returns NULL if either input is NULL.",
+    syntax_example = "to_binary(str[, fmt])",
+    sql_example = r#"```sql
+> SELECT to_binary('537061726b');
+537061726b
+> SELECT to_binary('abc', 'utf-8');
+616263
+> SELECT to_binary('U3Bhcms', 'base64');
+537061726b
+```"#,
+    argument(
+        name = "str",
+        description = "String expression to convert. NULL returns NULL."
+    ),
+    argument(
+        name = "fmt",
+        description = "Optional constant string format, matched case-insensitively: `hex` (the default), `utf-8`, `utf8` or `base64`. A NULL format returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkToBinary {
     signature: Signature,
@@ -89,17 +113,40 @@ impl ScalarUDFImpl for SparkToBinary {
         Ok(DataType::Binary)
     }
 
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
+    }
+
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         to_binary_inner(self.name(), &args.args, true)
     }
 }
 
-/// Spark-compatible `try_to_binary` expression
-/// <https://spark.apache.org/docs/latest/api/sql/index.html#try_to_binary>
+/// Spark-compatible `try_to_binary` expression.
 ///
-/// Identical to [`SparkToBinary`] except that a value which cannot be converted,
-/// and a format which is not recognised, both yield NULL instead of an error.
-/// Spark expresses this as `TryEval(ToBinary(expr, fmt, nullOnInvalidFormat = true))`.
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#try_to_binary>
+#[user_doc(
+    doc_section(label = "Binary String Functions"),
+    description = "Same as `to_binary`, except that a value which cannot be converted returns NULL for that row, \
+        and a format that is not recognised returns NULL, instead of an error. DataFusion has no built-in `try_to_binary`.",
+    syntax_example = "try_to_binary(str[, fmt])",
+    sql_example = r#"```sql
+> SELECT try_to_binary('U3Bhcms=', 'base64');
+537061726b
+> SELECT try_to_binary('zz', 'hex');
+NULL
+> SELECT try_to_binary('abc', 'invalidFormat');
+NULL
+```"#,
+    argument(
+        name = "str",
+        description = "String expression to convert. NULL, or a value that cannot be converted, returns NULL."
+    ),
+    argument(
+        name = "fmt",
+        description = "Optional constant string format, matched case-insensitively: `hex` (the default), `utf-8`, `utf8` or `base64`. A NULL or unrecognised format returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkTryToBinary {
     signature: Signature,
@@ -133,6 +180,10 @@ impl ScalarUDFImpl for SparkTryToBinary {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(DataType::Binary)
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
