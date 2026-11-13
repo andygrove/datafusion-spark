@@ -11,31 +11,55 @@ use arrow::datatypes::DataType;
 use datafusion_common::cast::as_int32_array;
 use datafusion_common::{Result, ScalarValue, exec_datafusion_err, exec_err};
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Volatility,
 };
+use datafusion_macros::user_doc;
 use regex::{CaptureLocations, Regex};
 
 use crate::function::error_utils::invalid_arg_count_exec_err;
 
 const NAME: &str = "regexp_extract";
 
-/// Spark-compatible `regexp_extract(str, regexp[, idx])`.
+/// Spark-compatible `regexp_extract` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#regexp_extract>
-///
-/// Returns the text matched by group `idx` (default `1`, `0` is the whole match)
-/// of the first match of `regexp` in `str`.
-///
-/// - NULL if any argument is NULL.
-/// - An empty string if there is no match, or if the group did not take part in
-///   the match.
-/// - An error if `idx` is outside `0..=groupCount`
-///   (`INVALID_PARAMETER_VALUE.REGEX_GROUP_INDEX`) or `regexp` is not a valid
-///   pattern (`INVALID_PARAMETER_VALUE.PATTERN`).
-///
-/// Patterns use the Rust [`regex`] syntax, not `java.util.regex`. Java-only
-/// features (lookaround, backreferences, possessive quantifiers) are rejected
-/// as invalid patterns here, and shorthands such as `\d` match Unicode digits
-/// where Java's match only ASCII.
+#[user_doc(
+    doc_section(label = "Regular Expression Functions"),
+    description = "Returns the text matched by group `idx` of the first match of `regexp` in `str`. \
+        Unlike DataFusion's `regexp_match`, which returns a list of every capture group, this returns a single string. \
+        Returns an empty string if there is no match, or if the group did not take part in the match. \
+        `idx` is only checked when the pattern matches: an `idx` outside `0..=groupCount` is an error \
+        (`INVALID_PARAMETER_VALUE.REGEX_GROUP_INDEX`) on a row that matches, and an empty string on a row that does not. \
+        An invalid pattern is an error (`INVALID_PARAMETER_VALUE.PATTERN`). Returns NULL if any argument is NULL. \
+        Patterns use Rust `regex` syntax, not Java's `java.util.regex` as in Spark: Java-only features such as \
+        lookaround and backreferences are rejected as invalid patterns, and `\\d` matches any Unicode digit, not just ASCII 0-9.",
+    syntax_example = "regexp_extract(str, regexp[, idx])",
+    sql_example = r#"```sql
+> SELECT regexp_extract('1a 2b 14m', '(\d+)([a-z]+)');
+1
+> SELECT regexp_extract('1a 2b 14m', '(\d+)([a-z]+)', 0);
+1a
+> SELECT regexp_extract('1a 2b 14m', '(\d+)([a-z]+)', 2);
+a
+> SELECT regexp_extract('abc', '(\d+)', 1);
+-- empty string
+> SELECT regexp_extract('a1', '(\d+)', NULL);
+NULL
+```"#,
+    argument(
+        name = "str",
+        description = "String expression to search. NULL returns NULL."
+    ),
+    argument(
+        name = "regexp",
+        description = "String regular expression in Rust `regex` syntax. NULL returns NULL."
+    ),
+    argument(
+        name = "idx",
+        description = "Optional integer capture group index. Defaults to 1; 0 is the whole match. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkRegexpExtract {
     signature: Signature,
@@ -66,6 +90,10 @@ impl ScalarUDFImpl for SparkRegexpExtract {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(DataType::Utf8)
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn coerce_types(&self, arg_types: &[DataType]) -> Result<Vec<DataType>> {

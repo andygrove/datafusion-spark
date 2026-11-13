@@ -6,7 +6,8 @@
 # Reference: https://spark.apache.org/docs/latest/api/sql/index.html#regexp_extract
 # Expected values come from Spark's sql-tests/results/regexp-functions.sql.out
 # or were verified against Spark 4.2.0.
-# Patterns use Rust regex syntax, so Java-only features are not covered.
+# Patterns use Rust regex syntax, so Java-only features are not covered
+# beyond checking that they are rejected.
 
 query T
 SELECT regexp_extract('1a 2b 14m', '\d+', 0);
@@ -134,6 +135,19 @@ SELECT regexp_extract('1a 2b 14m', '(?l)');
 
 statement error INVALID_PARAMETER_VALUE.PATTERN.*'\(unclosed'
 SELECT regexp_extract('x', '(unclosed', 0);
+
+# Rust regex syntax: Java-only lookaround and backreferences are invalid patterns
+statement error INVALID_PARAMETER_VALUE.PATTERN
+SELECT regexp_extract('ab', 'a(?=b)', 0);
+
+statement error INVALID_PARAMETER_VALUE.PATTERN
+SELECT regexp_extract('aa', '(a)\1', 0);
+
+# Rust regex \d matches any Unicode digit (Spark's Java \d matches only ASCII 0-9)
+query T
+SELECT regexp_extract('x٣y', '\d', 0);
+----
+٣
 
 # Wrong number of arguments
 statement error
