@@ -4,7 +4,8 @@
 
 # Tests for Spark-compatible json_array_length
 # Reference: https://spark.apache.org/docs/latest/api/sql/index.html#json_array_length
-# Expected values come from Spark's sql-tests/results/json-functions.sql.out.
+# Expected values come from Spark's sql-tests/results/json-functions.sql.out or
+# were verified against Spark 4.2.0.
 
 query I
 SELECT json_array_length(NULL);
@@ -13,6 +14,11 @@ NULL
 
 query I
 SELECT json_array_length('');
+----
+NULL
+
+query I
+SELECT json_array_length('  ');
 ----
 NULL
 
@@ -41,9 +47,35 @@ SELECT json_array_length('[1,2,3,[33,44],{"key":[2,3,4]}]');
 ----
 5
 
+query I
+SELECT json_array_length(' [1, null, "a"] ');
+----
+3
+
+# Brackets inside strings are not array delimiters
+query I
+SELECT json_array_length('["]","["]');
+----
+2
+
 # Valid JSON that is not an array
 query I
 SELECT json_array_length('{"key":"not a json array"}');
+----
+NULL
+
+query I
+SELECT json_array_length('null');
+----
+NULL
+
+query I
+SELECT json_array_length('2');
+----
+NULL
+
+query I
+SELECT json_array_length('"a"');
 ----
 NULL
 
@@ -57,6 +89,66 @@ query I
 SELECT json_array_length('[1,2');
 ----
 NULL
+
+query I
+SELECT json_array_length('[');
+----
+NULL
+
+query I
+SELECT json_array_length('[1,,2]');
+----
+NULL
+
+query I
+SELECT json_array_length('[1 2]');
+----
+NULL
+
+# Anything after the closing bracket of the array is ignored
+query I
+SELECT json_array_length('[1,2] trailing');
+----
+2
+
+query I
+SELECT json_array_length('[1,2]]');
+----
+2
+
+query I
+SELECT json_array_length('[1,2] [3]');
+----
+2
+
+# Jackson's nesting limit is 1000 levels
+query I
+SELECT json_array_length(repeat('[', 1000) || repeat(']', 1000));
+----
+1
+
+# Known gaps: Spark parses with Jackson configured to accept single-quoted
+# strings and unescaped control characters, which return NULL here. Jackson
+# also limits nesting to 1000 levels, beyond which Spark returns NULL; there is
+# no such limit here.
+
+## Spark 4.2.0 result: 2
+#query I
+#SELECT json_array_length('[''a'',''b'']');
+#----
+#2
+
+## Spark 4.2.0 result: 1 (the string contains an unescaped tab)
+#query I
+#SELECT json_array_length('["a' || chr(9) || 'b"]');
+#----
+#1
+
+## Spark 4.2.0 result: NULL (1001 levels of nesting)
+#query I
+#SELECT json_array_length(repeat('[', 1001) || repeat(']', 1001));
+#----
+#NULL
 
 # Only string arguments are accepted
 statement error

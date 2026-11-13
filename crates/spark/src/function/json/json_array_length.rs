@@ -30,8 +30,9 @@ use serde::de::IgnoredAny;
 ///
 /// Known differences from Spark, which parses with Jackson configured to accept
 /// single-quoted strings and unescaped control characters (Hive compatibility):
-/// `serde_json` rejects both, so those inputs give NULL here. `serde_json` also
-/// stops at 128 levels of nesting, where Jackson allows 1000.
+/// `serde_json` rejects both, so those inputs give NULL here. Jackson also limits
+/// nesting to 1000 levels and returns NULL beyond that; skipped elements here have
+/// no depth limit, so deeper arrays are still counted.
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct JsonArrayLength {
     signature: Signature,
@@ -97,36 +98,4 @@ fn json_array_length(json: &str) -> Option<i32> {
     let elements =
         Vec::<IgnoredAny>::deserialize(&mut serde_json::Deserializer::from_str(json));
     elements.ok().and_then(|v| i32::try_from(v.len()).ok())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn counts_outermost_elements() {
-        assert_eq!(json_array_length("[]"), Some(0));
-        assert_eq!(json_array_length("[1,2,3]"), Some(3));
-        assert_eq!(json_array_length("[[1,2],[5,6,7]]"), Some(2));
-        assert_eq!(
-            json_array_length(r#"[1,2,3,[33,44],{"key":[2,3,4]}]"#),
-            Some(5)
-        );
-        assert_eq!(json_array_length(" [1, null, \"a\"] "), Some(3));
-    }
-
-    #[test]
-    fn non_arrays_and_invalid_json_are_null() {
-        for json in ["", "  ", "2", "\"a\"", "null", r#"{"key":"not an array"}"#] {
-            assert_eq!(json_array_length(json), None, "{json}");
-        }
-        for json in ["[1,2,3,4,5", "[1,2", "[1,,2]", "[1 2]", "["] {
-            assert_eq!(json_array_length(json), None, "{json}");
-        }
-    }
-
-    #[test]
-    fn content_after_the_closing_bracket_is_ignored() {
-        assert_eq!(json_array_length("[1,2] trailing"), Some(2));
-    }
 }
