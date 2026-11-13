@@ -8,18 +8,37 @@ use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion_common::types::{NativeType, logical_string};
 use datafusion_common::{Result, internal_err};
 use datafusion_expr::{
-    Coercion, ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
-    Signature, TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs,
+    ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
 };
 use datafusion_functions::string::ascii::ascii;
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 
-/// Spark compatible version of the [ascii] function. Differs from the [default ascii function]
-/// in that it is more permissive of input types, for example casting numeric input to string
-/// before executing the function (default version doesn't allow numeric input).
+/// Spark-compatible `ascii` expression.
 ///
-/// [ascii]: https://spark.apache.org/docs/latest/api/sql/index.html#ascii
-/// [default ascii function]: datafusion_functions::string::ascii::AsciiFunc
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#ascii>
+#[user_doc(
+    doc_section(label = "String Functions"),
+    description = "Returns the numeric code point of the first character of `str`. \
+        Despite the name, this is the full Unicode code point, not just ASCII (`ascii('😀')` is 128512). \
+        An empty string returns 0, and NULL returns NULL. \
+        Unlike DataFusion's `ascii`, numeric input is accepted and cast to a string first, \
+        so `ascii(2)` is the code point of `'2'`.",
+    syntax_example = "ascii(str)",
+    sql_example = r#"```sql
+> SELECT ascii('Spark');
+83
+> SELECT ascii('');
+0
+> SELECT ascii(2);
+50
+```"#,
+    argument(
+        name = "str",
+        description = "String expression. Numeric values are cast to a string. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkAscii {
     signature: Signature,
@@ -66,6 +85,10 @@ impl ScalarUDFImpl for SparkAscii {
         // The result is nullable only if any of the input arguments is nullable
         let nullable = args.arg_fields.iter().any(|f| f.is_nullable());
         Ok(Arc::new(Field::new("ascii", DataType::Int32, nullable)))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

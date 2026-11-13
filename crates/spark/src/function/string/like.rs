@@ -8,13 +8,41 @@ use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion_common::{Result, exec_err, internal_err};
 use datafusion_expr::ColumnarValue;
 use datafusion_expr::{
-    ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
+    Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
-/// LIKE function for case-sensitive pattern matching
+/// Spark-compatible `like` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#like>
+#[user_doc(
+    doc_section(label = "String Functions"),
+    description = "Returns true if `str` matches `pattern`, case-sensitively. \
+        In the pattern, `_` matches any one character and `%` matches any sequence of characters. \
+        Returns NULL if either argument is NULL. \
+        This is the function form of the `LIKE` operator, which DataFusion supports only as an operator. \
+        Spark's optional third `escape` argument is not supported.",
+    syntax_example = "like(str, pattern)",
+    sql_example = r#"```sql
+> SELECT like('Spark', '_park');
+true
+> SELECT like('Spark', 'SP%');
+false
+> SELECT like(NULL, '_park');
+NULL
+```"#,
+    argument(
+        name = "str",
+        description = "String expression to match. NULL returns NULL."
+    ),
+    argument(
+        name = "pattern",
+        description = "String pattern, using `_` and `%` as wildcards. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkLike {
     signature: Signature,
@@ -35,6 +63,10 @@ impl SparkLike {
 }
 
 impl ScalarUDFImpl for SparkLike {
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
+    }
+
     fn name(&self) -> &str {
         "like"
     }

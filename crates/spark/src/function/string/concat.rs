@@ -7,24 +7,39 @@ use datafusion_common::arrow::datatypes::FieldRef;
 use datafusion_common::{Result, ScalarValue};
 use datafusion_expr::ReturnFieldArgs;
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Volatility,
 };
 use datafusion_functions::string::concat::ConcatFunc;
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
 use crate::function::null_utils::{
     NullMaskResolution, apply_null_mask, compute_null_mask,
 };
 
-/// Spark-compatible `concat` expression
+/// Spark-compatible `concat` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#concat>
-///
-/// Concatenates multiple input strings into a single string.
-/// Returns NULL if any input is NULL.
-///
-/// Differences with DataFusion concat:
-/// - Support 0 arguments
-/// - Return NULL if any input is NULL
+#[user_doc(
+    doc_section(label = "String Functions"),
+    description = "Concatenates the arguments into a single string, or binary if all arguments are binary. \
+        Returns NULL if any argument is NULL, whereas DataFusion's `concat` skips NULL arguments. \
+        Unlike DataFusion's `concat`, it also accepts zero arguments and then returns an empty string.",
+    syntax_example = "concat([expr1[, ..., exprN]])",
+    sql_example = r#"```sql
+> SELECT concat('Spark', 'SQL');
+SparkSQL
+> SELECT concat('Spark', 'SQL', NULL);
+NULL
+> SELECT concat();
+-- empty string
+```"#,
+    argument(
+        name = "expr",
+        description = "String or binary expressions to concatenate. Any NULL makes the result NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkConcat {
     signature: Signature,
@@ -45,6 +60,10 @@ impl SparkConcat {
 }
 
 impl ScalarUDFImpl for SparkConcat {
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
+    }
+
     fn name(&self) -> &str {
         "concat"
     }
