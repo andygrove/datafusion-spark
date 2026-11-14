@@ -1,2 +1,5 @@
 __pycache__/
 target/
+
+# Release artifacts created by dev/release/create-tarball.sh
+dev/dist/
