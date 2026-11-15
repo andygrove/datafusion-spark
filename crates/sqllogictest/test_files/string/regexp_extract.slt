@@ -6,8 +6,13 @@
 # Reference: https://spark.apache.org/docs/latest/api/sql/index.html#regexp_extract
 # Expected values come from Spark's sql-tests/results/regexp-functions.sql.out
 # or were verified against Spark 4.2.0.
-# Patterns use Rust regex syntax, so Java-only features are not covered
-# beyond checking that they are rejected.
+# Audited against Spark 4.2.0 on 2026-11-15.
+# Expected values verified with pyspark==4.2.0.
+# Known divergences are captured as commented-out queries below.
+# Patterns use the Rust regex engine, not java.util.regex; the differences are
+# tracked by https://github.com/apache/datafusion-spark/issues/255
+# The REGEX_GROUP_INDEX error matches Spark 3.5 and later (Spark 3.4 raised
+# _LEGACY_ERROR_TEMP_2006 / _LEGACY_ERROR_TEMP_2007 instead).
 
 query T
 SELECT regexp_extract('1a 2b 14m', '\d+', 0);
@@ -104,7 +109,18 @@ SELECT regexp_extract('a1', '(\d+)', NULL);
 ----
 NULL
 
-# A NULL row returns NULL before idx is checked
+# A NULL row returns NULL before idx or the pattern is checked
+query T
+SELECT regexp_extract(NULL, '(unclosed', 0);
+----
+NULL
+
+query T
+SELECT regexp_extract('a', '(unclosed', NULL);
+----
+NULL
+
+# A NULL idx returns NULL before idx is checked
 query T
 SELECT regexp_extract('a', NULL, 99);
 ----
@@ -136,18 +152,88 @@ SELECT regexp_extract('1a 2b 14m', '(?l)');
 statement error INVALID_PARAMETER_VALUE.PATTERN.*'\(unclosed'
 SELECT regexp_extract('x', '(unclosed', 0);
 
-# Rust regex syntax: Java-only lookaround and backreferences are invalid patterns
-statement error INVALID_PARAMETER_VALUE.PATTERN
+# The pattern is quoted like Spark's toSQLValue, with \ and ' escaped
+statement error is invalid: '\(\\\\d'\.
+SELECT regexp_extract('x', '(\d', 0);
+
+statement error is invalid: 'it\\'s\('\.
+SELECT regexp_extract('x', 'it''s(', 0);
+
+# An empty pattern matches the empty string
+query T
+SELECT regexp_extract('abc', '', 0);
+----
+(empty)
+
+# Known differences between the Rust regex engine and java.util.regex
+# https://github.com/apache/datafusion-spark/issues/255
+
+# Look-around and backreferences are not supported by the Rust regex engine
+statement error Unsupported regex pattern 'a\(\?=b\)' in `regexp_extract`: look-around
 SELECT regexp_extract('ab', 'a(?=b)', 0);
 
-statement error INVALID_PARAMETER_VALUE.PATTERN
+statement error Unsupported regex pattern .* in `regexp_extract`: backreferences
 SELECT regexp_extract('aa', '(a)\1', 0);
 
-# Rust regex \d matches any Unicode digit (Spark's Java \d matches only ASCII 0-9)
-query T
-SELECT regexp_extract('x٣y', '\d', 0);
-----
-٣
+# Spark 4.2.0 supports look-around
+# https://github.com/apache/datafusion-spark/issues/255
+# query T
+# SELECT regexp_extract('ab', 'a(?=b)', 0);
+# ----
+# a
+
+# Spark 4.2.0 supports backreferences
+# https://github.com/apache/datafusion-spark/issues/255
+# query T
+# SELECT regexp_extract('aa', '(a)\1', 0);
+# ----
+# aa
+
+# Spark 4.2.0 treats a++ as a possessive quantifier that does not give back,
+# so a++a cannot match; the Rust regex engine reads a++ as (a+)+ and returns 'aaa'
+# https://github.com/apache/datafusion-spark/issues/255
+# query T
+# SELECT regexp_extract('aaa', '(a++a)', 1);
+# ----
+# (empty)
+
+# A pattern over the Rust regex engine's compiled-size limit is not supported
+statement error Unsupported regex pattern .* in `regexp_extract`: the compiled pattern exceeds the Rust regex size limit
+SELECT regexp_extract('a', '\w{1000}\w{1000}\w{1000}', 0);
+
+# Spark 4.2.0 matches \d against ASCII digits only; DataFusion returns '٣'
+# https://github.com/apache/datafusion-spark/issues/255
+# query T
+# SELECT regexp_extract('x٣y', '\d', 0);
+# ----
+# (empty)
+
+# Spark 4.2.0's . does not match a carriage return; DataFusion returns 'a\rb'
+# https://github.com/apache/datafusion-spark/issues/255
+# query T
+# SELECT regexp_extract('a' || chr(13) || 'b', '(a.b)', 1);
+# ----
+# (empty)
+
+# Spark 4.2.0's $ also matches before a final line terminator; DataFusion returns ''
+# https://github.com/apache/datafusion-spark/issues/255
+# query T
+# SELECT regexp_extract('abc' || chr(10), '(abc$)', 1);
+# ----
+# abc
+
+# Spark 4.2.0's (?i) folds ASCII case only, so k does not match the Kelvin sign
+# (U+212A); DataFusion returns it
+# https://github.com/apache/datafusion-spark/issues/255
+# query T
+# SELECT regexp_extract('K', '((?i)k)', 1);
+# ----
+# (empty)
+
+# Spark 4.2.0 rejects Python-style named groups; DataFusion returns 'a'
+# https://github.com/apache/datafusion-spark/issues/255
+# statement error INVALID_PARAMETER_VALUE.PATTERN
+# SELECT regexp_extract('a', '(?P<n>a)', 1);
 
 # Wrong number of arguments
 statement error
@@ -201,6 +287,32 @@ NULL
 statement error Expects group index between 0 and 1, but got 3
 SELECT regexp_extract(column1, '(\d+)', column2) FROM (VALUES ('abc', 3), ('12', 3));
 
+# Literal str with a column pattern
+query T
+SELECT regexp_extract('a1', column1, 1) FROM (VALUES ('(\d)'), ('([a-z])'));
+----
+1
+a
+
+# Literal str and pattern with a column idx
+query T
+SELECT regexp_extract('a1b2', '([a-z])(\d)', column1) FROM (VALUES (0), (1), (2));
+----
+a1
+a
+1
+
+# An invalid pattern in a later row of a pattern column is an error
+statement error INVALID_PARAMETER_VALUE.PATTERN.*is invalid: '\('\.
+SELECT regexp_extract(column1, column2, 0) FROM (VALUES ('a', 'a'), ('b', '('));
+
+# A NULL str row is not checked against its invalid pattern
+query T
+SELECT regexp_extract(column1, column2, 0) FROM (VALUES (CAST(NULL AS STRING), '('), ('b', 'b'));
+----
+NULL
+b
+
 # Literal pattern with no match on any row and the default idx
 query T
 SELECT regexp_extract(column1, '\d+') FROM (VALUES ('abc'), ('xyz'));
@@ -208,7 +320,8 @@ SELECT regexp_extract(column1, '\d+') FROM (VALUES ('abc'), ('xyz'));
 (empty)
 (empty)
 
-# An invalid literal pattern is not compiled when every string is NULL
+# An invalid literal pattern is not compiled when every string is NULL, as in
+# Spark, so a literal pattern is not validated at planning time
 query T
 SELECT regexp_extract(column1, '(unclosed', 0) FROM (VALUES (CAST(NULL AS STRING)), (CAST(NULL AS STRING)));
 ----
@@ -221,11 +334,61 @@ SELECT regexp_extract(arrow_cast('1a 2b', 'LargeUtf8'), arrow_cast('(\d+)([a-z])
 ----
 a
 
-# Integer types other than INT are accepted for idx
+# Like Spark, str and regexp of other types are cast to strings
+query T
+SELECT regexp_extract(12345, '(\d)', 1);
+----
+1
+
+query T
+SELECT regexp_extract(column1, '(\d)', 1) FROM (VALUES (12345), (67));
+----
+1
+6
+
+query T
+SELECT regexp_extract(X'6131', '(\d)', 1);
+----
+1
+
+query T
+SELECT regexp_extract('a1', 1, 0);
+----
+1
+
+# Like Spark, idx of other numeric types and strings is cast to INT
 query T
 SELECT regexp_extract('1a 2b', '(\d+)([a-z])', arrow_cast(2, 'Int8'));
 ----
 a
+
+query T
+SELECT regexp_extract('a1', '(\d)', '1');
+----
+1
+
+query T
+SELECT regexp_extract('a1', '(\d)', 1.0::DOUBLE);
+----
+1
+
+query T
+SELECT regexp_extract('a1', '(\d)', 1.5::DOUBLE);
+----
+1
+
+# An idx that cannot be cast to INT is an error, as in Spark
+# (Spark raises CAST_OVERFLOW and CAST_INVALID_INPUT)
+statement error Can't cast value 4294967297 to type Int32
+SELECT regexp_extract('a1', '(\d)', 4294967297::BIGINT);
+
+statement error Cannot cast string 'x' to value of Int32 type
+SELECT regexp_extract('a1', '(\d)', 'x');
+
+# A str that cannot be cast to a string is a planning error, as in Spark
+# (Spark raises DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE)
+statement error Error during planning: regexp_extract expects a string str, got List
+SELECT regexp_extract(array[1], 'a', 0);
 
 # The result type is a string
 query T
