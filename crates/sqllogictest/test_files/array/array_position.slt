@@ -49,15 +49,87 @@ SELECT array_position(CAST(NULL AS ARRAY<INT>), 1);
 ----
 NULL
 
-# Spark coerces an untyped NULL element to the array's element type, so this returns NULL.
+# The tightest common type of the array element and an untyped NULL element is the array
+# element type, so the NULL is cast to it and this returns NULL.
 query I
 SELECT array_position(array(1, 2, 3), NULL);
 ----
 NULL
 
-# Spark rejects an untyped NULL array with DATATYPE_MISMATCH.NULL_TYPE
-query error
+# A NULL element returns NULL even if the array contains NULL. The DataFusion built-in returns
+# the position of the first NULL instead.
+query I
+SELECT array_position(array(1, NULL), CAST(NULL AS BIGINT));
+----
+NULL
+
+query I
+SELECT array_position(CAST(NULL AS ARRAY<INT>), CAST(NULL AS INT));
+----
+NULL
+
+# An untyped NULL array is rejected at planning time, as in Spark.
+query error \[DATATYPE_MISMATCH\.NULL_TYPE\] Null typed values cannot be used as arguments of `array_position`
 SELECT array_position(NULL, 1);
+
+query error \[DATATYPE_MISMATCH\.NULL_TYPE\]
+SELECT array_position(NULL, NULL);
+
+# The common type of an empty array and an untyped NULL is the NULL type.
+query error \[DATATYPE_MISMATCH\.NULL_TYPE\]
+SELECT array_position(array(), NULL);
+
+query error \[DATATYPE_MISMATCH\.NULL_TYPE\]
+SELECT array_position(array(NULL), NULL);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `array_position` requires the "ARRAY" type
+SELECT array_position(1, 1);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\]
+SELECT array_position('abc', 'a');
+
+query T
+SELECT arrow_typeof(array_position(array(1, 2, 3), 2));
+----
+Int64
+
+# Several matches return the first position
+query I
+SELECT array_position(array(312, 773, 708, 708), 708);
+----
+3
+
+query I
+SELECT array_position(array(312, 773, 708, 708), 414);
+----
+0
+
+query I
+SELECT array_position(array(NULL, ''), '');
+----
+2
+
+query I
+SELECT array_position(array(NULL, ''), 'a');
+----
+0
+
+query I
+SELECT array_position(array(NULL), 1L);
+----
+0
+
+query I
+SELECT array_position(CAST(NULL AS ARRAY<STRING>), '');
+----
+NULL
+
+# Spark's `array(1, NULL)[0]` is its first element; arrays in this crate are 1-based, so the
+# same element is `[1]` here.
+query I
+SELECT array_position(array(1, NULL), array(1, NULL)[1]);
+----
+1
 
 query I
 SELECT array_position(array(), 1);
@@ -101,9 +173,24 @@ SELECT array_position(array(array(1, 2), array(3)), array(3));
 ----
 2
 
-# Element is coerced to the array's element type
 query I
-SELECT array_position(array(1, 2, 3), 2L);
+SELECT array_position(array(array(1, 2), array(3, 4)), array(1, 2));
+----
+1
+
+query I
+SELECT array_position(array(array(5, 6), array(2, 1)), array(1, 2));
+----
+0
+
+###
+### Type coercion
+###
+
+# The array element and the element are both cast to their tightest common type
+# (Spark's findTightestCommonType): here INT and BIGINT become BIGINT.
+query I
+SELECT array_position(array(CAST(1 AS INT), CAST(2 AS INT), CAST(3 AS INT)), 2L);
 ----
 2
 
@@ -111,6 +198,128 @@ query I
 SELECT array_position(array(1, 2, 3), CAST(2.0 AS DOUBLE));
 ----
 2
+
+# INT and DOUBLE become DOUBLE, so 1.23 does not match 1
+query I
+SELECT array_position(array(CAST(1 AS INT)), CAST(1.23 AS DOUBLE));
+----
+0
+
+query I
+SELECT array_position(array(CAST(1 AS INT)), CAST(1.0 AS DOUBLE));
+----
+1
+
+query I
+SELECT array_position(array(CAST(1 AS DOUBLE)), CAST(1 AS INT));
+----
+1
+
+query I
+SELECT array_position(array(CAST(1 AS FLOAT)), 1L);
+----
+1
+
+query I
+SELECT array_position(array(array(CAST(1 AS INT))), array(CAST(1.0 AS DOUBLE)));
+----
+1
+
+# An integral type widens to a decimal only if the decimal holds all its values:
+# INT is DECIMAL(10,0), so DECIMAL(38,2) and DECIMAL(12,2) are wide enough and DECIMAL(10,2) is not.
+query I
+SELECT array_position(array(CAST(1 AS INT)), CAST(1 AS DECIMAL(38,2)));
+----
+1
+
+query I
+SELECT array_position(array(CAST(1 AS DECIMAL(12,2))), CAST(1 AS INT));
+----
+1
+
+query I
+SELECT array_position(array(CAST(1 AS DECIMAL(3,0))), CAST(1 AS TINYINT));
+----
+1
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_position` should have been "ARRAY" followed by a value with same element type
+SELECT array_position(array(CAST(1 AS INT)), CAST(1 AS DECIMAL(10,2)));
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_position(array(CAST(1 AS DECIMAL(12,2))), CAST(1 AS BIGINT));
+
+# Two different decimals have no tightest common type
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_position(array(CAST(1 AS DECIMAL(3,1))), CAST(1 AS DECIMAL(4,2)));
+
+# Decimals and floating point numbers have no tightest common type
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_position(array(CAST(1 AS DECIMAL(5,1))), CAST(1.0 AS DOUBLE));
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_position(array(CAST(1.0 AS DOUBLE)), CAST(1 AS DECIMAL(5,1)));
+
+# Strings and numbers are not cast to each other, in either direction
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_position(array(1), '1');
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_position(array('1'), 1);
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_position(array(1), CAST(NULL AS STRING));
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_position(array(array(1)), array('1'));
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_position(array(true), 1);
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_position(array(X'01'), '1');
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_position(array(DATE '2020-01-01'), '2020-01-01');
+
+# DATE and TIMESTAMP become TIMESTAMP
+query I
+SELECT array_position(array(DATE '2020-01-01'), TIMESTAMP '2020-01-01 00:00:00');
+----
+1
+
+query I
+SELECT array_position(array(TIMESTAMP '2020-01-01 00:00:00'), DATE '2020-01-01');
+----
+1
+
+# Struct fields are matched by name, in order. Spark ignores the case of the names and returns 1
+# here, but DataFusion cannot cast between struct fields whose names differ only in case.
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_position(array(named_struct('a', 1)), named_struct('A', 1));
+
+# Struct field types are not widened, as in Spark with ANSI mode off. With ANSI mode on, Spark
+# widens them and returns 0 here.
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_position(array(named_struct('a', 1)), named_struct('a', CAST(1.5 AS DOUBLE)));
+
+# Fields may differ in nullability
+query I
+SELECT array_position(array(named_struct('a', 1, 'b', CAST(NULL AS BIGINT))), named_struct('a', 1, 'b', 2L));
+----
+0
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_position(array(named_struct('a', 1, 'b', 'x')), named_struct('b', 'x', 'a', 1));
+
+# Maps cannot be ordered, so map elements are rejected at any depth
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_position` does not support ordering on type
+SELECT array_position(array(map(1, 2)), map(1, 2));
+
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\]
+SELECT array_position(array(named_struct('m', map(1, 2))), named_struct('m', map(1, 2)));
+
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\]
+SELECT array_position(array(array(map(1, 2))), array(map(1, 2)));
 
 # Signed zero: -0.0 equals 0.0
 query I
@@ -200,6 +409,26 @@ SELECT array_position(column1, column2) FROM t;
 0
 NULL
 NULL
+
+# A literal array with a column element, including a NULL element
+query I
+SELECT array_position(array(1, 2), column2) FROM t;
+----
+0
+0
+0
+1
+NULL
+
+# A column array with a literal element
+query I
+SELECT array_position(column1, 3) FROM t;
+----
+3
+3
+0
+NULL
+0
 
 # A batch sliced by OFFSET: the list offsets do not start at 0
 query I
