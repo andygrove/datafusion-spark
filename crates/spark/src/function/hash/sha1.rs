@@ -15,13 +15,33 @@ use datafusion_common::utils::hex::{HexCase, encode_bytes_into};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, internal_err};
 use datafusion_expr::{
-    Coercion, ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
-    Signature, TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs,
+    ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 use sha1::{Digest, Sha1};
 
+/// Spark-compatible `sha1` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#sha1>
+#[user_doc(
+    doc_section(label = "Hashing Functions"),
+    description = "Returns the SHA-1 digest of the input as a 40-character lowercase hex string. \
+        DataFusion has no built-in `sha1`.",
+    syntax_example = "sha1(expr)",
+    alternative_syntax = "sha(expr)",
+    sql_example = r#"```sql
+> SELECT sha1('Spark');
+85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
+> SELECT sha1(NULL);
+NULL
+```"#,
+    argument(
+        name = "expr",
+        description = "String or binary expression to hash. Strings are hashed as UTF-8 bytes. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkSha1 {
     signature: Signature,
@@ -70,6 +90,10 @@ impl ScalarUDFImpl for SparkSha1 {
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
         let nullable = args.arg_fields.iter().any(|f| f.is_nullable());
         Ok(Arc::new(Field::new(self.name(), DataType::Utf8, nullable)))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

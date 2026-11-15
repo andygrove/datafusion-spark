@@ -13,12 +13,36 @@ use datafusion_common::{
     DataFusionError, Result, ScalarValue, exec_datafusion_err, exec_err,
 };
 use datafusion_expr::{
-    Coercion, ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Coercion, ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     TypeSignatureClass, Volatility,
 };
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
+/// Spark-compatible `unhex` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#unhex>
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Converts a string of hexadecimal digits to BINARY: each pair of digits becomes one byte. \
+        This is the inverse of `hex`. DataFusion has no built-in `unhex`. Digits may be upper or lower case. \
+        A string with an odd number of digits is treated as if it had a leading `0`. Returns NULL if the \
+        input is NULL or contains anything other than hex digits (including spaces), \
+        and an empty BINARY value for an empty string.",
+    syntax_example = "unhex(str)",
+    sql_example = r#"```sql
+> SELECT arrow_cast(unhex('537061726B2053514C'), 'Utf8');
+Spark SQL
+> SELECT unhex('ABC');
+0abc
+> SELECT unhex('GGHH');
+NULL
+```"#,
+    argument(
+        name = "str",
+        description = "String expression of hexadecimal digits. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkUnhex {
     signature: Signature,
@@ -51,6 +75,10 @@ impl ScalarUDFImpl for SparkUnhex {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(DataType::Binary)
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

@@ -16,21 +16,36 @@ use datafusion_common::{Result, ScalarValue, not_impl_err};
 use datafusion_expr::function::{AccumulatorArgs, StateFieldsArgs};
 use datafusion_expr::utils::{AggregateOrderSensitivity, format_state_name};
 use datafusion_expr::{
-    Accumulator, AggregateUDFImpl, Coercion, EmitTo, GroupsAccumulator, ReversedUDAF,
-    Signature, TypeSignatureClass, Volatility,
+    Accumulator, AggregateUDFImpl, Coercion, Documentation, EmitTo, GroupsAccumulator,
+    ReversedUDAF, Signature, TypeSignatureClass, Volatility,
 };
 use datafusion_functions_aggregate_common::aggregate::groups_accumulator::nulls::{
     filtered_null_mask, set_nulls,
 };
+use datafusion_macros::user_doc;
 use std::sync::Arc;
-
-/// AVG aggregate expression
-/// Spark average aggregate expression. Differs from standard DataFusion average aggregate
-/// in that it uses an `i64` for the count (DataFusion version uses `u64`); also there is ANSI mode
-/// support planned in the future for Spark version.
 
 // TODO: see if can deduplicate with DF version
 //       https://github.com/apache/datafusion/issues/17964
+
+/// Spark-compatible `avg` aggregate expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#avg>
+#[user_doc(
+    doc_section(label = "General Functions"),
+    description = "Returns the average of the non-NULL values as a DOUBLE, or NULL if there are none. \
+        All numeric input is cast to DOUBLE first. So unlike DataFusion's `avg` and Spark's, \
+        DECIMAL input returns a DOUBLE rather than a DECIMAL ([#111](https://github.com/apache/datafusion-spark/issues/111)).",
+    syntax_example = "avg(expr)",
+    sql_example = r#"```sql
+> SELECT avg(a) FROM (VALUES (40), (23), (17), (40), (NULL)) AS t(a);
+30
+```"#,
+    argument(
+        name = "expr",
+        description = "Numeric expression to average. NULL values are skipped."
+    )
+)]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SparkAvg {
     signature: Signature,
@@ -98,6 +113,10 @@ impl AggregateUDFImpl for SparkAvg {
 
     fn name(&self) -> &str {
         "avg"
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn reverse_expr(&self) -> ReversedUDAF {

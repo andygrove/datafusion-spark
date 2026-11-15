@@ -7,14 +7,35 @@ use arrow::datatypes::DataType;
 
 use datafusion_common::Result;
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 
 use crate::function::url::url_decode::{
     OnDecodeError, UrlDecode, spark_handled_url_decode,
 };
 
+/// Spark-compatible `try_url_decode` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#try_url_decode>
+#[user_doc(
+    doc_section(label = "URL Functions"),
+    description = "Same as `url_decode`, except that a value which cannot be decoded returns NULL for that row \
+        instead of an error. DataFusion has no built-in `try_url_decode`.",
+    syntax_example = "try_url_decode(str)",
+    sql_example = r#"```sql
+> SELECT try_url_decode('Spark+SQL%21');
+Spark SQL!
+> SELECT try_url_decode('https%3%2F%2Fspark.apache.org');
+NULL
+```"#,
+    argument(
+        name = "str",
+        description = "String expression to decode. NULL, or a value that cannot be decoded, returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct TryUrlDecode {
     signature: Signature,
@@ -47,6 +68,10 @@ impl ScalarUDFImpl for TryUrlDecode {
 
     fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
         self.url_decoder.return_type(arg_types)
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

@@ -11,13 +11,42 @@ use datafusion_common::{Result, ScalarValue, internal_err, plan_err};
 use datafusion_expr::expr::ScalarFunction;
 use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
-    Coercion, ColumnarValue, Expr, ExprSchemable, ReturnFieldArgs, ScalarFunctionArgs,
-    ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, Expr, ExprSchemable, ReturnFieldArgs,
+    ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
 };
+use datafusion_macros::user_doc;
 
-/// Spark date_trunc supports extra format aliases.
-/// It also handles timestamps with timezones by converting to session timezone first.
+/// Spark-compatible `date_trunc` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#date_trunc>
+#[user_doc(
+    doc_section(label = "Time and Date Functions"),
+    description = "Returns `ts` truncated to the unit given by `fmt`, with the same type as `ts`. \
+        Unlike DataFusion's `date_trunc`, it also accepts Spark's unit aliases `yyyy` and `yy` for year, \
+        `mon` and `mm` for month and `dd` for day, and it truncates a timestamp with a time zone in the session time zone \
+        (`datafusion.execution.time_zone`) rather than the timestamp's own time zone. A string `ts` is cast to a timestamp. \
+        Returns NULL if `ts` is NULL. `fmt` must be a constant string: a NULL `fmt` is a planning error and an unsupported \
+        `fmt` is an execution error, where Spark returns NULL for both.",
+    syntax_example = "date_trunc(fmt, ts)",
+    sql_example = r#"```sql
+> SELECT date_trunc('YEAR', '2015-03-05T09:32:05.123456'::timestamp);
+2015-01-01T00:00:00
+> SELECT date_trunc('MM', '2015-03-05T09:32:05.123456'::timestamp);
+2015-03-01T00:00:00
+> SELECT date_trunc('HOUR', '2015-03-05T09:32:05.123456'::timestamp);
+2015-03-05T09:00:00
+> SELECT date_trunc('MILLISECOND', '2015-03-05T09:32:05.123456'::timestamp);
+2015-03-05T09:32:05.123
+```"#,
+    argument(
+        name = "fmt",
+        description = "Constant string unit, case-insensitive: `year` (`yyyy`, `yy`), `quarter`, `month` (`mon`, `mm`), `week` (truncates to Monday), `day` (`dd`), `hour`, `minute`, `second`, `millisecond` or `microsecond`."
+    ),
+    argument(
+        name = "ts",
+        description = "Timestamp expression to truncate. A string is cast to a timestamp. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkDateTrunc {
     signature: Signature,
@@ -50,6 +79,10 @@ impl SparkDateTrunc {
 impl ScalarUDFImpl for SparkDateTrunc {
     fn name(&self) -> &str {
         "date_trunc"
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn signature(&self) -> &Signature {

@@ -14,11 +14,33 @@ use datafusion_common::{
 };
 use datafusion_expr::Signature;
 use datafusion_expr::{
-    Coercion, ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, TypeSignatureClass,
-    Volatility,
+    Coercion, ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl,
+    TypeSignatureClass, Volatility,
 };
+use datafusion_macros::user_doc;
 
+/// Spark-compatible `factorial` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#factorial>
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Returns the factorial of `expr` as a BIGINT. Only 0 to 20 have a result: \
+        a value outside that range returns NULL, where DataFusion's `factorial` returns an error. \
+        The argument is cast to INT. Returns NULL if the input is NULL.",
+    syntax_example = "factorial(expr)",
+    sql_example = r#"```sql
+> SELECT factorial(5);
+120
+> SELECT factorial(20);
+2432902008176640000
+> SELECT factorial(21);
+NULL
+```"#,
+    argument(
+        name = "expr",
+        description = "Integer expression, cast to INT. Values below 0 or above 20, and NULL, return NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkFactorial {
     signature: Signature,
@@ -65,6 +87,10 @@ impl ScalarUDFImpl for SparkFactorial {
 
     fn aliases(&self) -> &[String] {
         &self.aliases
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 }
 

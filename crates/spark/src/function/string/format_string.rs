@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+use datafusion_macros::user_doc;
 use std::fmt::Write;
 use std::sync::Arc;
 
@@ -20,12 +21,44 @@ use datafusion_common::{
     DataFusionError, Result, ScalarValue, exec_datafusion_err, exec_err, plan_err,
 };
 use datafusion_expr::{
-    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
-    TypeSignature, Volatility,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
+    Signature, TypeSignature, Volatility,
 };
 
-/// Spark-compatible `format_string` expression
+/// Spark-compatible `format_string` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#format_string>
+#[user_doc(
+    doc_section(label = "String Functions"),
+    description = "Returns a string formatted from a printf-style format string, following Java's `java.util.Formatter` \
+        as Spark does. DataFusion has no built-in equivalent. \
+        Supports the `%s`, `%b`, `%c`, `%d`, `%o`, `%x`, `%e`, `%f`, `%g`, `%a` and `%t` (date/time) conversions \
+        and their uppercase forms, the `-`, `+`, ` `, `0`, `#`, `,` and `(` flags, width and precision, \
+        and positional (`%2$s`) and relative (`%<s`) argument references. \
+        A NULL format string returns NULL, while a NULL argument is formatted as `null`. \
+        It is an error if there are too few arguments or an argument does not fit its conversion. \
+        `%h` and `%H` (hash code) are not supported and return an error.",
+    syntax_example = "format_string(format[, arg1[, ..., argN]])",
+    alternative_syntax = "printf(format[, arg1[, ..., argN]])",
+    sql_example = r#"```sql
+> SELECT format_string('Hello World %d %s', 100, 'days');
+Hello World 100 days
+> SELECT format_string('%2$s %1$d', 42, 'test');
+test 42
+> SELECT format_string('Precision: %.2f', 3.14159);
+Precision: 3.14
+> SELECT format_string('Value: %s', NULL);
+Value: null
+```"#,
+    argument(
+        name = "format",
+        description = "String format specification. NULL returns NULL."
+    ),
+    argument(
+        name = "arg",
+        description = "Values to format. Each must suit the conversion that refers to it. A NULL value is formatted as `null`."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct FormatStringFunc {
     signature: Signature,
@@ -48,6 +81,10 @@ impl FormatStringFunc {
 }
 
 impl ScalarUDFImpl for FormatStringFunc {
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
+    }
+
     fn name(&self) -> &str {
         "format_string"
     }

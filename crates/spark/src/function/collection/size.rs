@@ -7,16 +7,38 @@ use arrow::compute::kernels::length::length as arrow_length;
 use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion_common::{Result, plan_err};
 use datafusion_expr::{
-    ArrayFunctionArgument, ArrayFunctionSignature, ColumnarValue, ReturnFieldArgs,
-    ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature, Volatility,
+    ArrayFunctionArgument, ArrayFunctionSignature, ColumnarValue, Documentation,
+    ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
+    Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
-/// Spark-compatible `size` function.
+/// Spark-compatible `size` expression.
 ///
-/// Returns the number of elements in an array or the number of key-value pairs in a map.
-/// Returns -1 for null input (Spark behavior).
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#size>
+#[user_doc(
+    doc_section(label = "Array Functions"),
+    description = "Returns the number of elements in an array, or the number of entries in a map, as an INT. \
+        NULL elements are counted. DataFusion has no built-in `size`. \
+        A NULL input returns -1 whatever the ANSI mode setting, so the result is never NULL. \
+        This is Spark's legacy behavior (`spark.sql.legacy.sizeOfNull` true and ANSI mode off). \
+        Spark with ANSI mode on, the default since Spark 4.0, returns NULL instead.",
+    syntax_example = "size(expr)",
+    sql_example = r#"```sql
+> SELECT size(array(1, NULL, 3));
+3
+> SELECT size(map(array('a', 'b'), array(1, 2)));
+2
+> SELECT size(CAST(NULL AS ARRAY<INT>));
+-1
+```"#,
+    argument(
+        name = "expr",
+        description = "Array or map expression. NULL returns -1."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkSize {
     signature: Signature,
@@ -63,6 +85,10 @@ impl ScalarUDFImpl for SparkSize {
     fn return_field_from_args(&self, _args: ReturnFieldArgs) -> Result<FieldRef> {
         // nullable=false for legacy behavior (NULL -> -1); set to input nullability for null-on-null
         Ok(Arc::new(Field::new(self.name(), DataType::Int32, false)))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

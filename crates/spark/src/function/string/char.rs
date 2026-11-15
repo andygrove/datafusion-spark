@@ -7,16 +7,37 @@ use arrow::array::GenericStringBuilder;
 use arrow::datatypes::DataType::Int64;
 use arrow::datatypes::DataType::Utf8;
 use arrow::datatypes::{DataType, Field, FieldRef};
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
 use datafusion_common::{Result, ScalarValue, cast::as_int64_array, exec_err};
 use datafusion_expr::{
-    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
-    Volatility,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
+    Signature, Volatility,
 };
 
-/// Spark-compatible `char` expression
+/// Spark-compatible `char` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#char>
+#[user_doc(
+    doc_section(label = "String Functions"),
+    description = "Returns the character whose code point is `n` modulo 256, so `char(321)` is `A`. \
+        A negative `n` returns an empty string, and NULL returns NULL. \
+        DataFusion's `chr` instead uses `n` as a full Unicode code point and errors on negative or invalid values.",
+    syntax_example = "char(n)",
+    sql_example = r#"```sql
+> SELECT char(65);
+A
+> SELECT char(321);
+A
+> SELECT char(-1);
+-- empty string
+```"#,
+    argument(
+        name = "n",
+        description = "Integer expression, cast to BIGINT. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct CharFunc {
     signature: Signature,
@@ -37,6 +58,10 @@ impl CharFunc {
 }
 
 impl ScalarUDFImpl for CharFunc {
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
+    }
+
     fn name(&self) -> &str {
         "char"
     }

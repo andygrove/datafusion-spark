@@ -26,8 +26,18 @@ SELECT second('2009-07-30 12:58:30'::timestamp);
 ----
 30
 
+# Fractions of a second are dropped
+query I
+SELECT second('2009-07-30 12:58:59.999'::timestamp);
+----
+59
+
 # Test with NULL
 query I
 SELECT second(NULL::timestamp);
 ----
 NULL
+
+# Spark implicitly casts a string to TIMESTAMP (https://github.com/apache/datafusion-spark/issues/41)
+statement error Function 'second' requires Timestamp, but received String
+SELECT second('2024-01-01 12:34:56');

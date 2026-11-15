@@ -10,16 +10,39 @@ use arrow::datatypes::{DataType, Float64Type};
 use datafusion_common::Result;
 use datafusion_common::utils::take_function_args;
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 
-/// Spark-compatible `hypot` function.
+/// Spark-compatible `hypot` expression.
 ///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#hypot>
-///
-/// Returns `sqrt(expr1^2 + expr2^2)` computed without intermediate overflow or
-/// underflow, matching Spark's use of `java.lang.Math.hypot`.
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Returns `sqrt(expr1^2 + expr2^2)` as a DOUBLE, computed without intermediate \
+        overflow or underflow, like `java.lang.Math.hypot`. DataFusion has no built-in `hypot`. \
+        Both arguments are cast to DOUBLE. Returns NULL if either input is NULL. If either input is \
+        infinite the result is Infinity, even if the other is NaN. Otherwise a NaN input returns NaN.",
+    syntax_example = "hypot(expr1, expr2)",
+    sql_example = r#"```sql
+> SELECT hypot(3, 4);
+5
+> SELECT hypot('Infinity'::double, 'NaN'::double);
+Infinity
+> SELECT hypot(NULL::double, 4.0::double);
+NULL
+```"#,
+    argument(
+        name = "expr1",
+        description = "Numeric expression, cast to DOUBLE. NULL returns NULL."
+    ),
+    argument(
+        name = "expr2",
+        description = "Numeric expression, cast to DOUBLE. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkHypot {
     signature: Signature,
@@ -54,6 +77,10 @@ impl ScalarUDFImpl for SparkHypot {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(DataType::Float64)
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

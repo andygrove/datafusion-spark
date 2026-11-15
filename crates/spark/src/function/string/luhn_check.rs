@@ -10,12 +10,34 @@ use arrow::datatypes::DataType::Boolean;
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue, exec_err};
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
-    Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    TypeSignature, Volatility,
 };
+use datafusion_macros::user_doc;
 
-/// Spark-compatible `luhn_check` expression
+/// Spark-compatible `luhn_check` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#luhn_check>
+#[user_doc(
+    doc_section(label = "String Functions"),
+    description = "Returns true if the string is a number that passes the Luhn checksum, as used for credit \
+        card numbers. DataFusion has no built-in `luhn_check`. The string must contain only the digits 0-9: \
+        spaces, letters or any other character make the result false, and so does an empty string. \
+        Numeric input is cast to a string first. Returns NULL if the input is NULL.",
+    syntax_example = "luhn_check(str)",
+    sql_example = r#"```sql
+> SELECT luhn_check('79927398713');
+true
+> SELECT luhn_check('79927398714');
+false
+> SELECT luhn_check('4111111 111111111');
+false
+```"#,
+    argument(
+        name = "str",
+        description = "String of digits to check. Numeric input is cast to a string. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkLuhnCheck {
     signature: Signature,
@@ -53,6 +75,10 @@ impl ScalarUDFImpl for SparkLuhnCheck {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(Boolean)
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

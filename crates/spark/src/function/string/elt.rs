@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
 use arrow::array::{
@@ -13,10 +14,39 @@ use arrow::datatypes::{DataType, Int64Type};
 use datafusion_common::cast::as_string_array;
 use datafusion_common::{DataFusionError, Result, exec_err, plan_datafusion_err};
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
 
+/// Spark-compatible `elt` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#elt>
+#[user_doc(
+    doc_section(label = "String Functions"),
+    description = "Returns the `n`-th of the following arguments as a string (1-based). \
+        DataFusion has no built-in `elt`. \
+        A NULL `n` returns NULL, as does picking a NULL argument. \
+        If `n` is less than 1 or greater than the number of arguments, the result is NULL, \
+        or an error when `datafusion.execution.enable_ansi_mode` is true.",
+    syntax_example = "elt(n, expr1[, ..., exprN])",
+    sql_example = r#"```sql
+> SELECT elt(1, 'scala', 'java');
+scala
+> SELECT elt(2, 'a', 1);
+1
+> SELECT elt(3, 'scala', 'java');
+NULL
+```"#,
+    argument(
+        name = "n",
+        description = "Integer index, 1-based, cast to BIGINT. NULL returns NULL."
+    ),
+    argument(
+        name = "expr",
+        description = "At least one value to choose from. Each is cast to a string."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkElt {
     signature: Signature,
@@ -37,6 +67,10 @@ impl SparkElt {
 }
 
 impl ScalarUDFImpl for SparkElt {
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
+    }
+
     fn name(&self) -> &str {
         "elt"
     }

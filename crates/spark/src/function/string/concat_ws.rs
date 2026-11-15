@@ -3,16 +3,8 @@
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 //! Spark-compatible `concat_ws`: joins strings (and array elements) with a separator.
-//!
-//! Null scalar args and null array elements are skipped; a null separator yields a
-//! null row. Non-string args are coerced to STRING; list args (`List`, `LargeList`,
-//! `ListView`, `LargeListView`, `FixedSizeList`) expand their elements.
-//!
-//! Differences with DataFusion core `concat_ws`:
-//! - Accepts list arguments and expands their elements
-//! - Always returns Utf8 (Spark's `STRING` type)
-//! - Coerces non-string scalars (numbers, booleans, dates, ...) to Utf8
 
+use datafusion_macros::user_doc;
 use std::fmt::Write as _;
 use std::sync::Arc;
 
@@ -24,14 +16,45 @@ use arrow::datatypes::{DataType, Field};
 use datafusion_common::arrow::datatypes::FieldRef;
 use datafusion_common::{Result, ScalarValue};
 use datafusion_expr::{
-    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
-    Volatility,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
+    Signature, Volatility,
 };
 
 use crate::function::error_utils::{
     invalid_arg_count_exec_err, unsupported_data_type_exec_err,
 };
 
+/// Spark-compatible `concat_ws` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#concat_ws>
+#[user_doc(
+    doc_section(label = "String Functions"),
+    description = "Concatenates the arguments after the first, separated by `sep`. \
+        NULL arguments and NULL array elements are skipped, so if every argument is NULL the result is an empty string. \
+        A NULL separator returns NULL. With only a separator, the result is an empty string. \
+        Unlike DataFusion's `concat_ws`, array arguments are expanded into their elements, \
+        non-string arguments (numbers, booleans, dates, binary, array elements) are cast to strings, \
+        and the result is always `Utf8`.",
+    syntax_example = "concat_ws(sep[, expr1[, ..., exprN]])",
+    sql_example = r#"```sql
+> SELECT concat_ws(' ', 'Spark', 'SQL');
+Spark SQL
+> SELECT concat_ws('/', 'foo', NULL, 'bar');
+foo/bar
+> SELECT concat_ws(',', 'x', array('a', 'b'), 'y');
+x,a,b,y
+> SELECT concat_ws(NULL, 'a', 'b');
+NULL
+```"#,
+    argument(
+        name = "sep",
+        description = "Separator, cast to a string. NULL returns NULL."
+    ),
+    argument(
+        name = "expr",
+        description = "Values or arrays to join. Arrays contribute each element. NULL values and elements are skipped. Structs are not supported."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkConcatWs {
     signature: Signature,
@@ -52,6 +75,10 @@ impl SparkConcatWs {
 }
 
 impl ScalarUDFImpl for SparkConcatWs {
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
+    }
+
     fn name(&self) -> &str {
         "concat_ws"
     }
