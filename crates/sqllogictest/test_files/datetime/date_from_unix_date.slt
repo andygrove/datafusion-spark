@@ -4,7 +4,9 @@
 
 # Tests for Spark-compatible date_from_unix_date
 # Reference: https://spark.apache.org/docs/latest/api/sql/index.html#date_from_unix_date
-# Expected values come from Spark's sql-tests/results/date.sql.out.
+# The values for 0, 1000 and NULL come from Spark's sql-tests/results/date.sql.out.
+# Expected values verified with pyspark==4.2.0.
+# Known divergences are captured as commented-out queries below.
 
 query DDD
 SELECT date_from_unix_date(0), date_from_unix_date(1000), date_from_unix_date(NULL);
@@ -17,16 +19,24 @@ SELECT date_from_unix_date(-1);
 ----
 1969-12-31
 
-query D
-SELECT date_from_unix_date(18600);
+query DDDD
+SELECT date_from_unix_date(1), date_from_unix_date(20), date_from_unix_date(300), date_from_unix_date(18600);
 ----
-2020-12-04
+1970-01-02 1970-01-21 1970-10-28 2020-12-04
+
+# Cases from DataFusion Comet's date_from_unix_date tests
+query DDDDD
+SELECT date_from_unix_date(1), date_from_unix_date(18993), date_from_unix_date(-25567),
+  date_from_unix_date(-719162), date_from_unix_date(2932896);
+----
+1970-01-02 2022-01-01 1900-01-01 0001-01-01 9999-12-31
 
 # Any INT is a valid date, even where it is too large to print
-query B
-SELECT unix_date(date_from_unix_date(2147483647)) = 2147483647;
+query BB
+SELECT unix_date(date_from_unix_date(2147483647)) = 2147483647,
+  unix_date(date_from_unix_date(-2147483648)) = -2147483648;
 ----
-true
+true true
 
 # Other integer types are cast to INT
 query D
@@ -38,6 +48,68 @@ query D
 SELECT date_from_unix_date(arrow_cast(1000, 'Int64'));
 ----
 1972-09-27
+
+# A BIGINT outside the INT range does not fit. Spark raises CAST_OVERFLOW under
+# ANSI mode.
+statement ok
+set datafusion.execution.enable_ansi_mode = true;
+
+query error Can't cast value 2147483648 to type Int32
+SELECT date_from_unix_date(2147483648);
+
+statement ok
+set datafusion.execution.enable_ansi_mode = false;
+
+# Spark 4.2.0 wraps an out-of-range BIGINT when ANSI mode is off; DataFusion errors
+# https://github.com/apache/datafusion-spark/issues/88
+# query I
+# SELECT unix_date(date_from_unix_date(2147483648));
+# ----
+# -2147483648
+
+# Floating-point and decimal inputs are truncated toward zero
+query DD
+SELECT date_from_unix_date(1.7::DOUBLE), date_from_unix_date(-1.7::DOUBLE);
+----
+1970-01-02 1969-12-31
+
+query DD
+SELECT date_from_unix_date(1.7::DECIMAL(2, 1)), date_from_unix_date(-1.7::DECIMAL(2, 1));
+----
+1970-01-02 1969-12-31
+
+query D
+SELECT date_from_unix_date(1.7::FLOAT);
+----
+1970-01-02
+
+# Strings are cast to INT
+query D
+SELECT date_from_unix_date('100');
+----
+1970-04-11
+
+# A malformed string does not parse. Spark raises CAST_INVALID_INPUT under ANSI
+# mode.
+statement ok
+set datafusion.execution.enable_ansi_mode = true;
+
+query error Cannot cast string 'abc' to value of Int32 type
+SELECT date_from_unix_date('abc');
+
+statement ok
+set datafusion.execution.enable_ansi_mode = false;
+
+# Spark 4.2.0 returns NULL for a malformed string when ANSI mode is off; DataFusion errors
+# https://github.com/apache/datafusion-spark/issues/88
+# query D
+# SELECT date_from_unix_date('abc');
+# ----
+# NULL
+
+# BOOLEAN is not accepted
+query error date_from_unix_date
+SELECT date_from_unix_date(true);
 
 # Result type
 query T
@@ -53,7 +125,9 @@ true
 
 # Column input, including NULL
 statement ok
-CREATE TABLE date_from_unix_date_t AS VALUES (0), (1000), (NULL), (-365);
+CREATE TABLE date_from_unix_date_t AS VALUES
+  (0::INT), (1000::INT), (NULL::INT), (-365::INT), (1::INT), (18993::INT),
+  (-25567::INT), (-719162::INT), (2932896::INT), (20::INT), (300::INT);
 
 query D
 SELECT date_from_unix_date(column1) FROM date_from_unix_date_t;
@@ -62,3 +136,35 @@ SELECT date_from_unix_date(column1) FROM date_from_unix_date_t;
 1972-09-27
 NULL
 1969-01-01
+1970-01-02
+2022-01-01
+1900-01-01
+0001-01-01
+9999-12-31
+1970-01-21
+1970-10-28
+
+query B
+SELECT unix_date(date_from_unix_date(column1)) = column1
+FROM (VALUES (CAST(-2147483648 AS INT)), (2147483647::INT)) AS t(column1);
+----
+true
+true
+
+# Column of strings and of doubles
+query D
+SELECT date_from_unix_date(column1) FROM (VALUES ('100'), ('-1'), (NULL)) AS t(column1);
+----
+1970-04-11
+1969-12-31
+NULL
+
+query D
+SELECT date_from_unix_date(column1) FROM (VALUES (1.7::DOUBLE), (-1.7::DOUBLE), (NULL::DOUBLE)) AS t(column1);
+----
+1970-01-02
+1969-12-31
+NULL
+
+statement ok
+DROP TABLE date_from_unix_date_t;

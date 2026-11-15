@@ -133,8 +133,8 @@ pub mod expr_fn {
     ));
     export_functions!((
         date_from_unix_date,
-        "Creates a date from the number of days since 1970-01-01.",
-        arg1
+        "Creates a date from the number of days `days` since 1970-01-01.",
+        days
     ));
     export_functions!((
         date_trunc,
