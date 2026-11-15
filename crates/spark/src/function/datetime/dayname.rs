@@ -29,11 +29,17 @@ fn day_number_to_name(day: i32) -> Option<&'static str> {
 #[user_doc(
     doc_section(label = "Time and Date Functions"),
     description = "Returns the three-letter abbreviated English day name (`Mon` to `Sun`) of a date. \
-        Timestamps are cast to dates first, like Spark's implicit cast. Returns NULL if the input is NULL. \
-        DataFusion has no built-in `dayname`.",
+        DataFusion has no built-in `dayname`. \
+        Strings are implicitly cast to DATE. A malformed string is an error, even with ANSI mode off \
+        where Spark returns NULL. \
+        Timestamps are cast to DATE first, so the time of day is ignored. A timestamp with a time zone \
+        is converted in its own time zone, not the session time zone that Spark uses. \
+        Returns NULL if the input is NULL.",
     syntax_example = "dayname(date)",
     sql_example = r#"```sql
 > SELECT dayname('2008-02-20'::DATE);
+Wed
+> SELECT dayname('2008-02-20');
 Wed
 > SELECT dayname(arrow_cast('2024-05-20 23:59:59', 'Timestamp(Microsecond, None)'));
 Mon
@@ -42,7 +48,7 @@ NULL
 ```"#,
     argument(
         name = "date",
-        description = "Date or timestamp expression. Timestamps are cast to dates. NULL returns NULL."
+        description = "DATE, TIMESTAMP or string expression. NULL returns NULL."
     )
 )]
 #[derive(Debug, PartialEq, Eq, Hash)]

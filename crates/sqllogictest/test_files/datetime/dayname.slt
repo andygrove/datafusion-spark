@@ -71,11 +71,89 @@ SELECT dayname(NULL::DATE);
 ----
 NULL
 
+# Calendar boundaries. 1582-10-04 is the last Julian day before the Gregorian
+# switch. Spark uses the proleptic Gregorian calendar, so it is a Monday.
+query TTT
+SELECT dayname('0001-01-01'::DATE), dayname('9999-12-31'::DATE), dayname('1582-10-04'::DATE);
+----
+Mon Fri Mon
+
+# Dates from Comet's unit tests
+query TTT
+SELECT dayname('2024-01-15'::DATE), dayname('2024-06-30'::DATE), dayname('2020-12-31'::DATE);
+----
+Mon Sun Thu
+
+# Untyped NULL gives a NULL string
+query TT
+SELECT dayname(NULL), arrow_typeof(dayname(NULL));
+----
+NULL Utf8
+
+# Strings are implicitly cast to dates
+query T
+SELECT dayname('2008-02-20'::STRING);
+----
+Wed
+
+query T
+SELECT dayname('2024-05-20 23:30:00'::STRING);
+----
+Mon
+
+query T
+SELECT dayname(d) FROM (VALUES ('2024-01-01'::STRING), (NULL::STRING), ('2024-01-07'::STRING)) AS t(d);
+----
+Mon
+NULL
+Sun
+
+# Spark returns NULL for a malformed string when ANSI mode is off. DataFusion's
+# string to date cast errors regardless of ANSI mode. ANSI-aware casting is
+# tracked by https://github.com/apache/datafusion-spark/issues/88
+# query T
+# SELECT dayname('abc'::STRING);
+# ----
+# NULL
+
+# With ANSI mode on, Spark raises CAST_INVALID_INPUT for a malformed string
+statement ok
+set datafusion.execution.enable_ansi_mode = true;
+
+query error Cannot cast string 'abc' to value of Date32 type
+SELECT dayname('abc'::STRING);
+
+statement ok
+set datafusion.execution.enable_ansi_mode = false;
+
 # Timestamps are cast to dates
 query T
 SELECT dayname(arrow_cast('2024-05-20 23:59:59', 'Timestamp(Microsecond, None)'));
 ----
 Mon
+
+# A timestamp with a time zone is cast to a date in its own time zone. With
+# the default UTC session time zone this matches Spark.
+query T
+SELECT dayname(arrow_cast('2024-05-21T02:00:00Z', 'Timestamp(Microsecond, Some("UTC"))'));
+----
+Tue
+
+# Spark casts a timestamp to a date in the session time zone, so in
+# America/New_York the instant 2024-05-21T02:00:00Z is a Monday. DataFusion
+# uses the timestamp's own time zone (UTC) and returns Tue. Session time zone
+# aware timestamp to date casting is tracked by
+# https://github.com/apache/datafusion-spark/issues/88
+statement ok
+set datafusion.execution.time_zone = 'America/New_York';
+
+# query T
+# SELECT dayname(arrow_cast('2024-05-21T02:00:00Z', 'Timestamp(Microsecond, Some("UTC"))'));
+# ----
+# Mon
+
+statement ok
+reset datafusion.execution.time_zone;
 
 # Result type
 query T
@@ -84,15 +162,16 @@ SELECT arrow_typeof(dayname('2024-01-01'::DATE));
 Utf8
 
 # Column input, including NULL
-statement ok
-CREATE TABLE dayname_t AS VALUES ('2024-01-01'::DATE), (NULL), ('2024-01-07'::DATE);
-
 query T
-SELECT dayname(column1) FROM dayname_t;
+SELECT dayname(d) FROM (VALUES ('2024-01-01'::DATE), (NULL::DATE), ('2024-01-07'::DATE)) AS t(d);
 ----
 Mon
 NULL
 Sun
 
-statement error
+# Spark raises DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE for an integer
+statement error Function 'dayname' requires Date, but received Int32
+SELECT dayname(1::INT);
+
+statement error 'dayname' does not support zero arguments
 SELECT dayname();

@@ -10,19 +10,24 @@ use std::sync::Arc;
 use arrow::array::{AsArray, StringArray};
 use arrow::compute::{DatePart, date_part};
 use arrow::datatypes::Int32Type;
-use datafusion_common::types::{NativeType, logical_date};
+use datafusion_common::types::{NativeType, logical_date, logical_string};
 use datafusion_common::{Result, ScalarValue};
 use datafusion_expr::{
     Coercion, ColumnarValue, Signature, TypeSignatureClass, Volatility,
 };
 
-/// One date argument. Timestamps are cast to dates first, like Spark's
-/// implicit cast.
+/// One date argument. Strings and timestamps are implicitly cast to dates, as
+/// Spark does. The string cast uses DataFusion's cast, which errors on a
+/// malformed string regardless of ANSI mode. A timestamp with a time zone is
+/// converted to a date in its own time zone, not the session time zone.
 pub(super) fn date_signature() -> Signature {
     Signature::coercible(
         vec![Coercion::new_implicit(
             TypeSignatureClass::Native(logical_date()),
-            vec![TypeSignatureClass::Timestamp],
+            vec![
+                TypeSignatureClass::Native(logical_string()),
+                TypeSignatureClass::Timestamp,
+            ],
             NativeType::Date,
         )],
         Volatility::Immutable,
