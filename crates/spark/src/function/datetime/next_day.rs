@@ -10,11 +10,43 @@ use chrono::{Datelike, Weekday};
 use datafusion_common::types::{NativeType, logical_date, logical_string};
 use datafusion_common::{Result, ScalarValue, exec_err, internal_err};
 use datafusion_expr::{
-    Coercion, ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
-    Signature, TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs,
+    ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
 };
+use datafusion_macros::user_doc;
 
+/// Spark-compatible `next_day` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#next_day>
+#[user_doc(
+    doc_section(label = "Time and Date Functions"),
+    description = "Returns the first date after `start_date` that falls on `day_of_week`. \
+        The result is always later than `start_date`: if `start_date` is already that day, \
+        the date one week later is returned. DataFusion has no built-in `next_day`. \
+        Strings and timestamps are cast to DATE first. \
+        Returns NULL if either input is NULL, or if `day_of_week` is not a recognized day name \
+        (including names padded with whitespace). Spark raises an error for an unrecognized day name \
+        when ANSI mode is enabled; this implementation always returns NULL ([#113](https://github.com/apache/datafusion-spark/issues/113)).",
+    syntax_example = "next_day(start_date, day_of_week)",
+    sql_example = r#"```sql
+> SELECT next_day(DATE '2015-01-14', 'TU');
+2015-01-20
+> SELECT next_day(DATE '2015-07-27', 'Sun');
+2015-08-02
+> SELECT next_day(TIMESTAMP '2015-07-23 12:12:12', 'Mon');
+2015-07-27
+> SELECT next_day(DATE '2020-01-01', 'invalid_day');
+NULL
+```"#,
+    argument(
+        name = "start_date",
+        description = "DATE, TIMESTAMP or string expression. NULL returns NULL."
+    ),
+    argument(
+        name = "day_of_week",
+        description = "Day of the week, case-insensitive: a two-letter abbreviation (`MO`), a three-letter abbreviation (`Mon`) or the full name (`Monday`). Other types are cast to string. NULL or an unrecognized value returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkNextDay {
     signature: Signature,
@@ -70,6 +102,10 @@ impl ScalarUDFImpl for SparkNextDay {
         // Spark marks next_day as always nullable because invalid day_of_week values
         // can yield NULL even when inputs are non-null.
         Ok(Arc::new(Field::new(self.name(), DataType::Date32, true)))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

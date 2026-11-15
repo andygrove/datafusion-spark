@@ -21,16 +21,57 @@ use datafusion_common::types::{
 use datafusion_common::{Result, exec_err, internal_err};
 use datafusion_expr::sort_properties::{ExprProperties, SortProperties};
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
-    TypeSignatureClass,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    TypeSignature, TypeSignatureClass,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 
 use arrow::array::{Int64Array, Int64Builder};
 use arrow::datatypes::TimeUnit::Microsecond;
 use datafusion_expr::Coercion;
 use datafusion_expr::Volatility::Immutable;
 
+/// Spark-compatible `width_bucket` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#width_bucket>
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Returns the number of the bucket that `expr` falls into, when the range from `min` to `max` \
+        is split into `num_buckets` buckets of equal width. DataFusion has no built-in `width_bucket`. \
+        Buckets are numbered from 1. A value before the range returns 0, and a value at or beyond the end of the \
+        range returns `num_buckets + 1`. `min` may be greater than `max`, in which case buckets count down from `min`. \
+        Works on numbers (cast to DOUBLE), durations and intervals. Returns NULL if any input is NULL, if \
+        `num_buckets` is 0 or less, if `min` equals `max`, if a number is NaN or infinite, or if an interval mixes \
+        months with days or smaller units.",
+    syntax_example = "width_bucket(expr, min, max, num_buckets)",
+    sql_example = r#"```sql
+> SELECT width_bucket(5.3, 0.2, 10.6, 5);
+3
+> SELECT width_bucket(-0.9, 5.2, 0.5, 2);
+3
+> SELECT width_bucket(8.1, 0.0, 5.7, 4);
+5
+> SELECT width_bucket(INTERVAL '1' DAY, INTERVAL '0' DAY, INTERVAL '10' DAY, 10);
+2
+```"#,
+    argument(
+        name = "expr",
+        description = "Numeric, duration or interval value to place in a bucket. NULL returns NULL."
+    ),
+    argument(
+        name = "min",
+        description = "Start of the range, of the same kind as `expr`. NULL returns NULL."
+    ),
+    argument(
+        name = "max",
+        description = "End of the range, of the same kind as `expr`. NULL returns NULL."
+    ),
+    argument(
+        name = "num_buckets",
+        description = "Integer number of buckets. 0 or less, or NULL, returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkWidthBucket {
     signature: Signature,
@@ -112,6 +153,10 @@ impl ScalarUDFImpl for SparkWidthBucket {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(Int64)
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

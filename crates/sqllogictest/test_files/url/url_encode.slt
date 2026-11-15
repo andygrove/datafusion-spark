@@ -18,3 +18,9 @@ query T
 SELECT url_encode(arrow_cast('https://spark.apache.org', 'Utf8View'));
 ----
 https%3A%2F%2Fspark.apache.org
+
+# Letters, digits and . - * _ are kept, a space becomes +, and anything else is percent-encoded
+query T
+SELECT url_encode('aZ09.-*_ ~/');
+----
+aZ09.-*_+%7E%2F

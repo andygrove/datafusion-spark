@@ -52,3 +52,7 @@ Spark SQL!
 # Invalid percent encoding case
 query error DataFusion error: Execution error: Invalid percent\-encoding: invalid hex sequence '%3%' at position 5
 SELECT url_decode('https%3%2F%2Fspark.apache.org'::string);
+
+# Bytes that are not valid UTF-8 are an error
+query error DataFusion error: Execution error: Invalid UTF\-8 sequence
+SELECT url_decode('%FF'::string);

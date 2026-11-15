@@ -18,14 +18,37 @@ use datafusion_common::{
     Result, ScalarValue, exec_err, internal_err, utils::take_function_args,
 };
 use datafusion_expr::{
-    ArrayFunctionArgument, ArrayFunctionSignature, ColumnarValue, ScalarFunctionArgs,
-    ScalarUDFImpl, Signature, TypeSignature, Volatility,
+    ArrayFunctionArgument, ArrayFunctionSignature, ColumnarValue, Documentation,
+    ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature, Volatility,
 };
+use datafusion_macros::user_doc;
 use rand::rng;
 use rand::rngs::StdRng;
 use rand::{Rng, SeedableRng, seq::SliceRandom};
 use std::sync::Arc;
 
+/// Spark-compatible `shuffle` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#shuffle>
+#[user_doc(
+    doc_section(label = "Array Functions"),
+    description = "Returns a random permutation of the array. DataFusion has no built-in `shuffle`. \
+        NULL elements are kept and shuffled with the others, and a NULL array returns NULL. \
+        With a `seed`, the order is the same on every run. It comes from a different random number generator \
+        than Spark's, so it does not match Spark's order for the same seed.",
+    syntax_example = "shuffle(array[, seed])",
+    sql_example = r#"```sql
+> SELECT shuffle(array(1, 2, 3, 4, 5, NULL), 1);
+[1, 4, NULL, 2, 5, 3]
+> SELECT shuffle(NULL);
+NULL
+```"#,
+    argument(name = "array", description = "Array to shuffle. NULL returns NULL."),
+    argument(
+        name = "seed",
+        description = "Optional constant integer seed. A NULL seed is the same as no seed, which gives a different order on each call."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkShuffle {
     signature: Signature,
@@ -82,6 +105,10 @@ impl ScalarUDFImpl for SparkShuffle {
     ) -> Result<FieldRef> {
         // Shuffle returns an array with the same type and nullability as the input
         Ok(Arc::clone(&args.arg_fields[0]))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

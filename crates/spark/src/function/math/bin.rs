@@ -8,14 +8,36 @@ use datafusion_common::types::{NativeType, logical_int64};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, internal_err};
 use datafusion_expr::{
-    Coercion, ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
-    TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    TypeSignature, TypeSignatureClass, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
-/// Spark-compatible `bin` expression
+/// Spark-compatible `bin` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#bin>
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Returns the binary representation of `expr` as a string, with no leading zeros. \
+        DataFusion has no built-in `bin`. The input is cast to BIGINT first, so fractional values are \
+        truncated and every negative value is rendered as its 64-bit two's complement, \
+        whatever its original integer width. Returns NULL if the input is NULL.",
+    syntax_example = "bin(expr)",
+    sql_example = r#"```sql
+> SELECT bin(13);
+1101
+> SELECT bin(13.3);
+1101
+> SELECT bin(-13);
+1111111111111111111111111111111111111111111111111111111111110011
+```"#,
+    argument(
+        name = "expr",
+        description = "Numeric expression, cast to BIGINT. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkBin {
     signature: Signature,
@@ -64,6 +86,10 @@ impl ScalarUDFImpl for SparkBin {
             DataType::Utf8,
             args.arg_fields[0].is_nullable(),
         )))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

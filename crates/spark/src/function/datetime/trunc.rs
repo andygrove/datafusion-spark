@@ -12,13 +12,39 @@ use datafusion_common::{Result, ScalarValue, internal_err, plan_err};
 use datafusion_expr::expr::ScalarFunction;
 use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
-    Coercion, ColumnarValue, Expr, ExprSchemable, ReturnFieldArgs, ScalarFunctionArgs,
-    ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, Expr, ExprSchemable, ReturnFieldArgs,
+    ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
 };
+use datafusion_macros::user_doc;
 
-/// Spark trunc supports date inputs only and extra format aliases.
-/// Also spark trunc's argument order is (date, format).
+/// Spark-compatible `trunc` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#trunc>
+#[user_doc(
+    doc_section(label = "Time and Date Functions"),
+    description = "Returns `date` truncated to the unit given by `fmt`, as a date. \
+        Unlike DataFusion's `date_trunc`, it takes the date first and the unit second, only accepts dates \
+        (a string is cast to a date), and also accepts Spark's unit aliases `yyyy` and `yy` for year and `mon` and `mm` for month. \
+        Returns NULL if `date` is NULL. `fmt` must be a constant string: a NULL or unsupported `fmt` is a planning error, \
+        where Spark returns NULL.",
+    syntax_example = "trunc(date, fmt)",
+    sql_example = r#"```sql
+> SELECT trunc('2009-02-12'::date, 'YEAR');
+2009-01-01
+> SELECT trunc('2009-02-12'::date, 'MM');
+2009-02-01
+> SELECT trunc('2009-02-12'::date, 'WEEK');
+2009-02-09
+```"#,
+    argument(
+        name = "date",
+        description = "Date expression to truncate. A string is cast to a date. NULL returns NULL."
+    ),
+    argument(
+        name = "fmt",
+        description = "Constant string unit, case-insensitive: `year` (`yyyy`, `yy`), `quarter`, `month` (`mon`, `mm`), `week` (truncates to Monday) or `day`, or another spelling of these that DataFusion accepts (such as `months`)."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkTrunc {
     signature: Signature,
@@ -51,6 +77,10 @@ impl SparkTrunc {
 impl ScalarUDFImpl for SparkTrunc {
     fn name(&self) -> &str {
         "trunc"
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn signature(&self) -> &Signature {

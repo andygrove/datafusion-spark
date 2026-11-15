@@ -12,36 +12,49 @@ use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue, exec_err, plan_err};
 use datafusion_expr::{
-    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
-    Volatility,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
+    Signature, Volatility,
 };
+use datafusion_macros::user_doc;
 
 /// Spark-compatible `encode` expression.
-/// Encodes a string or binary value into binary using the specified character encoding.
-/// Binary input is interpreted as UTF-8 with lossy conversion (invalid bytes become U+FFFD).
-///
-/// # Target Spark version
-/// Emulates Spark 3.5 semantics:
-/// - Accepts canonical charset names and common aliases (`UTF8`, `LATIN1`,
-///   `ISO88591`, `ASCII`, `UTF-32BE`, etc.).
-/// - Unmappable characters (non-ASCII in `US-ASCII`, code points above
-///   `U+00FF` in `ISO-8859-1`) are silently replaced with `?`.
-/// - `UTF-32` is an alias for `UTF-32BE` (no BOM), matching both Spark 3.5
-///   and Spark 4.1.
-///
-/// # Spark 4.0 differences (not implemented)
-/// Spark 4.0 tightened `encode` in two ways, each gated by a `spark.sql.legacy.*`
-/// config that can restore the 3.5 behavior:
-///
-/// - Charset whitelist — rejects aliases with `INVALID_PARAMETER_VALUE.CHARSET`.
-///   Controlled by `spark.sql.legacy.javaCharsets`.
-/// - Unmappable characters — raises `MALFORMED_CHARACTER_CODING`.
-///   Controlled by `spark.sql.legacy.codingErrorAction`.
-///
 ///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#encode>
-// TODO: wire both configs so Spark 4.0 behavior can be selected at runtime.
+// TODO: wire `spark.sql.legacy.javaCharsets` and `spark.sql.legacy.codingErrorAction`
+// so Spark 4.0 behavior can be selected at runtime.
 // See: <https://spark.apache.org/docs/4.0.0/sql-migration-guide.html>
+#[user_doc(
+    doc_section(label = "Binary String Functions"),
+    description = "Encodes a string into binary using a character set. Unlike DataFusion's `encode`, which takes \
+        `base64` or `hex` and returns a string, this takes a character set and returns binary. \
+        Supported character sets are `US-ASCII`, `ISO-8859-1`, `UTF-8`, `UTF-16`, `UTF-16BE`, `UTF-16LE`, \
+        `UTF-32`, `UTF-32BE` and `UTF-32LE`, matched case-insensitively, and the aliases `ASCII`, `LATIN1`, \
+        `ISO88591` and the spellings without a hyphen (`UTF8`, `UTF16BE`, ...). Any other character set is an error. \
+        `UTF-16` writes a big-endian byte order mark first. `UTF-32` is big-endian with no byte order mark. \
+        Characters the character set cannot represent (non-ASCII in `US-ASCII`, code points above U+00FF in \
+        `ISO-8859-1`) are replaced with `?`. Binary input is decoded as UTF-8 first, with each invalid byte \
+        replaced by U+FFFD. Returns NULL if either input is NULL. \
+        This follows Spark 3.5. Spark 4.0 rejects the aliases and raises an error on characters it cannot \
+        represent, unless `spark.sql.legacy.javaCharsets` and `spark.sql.legacy.codingErrorAction` are set; \
+        those settings are not supported yet.",
+    syntax_example = "encode(str, charset)",
+    sql_example = r#"```sql
+> SELECT encode('Spark SQL', 'utf-8');
+537061726b2053514c
+> SELECT encode('AB', 'utf-16le');
+41004200
+> SELECT encode('é', 'us-ascii');
+3f
+```"#,
+    argument(
+        name = "str",
+        description = "String or binary expression to encode. Binary input is decoded as UTF-8, with invalid bytes replaced by U+FFFD. NULL returns NULL."
+    ),
+    argument(
+        name = "charset",
+        description = "String name of the character set, matched case-insensitively. May vary per row. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkEncode {
     signature: Signature,
@@ -260,6 +273,10 @@ impl ScalarUDFImpl for SparkEncode {
             DataType::Binary,
             nullable,
         )))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

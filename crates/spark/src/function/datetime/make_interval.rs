@@ -11,11 +11,59 @@ use arrow::datatypes::{DataType, IntervalMonthDayNano};
 use datafusion_common::types::{NativeType, logical_float64, logical_int32};
 use datafusion_common::{DataFusionError, Result, ScalarValue, plan_datafusion_err};
 use datafusion_expr::{
-    Coercion, ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
-    TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    TypeSignature, TypeSignatureClass, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 
+/// Spark-compatible `make_interval` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#make_interval>
+#[user_doc(
+    doc_section(label = "Time and Date Functions"),
+    description = "Returns an interval built from years, months, weeks, days, hours, minutes and seconds. \
+        DataFusion has no built-in equivalent. All arguments are optional from the right and default to 0, \
+        so `make_interval()` is a zero interval. The result is a month-day-nanosecond interval: years and months \
+        become months, weeks and days become days, and the rest becomes nanoseconds. Returns NULL if any argument is NULL \
+        or `secs` is NaN or infinite. Overflow returns NULL; ANSI mode is not applied. \
+        Unlike Spark, where `secs` is a DECIMAL(18, 6), `secs` is cast to DOUBLE and the fraction is rounded to nanoseconds.",
+    syntax_example = "make_interval([years[, months[, weeks[, days[, hours[, mins[, secs]]]]]]])",
+    sql_example = r#"```sql
+> SELECT make_interval(1, 1, 1, 1, 1, 1, 1.0);
+13 mons 8 days 1 hours 1 mins 1.000000000 secs
+> SELECT make_interval(2147483647, 1, 0, 0, 0, 0, 0.0);
+NULL
+```"#,
+    argument(
+        name = "years",
+        description = "Integer number of years, cast to INT. NULL returns NULL."
+    ),
+    argument(
+        name = "months",
+        description = "Integer number of months, cast to INT. NULL returns NULL."
+    ),
+    argument(
+        name = "weeks",
+        description = "Integer number of weeks, cast to INT. NULL returns NULL."
+    ),
+    argument(
+        name = "days",
+        description = "Integer number of days, cast to INT. NULL returns NULL."
+    ),
+    argument(
+        name = "hours",
+        description = "Integer number of hours, cast to INT. NULL returns NULL."
+    ),
+    argument(
+        name = "mins",
+        description = "Integer number of minutes, cast to INT. NULL returns NULL."
+    ),
+    argument(
+        name = "secs",
+        description = "Numeric number of seconds, which may have a fraction, cast to DOUBLE. NULL, NaN or an infinite value returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkMakeInterval {
     signature: Signature,
@@ -94,6 +142,10 @@ impl SparkMakeInterval {
 impl ScalarUDFImpl for SparkMakeInterval {
     fn name(&self) -> &str {
         "make_interval"
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn signature(&self) -> &Signature {

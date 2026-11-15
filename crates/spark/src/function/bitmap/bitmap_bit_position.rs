@@ -8,14 +8,37 @@ use arrow::datatypes::{DataType, FieldRef, Int8Type, Int16Type, Int32Type, Int64
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, internal_err};
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
-    Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    TypeSignature, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
-/// Spark-compatible `bitmap_bit_position` expression
+/// Spark-compatible `bitmap_bit_position` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#bitmap_bit_position>
+#[user_doc(
+    doc_section(label = "Other Functions"),
+    description = "Returns the bit position of a value within its bitmap bucket, as a BIGINT from 0 to 32767. \
+        Spark's bitmap functions split integers into buckets of 32768 values (one 4 KiB bitmap each); \
+        `bitmap_bucket_number` gives the bucket. \
+        A positive value maps to `(value - 1) % 32768`, and zero or a negative value maps to `-value % 32768`. \
+        NULL returns NULL. DataFusion has no built-in `bitmap_bit_position`.",
+    syntax_example = "bitmap_bit_position(expr)",
+    sql_example = r#"```sql
+> SELECT bitmap_bit_position(1);
+0
+> SELECT bitmap_bit_position(32769);
+0
+> SELECT bitmap_bit_position(-1);
+1
+```"#,
+    argument(
+        name = "expr",
+        description = "TINYINT, SMALLINT, INT or BIGINT expression. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct BitmapBitPosition {
     signature: Signature,
@@ -65,6 +88,10 @@ impl ScalarUDFImpl for BitmapBitPosition {
             DataType::Int64,
             args.arg_fields[0].is_nullable(),
         )))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

@@ -10,10 +10,34 @@ use arrow::datatypes::{
 use datafusion_common::{Result, ScalarValue, downcast_value, exec_err, not_impl_err};
 use datafusion_expr::function::{AccumulatorArgs, StateFieldsArgs};
 use datafusion_expr::utils::format_state_name;
-use datafusion_expr::{Accumulator, AggregateUDFImpl, Signature, Volatility};
+use datafusion_expr::{
+    Accumulator, AggregateUDFImpl, Documentation, Signature, Volatility,
+};
+use datafusion_macros::user_doc;
 use std::fmt::{Debug, Formatter};
 use std::mem::size_of_val;
 
+/// Spark-compatible `try_sum` aggregate expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#try_sum>
+#[user_doc(
+    doc_section(label = "General Functions"),
+    description = "Returns the sum of the non-NULL values, or NULL if the sum overflows. DataFusion has no built-in `try_sum`. \
+        Integer input returns BIGINT, floating-point input returns DOUBLE, and DECIMAL(p, s) returns DECIMAL(min(p + 10, 38), s). \
+        BIGINT and DECIMAL overflow returns NULL, while DOUBLE sums follow IEEE 754 and can return Infinity or NaN. \
+        Returns NULL if all values are NULL. Other input types, such as intervals, are not supported.",
+    syntax_example = "try_sum(expr)",
+    sql_example = r#"```sql
+> SELECT try_sum(x) FROM VALUES (1), (2), (3) AS tab(x);
+6
+> SELECT try_sum(x) FROM VALUES (CAST(9223372036854775807 AS BIGINT)), (1) AS tab(x);
+NULL
+```"#,
+    argument(
+        name = "expr",
+        description = "Integer, floating-point or decimal expression to sum. NULL values are skipped."
+    )
+)]
 #[derive(PartialEq, Eq, Hash)]
 pub struct SparkTrySum {
     signature: Signature,
@@ -236,6 +260,10 @@ fn exceeds_decimal128_precision(sum: i128, p: u8) -> bool {
 impl AggregateUDFImpl for SparkTrySum {
     fn name(&self) -> &str {
         "try_sum"
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn signature(&self) -> &Signature {

@@ -10,16 +10,40 @@ use arrow::datatypes::{DataType, Float64Type};
 use datafusion_common::Result;
 use datafusion_common::utils::take_function_args;
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 
-/// Spark-compatible `atan2` function.
+/// Spark-compatible `atan2` expression.
 ///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#atan2>
-///
-/// `atan2(exprY, exprX)` returns the angle in radians between the positive
-/// x-axis and the point given by the coordinates (exprX, exprY).
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Returns the angle in radians, between -pi and pi, between the positive x-axis and \
+        the point (`exprX`, `exprY`). Note that the y coordinate comes first. Both arguments are cast to DOUBLE \
+        and the result is a DOUBLE. Returns NULL if either input is NULL, and NaN if either input is NaN \
+        (and neither is NULL). Infinite inputs and signed zeros follow `java.lang.Math.atan2`: \
+        for example `atan2(-0.0, -1.0)` is -pi.",
+    syntax_example = "atan2(exprY, exprX)",
+    sql_example = r#"```sql
+> SELECT atan2(1, 1);
+0.785398163397448
+> SELECT atan2(0, -1);
+3.141592653589793
+> SELECT atan2(-0.0::double, -1.0::double);
+-3.141592653589793
+```"#,
+    argument(
+        name = "exprY",
+        description = "Numeric y coordinate, cast to DOUBLE. NULL returns NULL."
+    ),
+    argument(
+        name = "exprX",
+        description = "Numeric x coordinate, cast to DOUBLE. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkAtan2 {
     signature: Signature,
@@ -54,6 +78,10 @@ impl ScalarUDFImpl for SparkAtan2 {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(DataType::Float64)
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
