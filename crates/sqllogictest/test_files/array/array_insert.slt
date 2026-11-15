@@ -4,8 +4,12 @@
 
 # Tests for Spark-compatible array_insert
 # Reference: https://spark.apache.org/docs/latest/api/sql/index.html#array_insert
-# Expected values come from the Spark docs and Comet's Spark-verified tests,
-# and were checked against Spark 4.2.0.
+# Expected values come from the Spark docs and Comet's Spark-verified tests.
+
+# Audited against Spark 4.2.0 on 2026-11-15.
+# Expected values verified with pyspark==4.2.0.
+# The PySpark runner skips most queries here (Spark has no make_array or
+# arrow_typeof), so they were checked with equivalent Spark SQL using array().
 
 # Examples from the Spark documentation
 query ?
@@ -138,16 +142,102 @@ statement error INVALID_INDEX_OF_ZERO
 SELECT array_insert(make_array(1, 2), 0, 5);
 
 # Exceeding the maximum array length
-statement error COLLECTION_SIZE_LIMIT_EXCEEDED
+query error \[COLLECTION_SIZE_LIMIT_EXCEEDED\.FUNCTION\] Can't create array with 2147483647 elements which exceeding the array size limit 2147483632, unsuccessful try to create arrays in the function `array_insert`\.
 SELECT array_insert(make_array(1, 2), 2147483647, 5);
 
+# ... also for a position from a column
+statement ok
+CREATE TABLE array_insert_big AS VALUES (make_array(1, 2), 2147483647, 5);
+
+query error \[COLLECTION_SIZE_LIMIT_EXCEEDED\.FUNCTION\] Can't create array with 2147483647 elements which exceeding the array size limit 2147483632, unsuccessful try to create arrays in the function `array_insert`\.
+SELECT array_insert(column1, column2, column3) FROM array_insert_big;
+
 # The index must be an integer
-statement error
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The second parameter of `array_insert` requires the "INT" type, however it has the type "STRING"\.
 SELECT array_insert(make_array(1, 2), 'a', 5);
 
-# The item must share a type family with the elements
-statement error array_insert cannot insert a value of type Utf8 into an array of Int64
-SELECT array_insert(make_array(1), 1, 'x');
+# SMALLINT and TINYINT positions are accepted
+query ?
+SELECT array_insert(make_array(1::INT), 2::SMALLINT, 5::INT);
+----
+[1, 5]
+
+query ?
+SELECT array_insert(make_array(1::INT), (-3)::TINYINT, 5::INT);
+----
+[5, NULL, 1]
+
+# Spark accepts only an INT position. A BIGINT position is accepted here (bare
+# integer literals are BIGINT in DataFusion), but a value outside the INT range
+# fails the cast instead of wrapping. Spark rejects any BIGINT position with
+# DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE.
+query error Can't cast value 3000000000 to type Int32
+SELECT array_insert(make_array(1), 3000000000, 5);
+
+# The first argument must be an array
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_insert` should have been "ARRAY" followed by a value with same element type, but it's \["INT", "INT"\]\.
+SELECT array_insert(1::INT, 1, 5::INT);
+
+# The item must share a type with the elements
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_insert` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<INT>", "STRING"\]\.
+SELECT array_insert(make_array(1::INT), 1, 'x');
+
+# Maps whose key or value types differ in kind
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_insert` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<MAP<INT, STRING>>", "MAP<INT, INT>"\]\.
+SELECT array_insert(make_array(map([1::INT], ['a'])), 1, map([1::INT], [2::INT]));
+
+# Maps whose key and value types widen
+query ?
+SELECT array_insert(make_array(map([1::INT], [2::INT])), 1, map([1::BIGINT], [3::BIGINT]));
+----
+[{1: 3}, {1: 2}]
+
+# Decimal elements
+query ?
+SELECT array_insert(make_array(1.5::DECIMAL(5,1)), 3, 2.5::DECIMAL(5,1));
+----
+[1.5, NULL, 2.5]
+
+query T
+SELECT arrow_typeof(array_insert(make_array(1.5::DECIMAL(5,1)), 1, 2.5::DECIMAL(5,1)));
+----
+List(Decimal128(5, 1))
+
+# An integer item widens to a decimal element type that holds every INT value
+query ?
+SELECT array_insert(make_array(2.5::DECIMAL(11,1)), 1, 7::INT);
+----
+[7.0, 2.5]
+
+# ... and an integer element type to such a decimal item
+query ?
+SELECT array_insert(make_array(1::BIGINT), 1, 2.5::DECIMAL(21,1));
+----
+[2.5, 1.0]
+
+# Spark has no tightest common type for a decimal and a floating point type,
+# two different decimal types, or an integer and a narrower decimal
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_insert` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<DECIMAL\(2,1\)>", "DOUBLE"\]\.
+SELECT array_insert(make_array(1.5::DECIMAL(2,1)), 1, 2.5::DOUBLE);
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_insert` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<DOUBLE>", "DECIMAL\(5,1\)"\]\.
+SELECT array_insert(make_array(1.5::DOUBLE), 1, 2.5::DECIMAL(5,1));
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_insert` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<DECIMAL\(5,1\)>", "DECIMAL\(5,2\)"\]\.
+SELECT array_insert(make_array(1.5::DECIMAL(5,1)), 1, 2.25::DECIMAL(5,2));
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_insert` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<BIGINT>", "DECIMAL\(5,1\)"\]\.
+SELECT array_insert(make_array(1::BIGINT), 1, 2.5::DECIMAL(5,1));
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_insert` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<DECIMAL\(5,1\)>", "INT"\]\.
+SELECT array_insert(make_array(2.5::DECIMAL(5,1)), 1, 7::INT);
+
+# DATE elements with a TIMESTAMP item widen to TIMESTAMP. DataFusion's
+# TIMESTAMP literal has no time zone, like Spark's TIMESTAMP_NTZ.
+query ?
+SELECT array_insert(make_array(DATE '2024-01-01'), 3, TIMESTAMP '2024-01-02 03:04:05');
+----
+[2024-01-01T00:00:00, NULL, 2024-01-02T03:04:05]
 
 # String elements
 query ?
