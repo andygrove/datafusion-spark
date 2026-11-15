@@ -4,7 +4,13 @@
 
 # Tests for Spark-compatible make_time (Spark 4.1+)
 # Reference: https://spark.apache.org/docs/latest/api/sql/index.html#make_time
-# Expected values come from Spark's sql-tests/results/time.sql.out.
+# Expected values come from Spark's sql-tests/results/time.sql.out and the unit tests
+# of DataFusion Comet's make_time, and were checked against pyspark==4.2.0 with
+# spark.sql.timeType.enabled=true.
+#
+# DataFusion reads a literal such as 19.87 as DOUBLE and Spark reads it as DECIMAL
+# (https://github.com/apache/datafusion-spark/issues/97), so the key cases are also
+# run with an explicit DECIMAL to cover the decimal path.
 
 query D
 SELECT make_time(1, 18, 19.87);
@@ -12,9 +18,29 @@ SELECT make_time(1, 18, 19.87);
 01:18:19.870
 
 query D
+SELECT make_time(1, 18, 19.87::DECIMAL(4, 2));
+----
+01:18:19.870
+
+query D
 SELECT make_time(6, 30, 45.887);
 ----
 06:30:45.887
+
+query D
+SELECT make_time(6, 30, 45.887::DECIMAL(5, 3));
+----
+06:30:45.887
+
+query D
+SELECT make_time(13, 2, 23.5);
+----
+13:02:23.500
+
+query D
+SELECT make_time(13, 2, 23.5::DECIMAL(3, 1));
+----
+13:02:23.500
 
 query D
 SELECT make_time(0, 0, 0);
@@ -32,6 +58,11 @@ SELECT make_time(0, 1, 0);
 00:01:00
 
 query D
+SELECT make_time(0, 0, 1);
+----
+00:00:01
+
+query D
 SELECT make_time(0, 0, 1.5);
 ----
 00:00:01.500
@@ -41,11 +72,26 @@ SELECT make_time(23, 59, 59.999999);
 ----
 23:59:59.999999
 
+query D
+SELECT make_time(23, 59, 59.999999::DECIMAL(8, 6));
+----
+23:59:59.999999
+
+query D
+SELECT make_time(12, 30, 45.123456::DECIMAL(8, 6));
+----
+12:30:45.123456
+
 # Seconds with scale above 6 are rounded half up to DECIMAL(16, 6)
 query D
 SELECT make_time(1, 1, 59.9999994::DECIMAL(10, 7));
 ----
 01:01:59.999999
+
+query D
+SELECT make_time(1, 1, 3.1234565::DECIMAL(10, 7));
+----
+01:01:03.123457
 
 query D
 SELECT make_time(0, 0, -0.0000001::DECIMAL(10, 7));
@@ -74,6 +120,11 @@ SELECT make_time('6', '30', '45.5');
 ----
 06:30:45.500
 
+query D
+SELECT make_time(1, 1, '1.1234567');
+----
+01:01:01.123457
+
 # Other numeric types are cast to INT, INT and DECIMAL(16, 6)
 query D
 SELECT make_time(1::BIGINT, 2::BIGINT, 3.5::DOUBLE);
@@ -90,6 +141,17 @@ SELECT make_time(1::BIGINT, 2, 3.25::FLOAT);
 ----
 01:02:03.250
 
+# A fractional hour or minute is truncated by the cast to INT
+query D
+SELECT make_time(1.9::DOUBLE, 1, 1);
+----
+01:01:01
+
+query D
+SELECT make_time(1, 1.9::DOUBLE, 1);
+----
+01:01:01
+
 # Non-numeric, non-string arguments are rejected
 statement error make_time expects a numeric hour, got Boolean
 SELECT make_time(true, 0, 0);
@@ -100,60 +162,255 @@ SELECT arrow_typeof(make_time(1, 18, 19.87));
 ----
 Time64(ns)
 
-# Out-of-range fields raise DATETIME_FIELD_OUT_OF_BOUNDS
-statement error Invalid value for HourOfDay \(valid values 0 - 23\): -1
+# Out-of-range fields raise DATETIME_FIELD_OUT_OF_BOUNDS whatever the ANSI setting.
+# The same errors are checked with ANSI mode on further down.
+statement error \[DATETIME_FIELD_OUT_OF_BOUNDS\.WITHOUT_SUGGESTION\] Invalid value for HourOfDay \(valid values 0 - 23\): -1\.\s+SQLSTATE: 22023
 SELECT make_time(-1, 18, 19.87);
 
-statement error Invalid value for HourOfDay \(valid values 0 - 23\): 24
+statement error Invalid value for HourOfDay \(valid values 0 - 23\): 24\.\s+SQLSTATE: 22023
 SELECT make_time(24, 18, 19.87);
 
-statement error Invalid value for MinuteOfHour \(valid values 0 - 59\): 60
+statement error Invalid value for HourOfDay \(valid values 0 - 23\): 25\.\s+SQLSTATE: 22023
+SELECT make_time(25, 0, 0);
+
+statement error Invalid value for MinuteOfHour \(valid values 0 - 59\): 60\.\s+SQLSTATE: 22023
 SELECT make_time(1, 60, 19.87);
 
-statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 60
+statement error Invalid value for MinuteOfHour \(valid values 0 - 59\): 60\.\s+SQLSTATE: 22023
+SELECT make_time(0, 60, 0);
+
+statement error Invalid value for MinuteOfHour \(valid values 0 - 59\): -1\.\s+SQLSTATE: 22023
+SELECT make_time(0, -1, 0);
+
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 60\.\s+SQLSTATE: 22023
 SELECT make_time(1, 18, 60.0);
 
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 60\.\s+SQLSTATE: 22023
+SELECT make_time(1, 18, 60.0::DECIMAL(3, 1));
+
+# 100.5 reports the whole seconds, 100
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 100\.\s+SQLSTATE: 22023
+SELECT make_time(0, 0, 100.5);
+
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 100\.\s+SQLSTATE: 22023
+SELECT make_time(0, 0, 100.5::DECIMAL(4, 1));
+
 # Hour and minute are checked before seconds in 60..=i32::MAX, like LocalTime.of
-statement error Invalid value for HourOfDay \(valid values 0 - 23\): 24
+statement error Invalid value for HourOfDay \(valid values 0 - 23\): 24\.
 SELECT make_time(24, 0, 60);
 
-statement error Invalid value for MinuteOfHour \(valid values 0 - 59\): 60
+statement error Invalid value for MinuteOfHour \(valid values 0 - 59\): 60\.
 SELECT make_time(1, 60, 60);
 
-statement error Invalid value for HourOfDay \(valid values 0 - 23\): -1
+statement error Invalid value for HourOfDay \(valid values 0 - 23\): -1\.
 SELECT make_time(-1, 0, 60);
 
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 2147483647\.
+SELECT make_time(0, 0, 2147483647);
+
 # Seconds that are negative or above i32::MAX are checked first
-statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): -1
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): -1\.
 SELECT make_time(24, 0, -1);
 
-statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 4294967297
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): -1\.
+SELECT make_time(0, 0, -1);
+
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 2147483648\.
+SELECT make_time(0, 0, 2147483648);
+
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 4294967297\.
 SELECT make_time(24, 0, 4294967297.5);
 
 # Negative fractional seconds are floored for the check but truncated in the message
-statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 0
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 0\.
 SELECT make_time(1, 1, -0.5);
 
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 0\.
+SELECT make_time(1, 1, -0.5::DECIMAL(2, 1));
+
 # 59.9999995 rounds half up to 60.000000 in DECIMAL(16, 6)
-statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 60
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 60\.
 SELECT make_time(1, 1, 59.9999995::DECIMAL(10, 7));
 
-statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 9999999999
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 9999999999\.
 SELECT make_time(1, 18, 9999999999.999999);
 
-statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): -999999999
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 9999999999\.
+SELECT make_time(1, 18, 9999999999.999999::DECIMAL(16, 6));
+
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): -999999999\.
 SELECT make_time(1, 18, -999999999.999999);
 
-statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 4294967297
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): -999999999\.
+SELECT make_time(1, 18, -999999999.999999::DECIMAL(15, 6));
+
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 4294967297\.
 SELECT make_time(1, 18, 4294967297.999999);
+
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 4294967297\.
+SELECT make_time(1, 18, 4294967297.999999::DECIMAL(16, 6));
 
 # Column inputs
 statement ok
-CREATE TABLE make_time_t AS VALUES (1, 18, 19.87), (NULL, 0, 0.0), (23, 59, 59.5);
+CREATE TABLE make_time_t AS VALUES
+  (1, 18, 19.87),
+  (NULL, 0, 0.0),
+  (1, NULL, 2.5),
+  (1, 2, NULL),
+  (23, 59, 59.5);
 
 query D
 SELECT make_time(column1, column2, column3) FROM make_time_t;
 ----
 01:18:19.870
 NULL
+NULL
+NULL
 23:59:59.500
+
+statement ok
+DROP TABLE make_time_t;
+
+# Seconds columns of other types
+query D
+SELECT make_time(1, 2, c) FROM (VALUES (3::INT), (59::INT), (NULL::INT)) AS t(c);
+----
+01:02:03
+01:02:59
+NULL
+
+query D
+SELECT make_time(1, 2, c) FROM (VALUES (3::BIGINT), (59::BIGINT)) AS t(c);
+----
+01:02:03
+01:02:59
+
+query D
+SELECT make_time(1, 2, c) FROM (VALUES (3.5::DECIMAL(4, 2)), (59.25::DECIMAL(4, 2))) AS t(c);
+----
+01:02:03.500
+01:02:59.250
+
+query D
+SELECT make_time(1, 2, c) FROM (VALUES (3.1234567::DECIMAL(20, 7)), (59.9999994::DECIMAL(20, 7))) AS t(c);
+----
+01:02:03.123457
+01:02:59.999999
+
+query D
+SELECT make_time(1, 2, c) FROM (VALUES (3.5::DOUBLE), (59.25::DOUBLE)) AS t(c);
+----
+01:02:03.500
+01:02:59.250
+
+# The result does not depend on the session time zone
+statement ok
+SET datafusion.execution.time_zone = 'America/Los_Angeles';
+
+query D
+SELECT make_time(1, 18, 19.87::DECIMAL(4, 2));
+----
+01:18:19.870
+
+statement ok
+RESET datafusion.execution.time_zone;
+
+# Argument casts. Spark casts the arguments with its own CAST: with ANSI mode off an
+# overflowing integer wraps, and a malformed string or an out-of-range decimal gives NULL.
+# DataFusion uses Arrow's cast, which errors in both modes. Spark-compatible casts are
+# tracked by https://github.com/apache/datafusion-spark/issues/88
+
+# Spark 4.2.0 wraps 4294967297 to 1 with ANSI mode off; DataFusion errors
+# https://github.com/apache/datafusion-spark/issues/88
+# query D
+# SELECT make_time(4294967297::BIGINT, 0, 0);
+# ----
+# 01:00:00
+
+# Spark 4.2.0 returns NULL for a malformed string with ANSI mode off; DataFusion errors
+# https://github.com/apache/datafusion-spark/issues/88
+# query D
+# SELECT make_time(1, 1, 'abc');
+# ----
+# NULL
+
+# Spark 4.2.0 truncates '1.9' to 1 with ANSI mode off; DataFusion errors
+# https://github.com/apache/datafusion-spark/issues/88
+# query D
+# SELECT make_time('1.9', 1, 1);
+# ----
+# 01:01:01
+
+# Spark 4.2.0 returns NULL for seconds that do not fit DECIMAL(16, 6) with ANSI mode off;
+# DataFusion errors
+# https://github.com/apache/datafusion-spark/issues/88
+# query D
+# SELECT make_time(1, 1, 12345678901.5::DECIMAL(12, 1));
+# ----
+# NULL
+
+# https://github.com/apache/datafusion-spark/issues/88
+# query D
+# SELECT make_time(1, 1, 99999999999::BIGINT);
+# ----
+# NULL
+
+# Spark 4.2.0 returns NULL for NaN and Infinity seconds in both ANSI modes; DataFusion errors
+# https://github.com/apache/datafusion-spark/issues/88
+# query D
+# SELECT make_time(1, 1, CAST('NaN' AS DOUBLE));
+# ----
+# NULL
+
+# https://github.com/apache/datafusion-spark/issues/88
+# query D
+# SELECT make_time(1, 1, CAST('Infinity' AS DOUBLE));
+# ----
+# NULL
+
+statement ok
+set datafusion.execution.enable_ansi_mode = true;
+
+# With ANSI mode on, Spark raises CAST_OVERFLOW, CAST_INVALID_INPUT and
+# NUMERIC_VALUE_OUT_OF_RANGE for these; DataFusion raises Arrow's cast errors
+statement error Can't cast value 4294967297 to type Int32
+SELECT make_time(4294967297::BIGINT, 0, 0);
+
+statement error Can't cast value 4294967297 to type Int32
+SELECT make_time(0, 4294967297::BIGINT, 0);
+
+statement error Cannot cast string 'abc' to value of Decimal128\(16, 6\) type
+SELECT make_time(1, 1, 'abc');
+
+statement error Cannot cast string 'abc' to value of Int32 type
+SELECT make_time('abc', 1, 1);
+
+statement error Cannot cast string '1\.9' to value of Int32 type
+SELECT make_time('1.9', 1, 1);
+
+statement error is too large to store in a Decimal128 of precision 16
+SELECT make_time(1, 1, 12345678901.5::DECIMAL(12, 1));
+
+statement error is too large to store in a Decimal128 of precision 16
+SELECT make_time(1, 1, 99999999999::BIGINT);
+
+# Out-of-range fields raise the same errors as with ANSI mode off
+statement error Invalid value for HourOfDay \(valid values 0 - 23\): 25\.\s+SQLSTATE: 22023
+SELECT make_time(25, 0, 0);
+
+statement error Invalid value for MinuteOfHour \(valid values 0 - 59\): -1\.\s+SQLSTATE: 22023
+SELECT make_time(0, -1, 0);
+
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 100\.\s+SQLSTATE: 22023
+SELECT make_time(0, 0, 100.5::DECIMAL(4, 1));
+
+statement error Invalid value for SecondOfMinute \(valid values 0 - 59\): 2147483648\.\s+SQLSTATE: 22023
+SELECT make_time(0, 0, 2147483648);
+
+query D
+SELECT make_time(13, 2, 23.5::DECIMAL(3, 1));
+----
+13:02:23.500
+
+statement ok
+set datafusion.execution.enable_ansi_mode = false;

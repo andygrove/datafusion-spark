@@ -4,10 +4,13 @@
 
 use std::sync::Arc;
 
-use arrow::array::{Array, ArrayRef, AsArray, Time64NanosecondArray};
+use arrow::array::{Array, ArrayRef, AsArray, PrimitiveArray, Time64NanosecondArray};
+use arrow::datatypes::ArrowPrimitiveType;
 use arrow::datatypes::{DataType, Decimal128Type, Int32Type, TimeUnit};
 use datafusion_common::utils::take_function_args;
-use datafusion_common::{DataFusionError, Result, exec_datafusion_err, exec_err};
+use datafusion_common::{
+    DataFusionError, Result, exec_datafusion_err, exec_err, internal_err,
+};
 use datafusion_expr::{
     ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     Volatility,
@@ -18,8 +21,7 @@ const MICROS_PER_SECOND: i128 = 1_000_000;
 const NANOS_PER_MICRO: i64 = 1_000;
 
 /// Spark's seconds argument type, `DecimalType(16, 6)`.
-const SECONDS_PRECISION: u8 = 16;
-const SECONDS_SCALE: i8 = 6;
+const SECONDS_TYPE: DataType = DataType::Decimal128(16, 6);
 
 /// Spark-compatible `make_time` expression (Spark 4.1+).
 ///
@@ -31,7 +33,12 @@ const SECONDS_SCALE: i8 = 6;
         Returns NULL if any argument is NULL. \
         Out-of-range fields raise a `DATETIME_FIELD_OUT_OF_BOUNDS` error whether or not ANSI mode is enabled. \
         Seconds that are negative or above 2147483647 are checked first, then hour, minute and second, \
-        so the error names the same field as Spark's.",
+        so the error names the same field as Spark's. \
+        Arguments are cast to INT, INT and DECIMAL(16, 6) with DataFusion's cast rather than Spark's, \
+        so a value the cast cannot represent (an integer outside the INT range, a malformed string, \
+        seconds that do not fit DECIMAL(16, 6), NaN or Infinity) raises a cast error in both ANSI modes. \
+        With ANSI mode off Spark wraps the integer or returns NULL instead, and it returns NULL for NaN \
+        and Infinity in both modes (https://github.com/apache/datafusion-spark/issues/88).",
     syntax_example = "make_time(hour, minute, second)",
     sql_example = r#"```sql
 > SELECT make_time(6, 30, 45.887);
@@ -45,11 +52,13 @@ NULL
 ```"#,
     argument(
         name = "hour",
-        description = "Hour of the day, 0 to 23. Numeric and string values are cast to INT."
+        description = "Hour of the day, 0 to 23. Numeric and string values are cast to INT, \
+            and a fractional number is truncated."
     ),
     argument(
         name = "minute",
-        description = "Minute of the hour, 0 to 59. Numeric and string values are cast to INT."
+        description = "Minute of the hour, 0 to 59. Numeric and string values are cast to INT, \
+            and a fractional number is truncated."
     ),
     argument(
         name = "second",
@@ -83,8 +92,24 @@ fn out_of_bounds(
     value: impl std::fmt::Display,
 ) -> DataFusionError {
     exec_datafusion_err!(
-        "[DATETIME_FIELD_OUT_OF_BOUNDS.WITHOUT_SUGGESTION] Invalid value for {field} (valid values {range}): {value}"
+        "[DATETIME_FIELD_OUT_OF_BOUNDS.WITHOUT_SUGGESTION] Invalid value for {field} (valid values {range}): {value}.  SQLSTATE: 22023"
     )
+}
+
+/// Downcasts an argument that `coerce_types` should already have cast. Callers that
+/// skip DataFusion's coercion, such as Comet, get an error rather than a panic.
+fn primitive_arg<'a, T: ArrowPrimitiveType>(
+    array: &'a ArrayRef,
+    name: &str,
+) -> Result<&'a PrimitiveArray<T>> {
+    match array.as_primitive_opt::<T>() {
+        Some(array) => Ok(array),
+        None => internal_err!(
+            "make_time expects {name} as {}, got {}",
+            T::DATA_TYPE,
+            array.data_type()
+        ),
+    }
 }
 
 /// `secs_micros` is the unscaled value of the `DECIMAL(16, 6)` seconds argument.
@@ -148,19 +173,22 @@ impl ScalarUDFImpl for SparkMakeTime {
                 return exec_err!("make_time expects a numeric {arg}, got {t}");
             }
         }
-        Ok(vec![
-            DataType::Int32,
-            DataType::Int32,
-            DataType::Decimal128(SECONDS_PRECISION, SECONDS_SCALE),
-        ])
+        Ok(vec![DataType::Int32, DataType::Int32, SECONDS_TYPE])
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         let arrays: Vec<ArrayRef> = ColumnarValue::values_to_arrays(&args.args)?;
         let [hours, minutes, secs] = take_function_args(self.name(), arrays)?;
-        let hours = hours.as_primitive::<Int32Type>();
-        let minutes = minutes.as_primitive::<Int32Type>();
-        let secs = secs.as_primitive::<Decimal128Type>();
+        let hours = primitive_arg::<Int32Type>(&hours, "hour")?;
+        let minutes = primitive_arg::<Int32Type>(&minutes, "minute")?;
+        // The kernel reads the unscaled value as microseconds, so only the scale matters.
+        if !matches!(secs.data_type(), DataType::Decimal128(_, 6)) {
+            return internal_err!(
+                "make_time expects second as Decimal128(_, 6), got {}",
+                secs.data_type()
+            );
+        }
+        let secs = primitive_arg::<Decimal128Type>(&secs, "second")?;
 
         let times: Time64NanosecondArray = (0..hours.len())
             .map(|i| {
@@ -172,5 +200,85 @@ impl ScalarUDFImpl for SparkMakeTime {
             })
             .collect::<Result<_>>()?;
         Ok(ColumnarValue::Array(Arc::new(times)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use arrow::array::{Decimal128Array, Int32Array, Int64Array};
+    use arrow::datatypes::{Field, Time64NanosecondType};
+    use datafusion_common::config::ConfigOptions;
+
+    /// Invokes the kernel directly, skipping `coerce_types`, as Comet does.
+    fn invoke(args: Vec<ArrayRef>) -> Result<ColumnarValue> {
+        let arg_fields = args
+            .iter()
+            .map(|a| Arc::new(Field::new("a", a.data_type().clone(), true)))
+            .collect();
+        SparkMakeTime::new().invoke_with_args(ScalarFunctionArgs {
+            number_rows: args[0].len(),
+            args: args.into_iter().map(ColumnarValue::Array).collect(),
+            arg_fields,
+            return_field: Arc::new(Field::new(
+                "r",
+                DataType::Time64(TimeUnit::Nanosecond),
+                true,
+            )),
+            config_options: Arc::new(ConfigOptions::default()),
+        })
+    }
+
+    fn int32(v: i32) -> ArrayRef {
+        Arc::new(Int32Array::from(vec![v]))
+    }
+
+    fn secs(unscaled: i128, precision: u8, scale: i8) -> ArrayRef {
+        Arc::new(
+            Decimal128Array::from(vec![unscaled])
+                .with_precision_and_scale(precision, scale)
+                .unwrap(),
+        )
+    }
+
+    fn assert_err(args: Vec<ArrayRef>, expected: &str) {
+        let err = invoke(args).unwrap_err().to_string();
+        assert!(err.contains(expected), "{err}");
+    }
+
+    #[test]
+    fn test_uncoerced_arguments_error() {
+        assert_err(
+            vec![
+                Arc::new(Int64Array::from(vec![1])),
+                int32(2),
+                secs(3, 16, 6),
+            ],
+            "make_time expects hour as Int32, got Int64",
+        );
+        assert_err(
+            vec![int32(1), int32(2), int32(3)],
+            "make_time expects second as Decimal128(_, 6), got Int32",
+        );
+        assert_err(
+            vec![int32(1), int32(2), secs(3, 10, 2)],
+            "make_time expects second as Decimal128(_, 6), got Decimal128(10, 2)",
+        );
+    }
+
+    #[test]
+    fn test_seconds_with_other_precision() -> Result<()> {
+        // Only the scale matters, so DECIMAL(38, 6) is read the same way.
+        let ColumnarValue::Array(array) =
+            invoke(vec![int32(1), int32(2), secs(3_500_000, 38, 6)])?
+        else {
+            unreachable!("make_time returns an array")
+        };
+        let array = array.as_primitive::<Time64NanosecondType>();
+        assert_eq!(
+            array.value(0),
+            (3_600 + 2 * 60 + 3) * 1_000_000_000 + 500_000_000
+        );
+        Ok(())
     }
 }
