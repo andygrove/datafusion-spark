@@ -79,6 +79,17 @@ SELECT json_array_length('"a"');
 ----
 NULL
 
+query I
+SELECT json_array_length('true');
+----
+NULL
+
+# Multi-byte UTF-8 inside elements
+query I
+SELECT json_array_length('["é","é"]');
+----
+2
+
 # Invalid or truncated JSON
 query I
 SELECT json_array_length('[1,2,3,4,5');
@@ -102,6 +113,38 @@ NULL
 
 query I
 SELECT json_array_length('[1 2]');
+----
+NULL
+
+query I
+SELECT json_array_length('[1,]');
+----
+NULL
+
+# Nested elements are skipped but still parsed, so errors inside them give NULL
+query I
+SELECT json_array_length('[1,{"a":}]');
+----
+NULL
+
+query I
+SELECT json_array_length('[[1,2]');
+----
+NULL
+
+# Leading zeros, NaN and comments are not enabled in Spark's Jackson factory
+query I
+SELECT json_array_length('[01]');
+----
+NULL
+
+query I
+SELECT json_array_length('[NaN]');
+----
+NULL
+
+query I
+SELECT json_array_length('[1 /* c */]');
 ----
 NULL
 
@@ -129,8 +172,9 @@ SELECT json_array_length(repeat('[', 1000) || repeat(']', 1000));
 
 # Known gaps: Spark parses with Jackson configured to accept single-quoted
 # strings and unescaped control characters, which return NULL here. Jackson
-# also limits nesting to 1000 levels, beyond which Spark returns NULL; there is
-# no such limit here.
+# also limits nesting to 1000 levels and number literals to 1000 digits, beyond
+# which Spark returns NULL; there are no such limits here.
+# https://github.com/apache/datafusion-spark/issues/242
 
 ## Spark 4.2.0 result: 2
 #query I
@@ -150,12 +194,45 @@ SELECT json_array_length(repeat('[', 1000) || repeat(']', 1000));
 #----
 #NULL
 
+## Spark 4.2.0 result: NULL (a 1001-digit number)
+#query I
+#SELECT json_array_length('[' || repeat('1', 1001) || ']');
+#----
+#NULL
+
 # Only string arguments are accepted
-statement error
+statement error Function 'json_array_length' requires String, but received Int64
 SELECT json_array_length(2);
 
-statement error
+statement error 'json_array_length' does not support zero arguments
 SELECT json_array_length();
+
+# ANSI mode does not change the result
+statement ok
+SET datafusion.execution.enable_ansi_mode = true;
+
+query I
+SELECT json_array_length('[1,2,3]');
+----
+3
+
+query I
+SELECT json_array_length('[1,2');
+----
+NULL
+
+statement ok
+SET datafusion.execution.enable_ansi_mode = false;
+
+query I
+SELECT json_array_length('[1,2,3]');
+----
+3
+
+query I
+SELECT json_array_length('[1,2');
+----
+NULL
 
 # Column input, including NULLs and other string types
 statement ok

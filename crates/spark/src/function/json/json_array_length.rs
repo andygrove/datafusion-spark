@@ -29,8 +29,8 @@ use serde::de::IgnoredAny;
         closing bracket and anything after it is ignored. \
         Known differences from Spark, which parses with Jackson configured to accept single-quoted \
         strings and unescaped control characters (Hive compatibility): those inputs return NULL here. \
-        Jackson also limits nesting to 1000 levels and returns NULL beyond that, while deeper arrays \
-        are still counted here.",
+        Jackson also limits nesting to 1000 levels and number literals to 1000 digits, and Spark \
+        returns NULL beyond those limits, while such arrays are still counted here.",
     syntax_example = "json_array_length(json_array)",
     sql_example = r#"```sql
 > SELECT json_array_length('[1,2,3,[33,44],{"key":[2,3,4]}]');
@@ -115,5 +115,6 @@ fn lengths<'a>(strings: impl Iterator<Item = Option<&'a str>>) -> Int32Array {
 fn json_array_length(json: &str) -> Option<i32> {
     let elements =
         Vec::<IgnoredAny>::deserialize(&mut serde_json::Deserializer::from_str(json));
+    // A count above i32::MAX gives NULL here, where Spark's int counter would wrap.
     elements.ok().and_then(|v| i32::try_from(v.len()).ok())
 }
