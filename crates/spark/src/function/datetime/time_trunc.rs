@@ -10,12 +10,38 @@ use datafusion_common::{Result, ScalarValue, internal_err, plan_err};
 use datafusion_expr::expr::ScalarFunction;
 use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
-    Coercion, ColumnarValue, Expr, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
-    Signature, TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, Expr, ReturnFieldArgs, ScalarFunctionArgs,
+    ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
 };
+use datafusion_macros::user_doc;
 
-/// Spark time_trunc function only handles time inputs.
+/// Spark-compatible `time_trunc` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#time_trunc>
+#[user_doc(
+    doc_section(label = "Time and Date Functions"),
+    description = "Returns the time `time` truncated to the unit given by `unit`, with the same type as `time`. \
+        DataFusion has no `time_trunc`; this rewrites to DataFusion's `date_trunc`, but only accepts time input and the units \
+        `HOUR`, `MINUTE`, `SECOND`, `MILLISECOND` and `MICROSECOND` (case-insensitive). Any other unit is an error, \
+        with the same message and SQLSTATE 22023 as Spark. Returns NULL if `unit` or `time` is NULL.",
+    syntax_example = "time_trunc(unit, time)",
+    sql_example = r#"```sql
+> SELECT time_trunc('HOUR', '09:32:05.123456'::time);
+09:00:00
+> SELECT time_trunc('MILLISECOND', '09:32:05.123456'::time);
+09:32:05.123
+> SELECT time_trunc(NULL, '09:32:05.123456'::time);
+NULL
+```"#,
+    argument(
+        name = "unit",
+        description = "Constant string unit: `HOUR`, `MINUTE`, `SECOND`, `MILLISECOND` or `MICROSECOND`, case-insensitive. NULL returns NULL."
+    ),
+    argument(
+        name = "time",
+        description = "Time expression to truncate. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkTimeTrunc {
     signature: Signature,
@@ -44,6 +70,10 @@ impl SparkTimeTrunc {
 impl ScalarUDFImpl for SparkTimeTrunc {
     fn name(&self) -> &str {
         "time_trunc"
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn signature(&self) -> &Signature {

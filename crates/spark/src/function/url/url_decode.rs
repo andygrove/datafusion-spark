@@ -15,11 +15,37 @@ use datafusion_common::cast::{
 use datafusion_common::utils::offset_span_len;
 use datafusion_common::{Result, exec_datafusion_err, exec_err, plan_err};
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 use percent_encoding::percent_decode;
 
+/// Spark-compatible `url_decode` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#url_decode>
+#[user_doc(
+    doc_section(label = "URL Functions"),
+    description = "Decodes a string in `application/x-www-form-urlencoded` format, the inverse of `url_encode`. \
+        DataFusion has no built-in `url_decode`. `+` becomes a space and each `%XX` escape becomes the byte \
+        it encodes, and the bytes are read as UTF-8. A `%` that is not followed by two hex digits, or bytes \
+        that are not valid UTF-8, are an error; use `try_url_decode` to get NULL instead. \
+        Returns NULL if the input is NULL.",
+    syntax_example = "url_decode(str)",
+    sql_example = r#"```sql
+> SELECT url_decode('https%3A%2F%2Fspark.apache.org');
+https://spark.apache.org
+> SELECT url_decode('Spark+SQL%21');
+Spark SQL!
+> SELECT url_decode('%E4%BD%A0%E5%A5%BD');
+你好
+```"#,
+    argument(
+        name = "str",
+        description = "String expression to decode. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct UrlDecode {
     signature: Signature,
@@ -144,6 +170,10 @@ impl ScalarUDFImpl for UrlDecode {
         }
         // As the type signature is already checked, we can safely return the type of the first argument
         Ok(arg_types[0].clone())
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

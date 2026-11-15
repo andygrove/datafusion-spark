@@ -16,35 +16,49 @@ use datafusion_common::{
     Result, ScalarValue, internal_err, plan_err, resources_datafusion_err,
 };
 use datafusion_expr::{
-    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
-    Volatility,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
+    Signature, Volatility,
 };
+use datafusion_macros::user_doc;
 
 /// The most rows a call generates per batch. Spark streams the rows, but they are
 /// materialized here, so a large `n` such as `stack(2000000000, 1)` fails instead of
 /// exhausting memory.
 const MAX_GENERATED_ROWS: usize = 1 << 24;
 
-/// Spark-compatible `stack` expression
+/// Spark-compatible `stack` expression.
 ///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#stack>
-///
-/// `stack(n, expr1, ..., exprk)` separates `expr1`, ..., `exprk` into `n` rows of
-/// `ceil(k / n)` columns named `col0`, `col1`, ... The values fill the rows in
-/// order, and the last rows are padded with NULLs.
-///
-/// Note: In Spark, `stack` is a Generator that produces rows. In DataFusion, a
-/// ScalarUDF can only return one value per row, so the `n` rows are returned as a
-/// `List<Struct<col0, col1, ...>>`, which is the data type of Spark's Generator. As
-/// in Spark, the list is not nullable while its elements and fields are. The
-/// caller (e.g. Comet, or `unnest` in SQL) is expected to unnest the list.
-///
-/// As in Spark, `n` is an `INT` in `[1, 2147483647]`, and the values of a column
-/// must have the same type, which is the type of its first non-NULL value. NULLs,
-/// Arrow types of the same Spark type (such as `Utf8` and `Utf8View`), and integer
-/// literals that fit an `INT` column are cast to it, wherever they are in the
-/// column. Unlike Spark, which accepts any foldable `n`, `n` must be an integer
-/// literal, because the return type is planned before expressions are folded.
+#[user_doc(
+    doc_section(label = "Other Functions"),
+    description = "Separates `expr1`, ..., `exprk` into `n` rows of `ceil(k / n)` columns named `col0`, `col1`, ... \
+        The values fill the rows in order, and the last rows are padded with NULLs. DataFusion has no built-in `stack`. \
+        In Spark, `stack` is a generator that returns rows. A scalar function returns one value per row, so here the rows \
+        are returned as a list of structs, which the caller (e.g. Comet, or `unnest` in SQL) is expected to expand. \
+        As in Spark, the list is never NULL, but its elements and fields can be. \
+        As in Spark, `n` must be an INT from 1 to 2147483647, and the values of a column must have the same type, \
+        which is the type of its first non-NULL value. NULLs, Arrow types of the same Spark type (such as `Utf8` and `Utf8View`), \
+        and integer literals that fit an INT column are cast to it. \
+        Unlike Spark, which accepts any constant `n` (such as `3 - 1`), `n` must be an integer literal, because the \
+        return type is planned before expressions are folded. The rows are materialized, so a very large `n`, \
+        such as `stack(2000000000, 1)`, is an error.",
+    syntax_example = "stack(n, expr1[, ..., exprk])",
+    sql_example = r#"```sql
+> SELECT stack(2, 1, 2, 3);
+[{col0: 1, col1: 2}, {col0: 3, col1: NULL}]
+> SELECT unnest(stack(2, 'a', 1, 'b', 2));
+{col0: a, col1: 1}
+{col0: b, col1: 2}
+```"#,
+    argument(
+        name = "n",
+        description = "Integer literal number of rows, from 1 to 2147483647."
+    ),
+    argument(
+        name = "expr",
+        description = "One or more values to separate into rows. The values of each column must have the same type."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkStack {
     signature: Signature,
@@ -113,6 +127,10 @@ impl ScalarUDFImpl for SparkStack {
             DataType::new_list(DataType::Struct(fields), true),
             false,
         )))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

@@ -89,3 +89,7 @@ coercion, and is usually more verbose in the setup needed to pass data in (and
 assert output data).
 
 [spark sqllogictest readme]: crates/sqllogictest/test_files/README.md
+
+## Releases
+
+The release process is documented in [dev/release/README.md](dev/release/README.md).

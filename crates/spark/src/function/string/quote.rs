@@ -9,16 +9,37 @@ use datafusion_common::types::{NativeType, logical_string};
 use datafusion_common::utils::{offset_span_len, take_function_args};
 use datafusion_common::{Result, exec_err};
 use datafusion_expr::{
-    Coercion, ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Coercion, ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     TypeSignatureClass, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 
 use std::fmt::Write;
 use std::sync::Arc;
 
-/// Spark-compatible `quote` expression
+/// Spark-compatible `quote` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#quote>
+#[user_doc(
+    doc_section(label = "String Functions"),
+    description = "Returns `str` wrapped in single quotes, with each single quote inside it escaped with a backslash. \
+        No other characters are escaped. DataFusion has no built-in equivalent. \
+        Values of other types are cast to a string first. NULL returns NULL.",
+    syntax_example = "quote(str)",
+    sql_example = r#"```sql
+> SELECT quote('Spark');
+'Spark'
+> SELECT quote('it''s');
+'it\'s'
+> SELECT quote(NULL);
+NULL
+```"#,
+    argument(
+        name = "str",
+        description = "Expression to quote. Non-string values are cast to a string. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkQuote {
     signature: Signature,
@@ -44,6 +65,10 @@ impl SparkQuote {
 }
 
 impl ScalarUDFImpl for SparkQuote {
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
+    }
+
     fn name(&self) -> &str {
         "quote"
     }

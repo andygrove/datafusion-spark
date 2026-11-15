@@ -15,12 +15,32 @@ use arrow::datatypes::{DataType, FieldRef, Int8Type, Int16Type, Int32Type, Int64
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, internal_err};
 use datafusion_expr::{
-    Coercion, ColumnarValue, EncodingPreservation, ScalarFunctionArgs, ScalarUDFImpl,
-    Signature, TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, EncodingPreservation, ScalarFunctionArgs,
+    ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
 };
 use datafusion_functions::downcast_arg;
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 
+/// Spark-compatible `bitmap_count` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#bitmap_count>
+#[user_doc(
+    doc_section(label = "Other Functions"),
+    description = "Returns the number of bits that are set in a binary bitmap, as a BIGINT. \
+        NULL returns NULL. DataFusion has no built-in `bitmap_count`.",
+    syntax_example = "bitmap_count(bitmap)",
+    sql_example = r#"```sql
+> SELECT bitmap_count(X'1010');
+2
+> SELECT bitmap_count(X'FFFF');
+16
+```"#,
+    argument(
+        name = "bitmap",
+        description = "Binary expression, such as a bitmap built by Spark's `bitmap_construct_agg`. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct BitmapCount {
     signature: Signature,
@@ -70,6 +90,10 @@ impl ScalarUDFImpl for BitmapCount {
             DataType::Int64,
             args.arg_fields[0].is_nullable(),
         )))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

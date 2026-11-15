@@ -9,24 +9,36 @@ use bigdecimal::num_traits::WrappingNeg;
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue, exec_err, not_impl_err};
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
-    Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    TypeSignature, Volatility,
 };
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
-/// Spark-compatible `negative` expression
+/// Spark-compatible `negative` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#negative>
-///
-/// Returns the negation of input (equivalent to unary minus)
-/// Returns NULL if input is NULL, returns NaN if input is NaN.
-///
-/// ANSI mode support:
-///  - When ANSI mode is disabled (`spark.sql.ansi.enabled=false`), negating the minimal
-///    value of a signed integer wraps around. For example: negative(i32::MIN) returns
-///    i32::MIN (wraps instead of error).
-///  - When ANSI mode is enabled (`spark.sql.ansi.enabled=true`), overflow conditions
-///    throw an ARITHMETIC_OVERFLOW error instead of wrapping.
-///
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Returns the negation of `expr` (the same as unary minus), with the same type as the input. \
+        DataFusion has no built-in `negative`. Accepts integer, floating-point, decimal and interval values. \
+        Negating the minimum value of a signed integer type (for example `-2147483648` for INT) depends on \
+        ANSI mode: with `datafusion.execution.enable_ansi_mode` off it wraps around and returns the same value, \
+        and with it on the function fails with an overflow error. Returns NULL if the input is NULL and NaN if it is NaN.",
+    syntax_example = "negative(expr)",
+    sql_example = r#"```sql
+> SELECT negative(1);
+-1
+> SELECT negative(-99.99::DECIMAL(10, 2));
+99.99
+> SELECT negative((-2147483648)::INT);
+-2147483648
+```"#,
+    argument(
+        name = "expr",
+        description = "Numeric or interval expression. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkNegative {
     signature: Signature,
@@ -73,6 +85,10 @@ impl ScalarUDFImpl for SparkNegative {
 
     fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
         Ok(arg_types[0].clone())
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

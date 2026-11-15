@@ -51,3 +51,9 @@ ORDER BY g;
 ----
 0 36.666666666666664
 1 20
+
+# DECIMAL input is cast to DOUBLE. Spark returns 1.500000 as DECIMAL(14, 6) (https://github.com/apache/datafusion-spark/issues/111)
+query TR
+SELECT arrow_typeof(avg(a)), avg(a) FROM (VALUES (1.00::DECIMAL(10, 2)), (2.00::DECIMAL(10, 2))) AS t(a);
+----
+Float64 1.5

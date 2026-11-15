@@ -220,6 +220,12 @@ SELECT date_part('SECS'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 45
 
+# Known difference: Spark returns DECIMAL(8, 6) including the fraction (45.999000)
+query I
+SELECT date_part('SECOND'::string, '2000-01-01 12:30:45.999'::timestamp);
+----
+45
+
 # NULL input
 query I
 SELECT date_part('year'::string, NULL::timestamp);

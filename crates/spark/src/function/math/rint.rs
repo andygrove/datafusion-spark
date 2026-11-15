@@ -13,10 +13,32 @@ use arrow::datatypes::{DataType, Float32Type, Float64Type};
 use datafusion_common::{Result, assert_eq_or_internal_err, exec_err};
 use datafusion_expr::sort_properties::{ExprProperties, SortProperties};
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 
+/// Spark-compatible `rint` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#rint>
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Returns the whole number closest to `expr`, as a DOUBLE. Halves round to the even \
+        neighbor (2.5 becomes 2, 3.5 becomes 4, -2.5 becomes -2), unlike `round`, which rounds halves away \
+        from zero. DataFusion has no built-in `rint`. Integer inputs are returned as DOUBLE. \
+        Returns NULL if the input is NULL.",
+    syntax_example = "rint(expr)",
+    sql_example = r#"```sql
+> SELECT rint(12.3456);
+12
+> SELECT rint(2.5);
+2
+> SELECT rint(3.5);
+4
+```"#,
+    argument(name = "expr", description = "Numeric expression. NULL returns NULL.")
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkRint {
     signature: Signature,
@@ -47,6 +69,10 @@ impl ScalarUDFImpl for SparkRint {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(Float64)
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

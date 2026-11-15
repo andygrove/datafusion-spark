@@ -8,14 +8,37 @@ use arrow::array::{
 use arrow::datatypes::{DataType, Field, FieldRef, Int32Type};
 use datafusion_common::exec_err;
 use datafusion_expr::{
-    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
-    Volatility,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
+    Signature, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
-/// Spark-compatible `length` expression
+/// Spark-compatible `length` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#length>
+#[user_doc(
+    doc_section(label = "String Functions"),
+    description = "Returns the number of characters in a string, or the number of bytes in a binary value. \
+        Trailing spaces and binary zeros are counted. NULL returns NULL. \
+        Unlike DataFusion's `length`/`character_length`, binary input is accepted, \
+        and the result is always `Int32`, including for `LargeUtf8` input.",
+    syntax_example = "length(expr)",
+    alternative_syntax = "char_length(expr)",
+    alternative_syntax = "character_length(expr)",
+    alternative_syntax = "len(expr)",
+    sql_example = r#"```sql
+> SELECT length('Spark SQL ');
+10
+> SELECT length(x'537061726b2053514c');
+9
+```"#,
+    argument(
+        name = "expr",
+        description = "String or binary expression. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkLengthFunc {
     signature: Signature,
@@ -53,6 +76,10 @@ impl SparkLengthFunc {
 }
 
 impl ScalarUDFImpl for SparkLengthFunc {
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
+    }
+
     fn name(&self) -> &str {
         "length"
     }
