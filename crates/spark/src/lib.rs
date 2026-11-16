@@ -38,9 +38,8 @@
 //! # Available Function Packages
 //!
 //! Functions are grouped into packages by category (for example [`function::string`],
-//! [`function::datetime`], [`function::math`], [`function::hash`]). See the list of
-//! [modules](#modules) in this crate for the available packages. Each package
-//! provides:
+//! [`function::datetime`], [`function::math`], [`function::hash`]). See
+//! [`function`] for the available packages. Each package provides:
 //!
 //! * a `functions()` method returning all of its UDFs for registration
 //! * an `expr_fn` module with helpers to build [`Expr`]s from Rust
@@ -61,6 +60,12 @@
 //!   `datafusion.execution.enable_ansi_mode` from the session configuration.
 //! * **Type inference.** DataFusion and Spark do not infer literal types in the
 //!   same way, so add explicit casts (`CAST(1 AS INT)`) when exact types matter.
+//! * **SQL dialect.** Registering Spark functions does not change the SQL
+//!   parser. Spark-only syntax such as `CAST(1 AS LONG)` needs the Spark
+//!   dialect (`datafusion.sql_parser.dialect = 'Spark'`); the default generic
+//!   dialect rejects `LONG`. Queries that use only standard syntax work with
+//!   either dialect. See [`SessionStateBuilderSpark::with_spark_features`] for
+//!   an example that sets both.
 //!
 //! [Apache Spark]: https://spark.apache.org/
 //! [Apache DataFusion]: https://datafusion.apache.org/

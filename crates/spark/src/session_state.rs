@@ -32,6 +32,34 @@ use crate::{
 ///     .with_spark_features()
 ///     .build();
 /// ```
+///
+/// `with_spark_features` registers functions and planners only. It does not
+/// select the Spark SQL parser dialect, so Spark-only syntax such as
+/// `CAST(1 AS LONG)` fails with the default generic dialect. To parse Spark
+/// SQL as well, set the dialect in the session configuration:
+///
+/// ```rust
+/// use datafusion::common::config::Dialect;
+/// use datafusion::execution::SessionStateBuilder;
+/// use datafusion::prelude::{SessionConfig, SessionContext};
+/// use datafusion_spark::SessionStateBuilderSpark;
+///
+/// # #[tokio::main(flavor = "current_thread")]
+/// # async fn main() -> datafusion::common::Result<()> {
+/// let mut config = SessionConfig::new();
+/// config.options_mut().sql_parser.dialect = Dialect::Spark;
+/// let state = SessionStateBuilder::new()
+///     .with_config(config)
+///     .with_default_features()
+///     .with_spark_features()
+///     .build();
+/// let ctx = SessionContext::new_with_state(state);
+///
+/// // `LONG` is only accepted by the Spark dialect
+/// ctx.sql("SELECT CAST(1 AS LONG)").await?.collect().await?;
+/// # Ok(())
+/// # }
+/// ```
 pub trait SessionStateBuilderSpark {
     /// Adds all expr_planners, scalar, aggregate, window and table functions
     /// compatible with Apache Spark.
