@@ -183,6 +183,17 @@ SELECT array_position(array(array(5, 6), array(2, 1)), array(1, 2));
 ----
 0
 
+# NULLs nested inside compared arrays and structs are equal
+query I
+SELECT array_position(array(array(1, 2), array(1, NULL)), array(1, NULL));
+----
+2
+
+query I
+SELECT array_position(array(named_struct('a', 1, 'b', CAST(NULL AS INT))), named_struct('a', 1, 'b', CAST(NULL AS INT)));
+----
+1
+
 ###
 ### Type coercion
 ###
@@ -416,6 +427,15 @@ SELECT array_position(array(1, 2), column2) FROM t;
 ----
 0
 0
+0
+1
+NULL
+
+query I
+SELECT array_position(array(1, 2, 3), column2) FROM t;
+----
+3
+3
 0
 1
 NULL

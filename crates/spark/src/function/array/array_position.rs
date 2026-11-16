@@ -28,7 +28,8 @@ use std::sync::Arc;
         the element is not found, where this returns 0. The result is NULL only when the array \
         or the element is NULL: a NULL element returns NULL even if the array contains NULL, \
         while in the DataFusion built-in a NULL element matches the first NULL in the array. \
-        NULL elements inside the array never match. For floating point values, also inside \
+        Top-level NULL elements in the array never match, while corresponding NULLs nested \
+        inside compared arrays or structs are equal. For floating point values, also inside \
         nested arrays and structs, NaN is equal to NaN and -0.0 is equal to 0.0. As in Spark, \
         the array element and the element are cast to their tightest common type: numbers \
         widen, an integer widens to a decimal only if the decimal can hold all its values, and \
