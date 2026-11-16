@@ -10,6 +10,8 @@ DataFusion expressions that emulate Apache Spark's behavior.
 
 - `crates/spark` – the `datafusion-spark` crate
 - `crates/sqllogictest` – `.slt` tests for the Spark functions
+- `crates/cli` – `datafusion-spark-cli`, a SQL shell for trying the functions (not a default
+  workspace member, so build it with `-p datafusion-spark-cli`)
 
 Before opening a PR, run `cargo fmt --all`, `cargo clippy --all-targets --all-features -- -D warnings`,
 `cargo test -p datafusion-spark` and `cargo test -p datafusion-spark-sqllogictest`.

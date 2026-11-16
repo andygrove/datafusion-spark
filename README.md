@@ -56,6 +56,8 @@ for more.
 
 - `crates/spark` – the `datafusion-spark` crate
 - `crates/sqllogictest` – SQL logic tests for the Spark functions
+- `crates/cli` – `datafusion-spark-cli`, a SQL shell with the Spark functions registered
+  (`cargo run -p datafusion-spark-cli`)
 - `.ai/skills` – agent skills for working on this repository (see `AGENTS.md`)
 
 ## Building and testing

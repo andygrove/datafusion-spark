@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+name: CLI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    name: datafusion-spark-cli smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build -p datafusion-spark-cli
+      # A Spark function, and ANSI mode on by default and off with `--ansi false`.
+      - name: Run queries
+        run: |
+          set -euo pipefail
+          cli=target/debug/datafusion-spark-cli
+          $cli -q --format csv -c "SELECT sha2('Spark', 256) AS h" \
+            | grep -x '529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b'
+          if $cli -q -c "SELECT abs(cast(-2147483648 AS int))"; then
+            echo "expected an ARITHMETIC_OVERFLOW error with ANSI mode on" && exit 1
+          fi
+          $cli -q --ansi false --format csv -c "SELECT abs(cast(-2147483648 AS int)) AS a" \
+            | grep -x -- '-2147483648'

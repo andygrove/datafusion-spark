@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+[package]
+name = "datafusion-spark-cli"
+description = "Command line SQL shell for DataFusion with the Spark-compatible functions and SQL dialect"
+version = { workspace = true }
+homepage = { workspace = true }
+repository = { workspace = true }
+authors = { workspace = true }
+license = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+# Not published to crates.io yet.
+publish = false
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "datafusion-spark-cli"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.5.60", features = ["derive"] }
+datafusion = { workspace = true, features = ["sql", "parquet", "nested_expressions"] }
+datafusion-cli = { git = "https://github.com/apache/datafusion", branch = "branch-56" }
+datafusion-spark = { path = "../spark", features = ["core"] }
+env_logger = "0.11"
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
