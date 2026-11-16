@@ -149,9 +149,41 @@ SELECT monthname(arrow_cast('2024-10-31 23:59:59', 'Timestamp(Microsecond, Some(
 ----
 Oct
 
-# Error: wrong argument type (string without cast)
-statement error Function 'monthname' requires Date, but received String
-SELECT monthname('not-a-date');
+# Strings are implicitly cast to dates
+query T
+SELECT monthname('2008-02-20'::STRING);
+----
+Feb
+
+query T
+SELECT monthname('2024-03-15 12:00:00'::STRING);
+----
+Mar
+
+query T
+SELECT monthname(d) FROM (VALUES ('2024-01-01'::STRING), (NULL::STRING), ('2024-12-07 10:00:00'::STRING)) AS t(d);
+----
+Jan
+NULL
+Dec
+
+# Spark returns NULL for a malformed string when ANSI mode is off. DataFusion's
+# string to date cast errors regardless of ANSI mode. ANSI-aware casting is
+# tracked by https://github.com/apache/datafusion-spark/issues/88
+# query T
+# SELECT monthname('not-a-date'::STRING);
+# ----
+# NULL
+
+# With ANSI mode on, Spark raises CAST_INVALID_INPUT for a malformed string
+statement ok
+set datafusion.execution.enable_ansi_mode = true;
+
+query error Cannot cast string 'not-a-date' to value of Date32 type
+SELECT monthname('not-a-date'::STRING);
+
+statement ok
+set datafusion.execution.enable_ansi_mode = false;
 
 # Error: wrong argument type (integer)
 statement error Function 'monthname' requires Date, but received Int64

@@ -2,12 +2,18 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+//! Spark date and time functions, such as `date_add`, `date_diff`, `date_trunc`,
+//! `last_day`, `make_interval` and `to_utc_timestamp`.
+
 pub mod add_months;
 pub mod date_add;
 pub mod date_diff;
+pub mod date_from_unix_date;
 pub mod date_part;
+mod date_part_name;
 pub mod date_sub;
 pub mod date_trunc;
+pub mod dayname;
 pub mod extract;
 pub mod from_utc_timestamp;
 pub mod last_day;
@@ -29,9 +35,14 @@ use std::sync::Arc;
 make_udf_function!(add_months::SparkAddMonths, add_months);
 make_udf_function!(date_add::SparkDateAdd, date_add);
 make_udf_function!(date_diff::SparkDateDiff, date_diff);
+make_udf_function!(
+    date_from_unix_date::SparkDateFromUnixDate,
+    date_from_unix_date
+);
 make_udf_function!(date_part::SparkDatePart, date_part);
 make_udf_function!(date_sub::SparkDateSub, date_sub);
 make_udf_function!(date_trunc::SparkDateTrunc, date_trunc);
+make_udf_function!(dayname::SparkDayName, dayname);
 make_udf_function!(
     from_utc_timestamp::SparkFromUtcTimestamp,
     from_utc_timestamp
@@ -105,6 +116,11 @@ pub mod expr_fn {
          days hours mins secs
     ));
     export_functions!((
+        dayname,
+        "Returns the three-letter abbreviated day name from a date.",
+        arg1
+    ));
+    export_functions!((
         make_interval,
         "Make interval from years, months, weeks, days, hours, mins and secs.",
         years months weeks days hours mins secs
@@ -125,6 +141,11 @@ pub mod expr_fn {
         date_diff,
         "Returns the number of days from start `start` to end `end`.",
         end start
+    ));
+    export_functions!((
+        date_from_unix_date,
+        "Creates a date from the number of days `days` since 1970-01-01.",
+        days
     ));
     export_functions!((
         date_trunc,
@@ -188,9 +209,11 @@ pub fn functions() -> Vec<Arc<ScalarUDF>> {
         add_months(),
         date_add(),
         date_diff(),
+        date_from_unix_date(),
         date_part(),
         date_sub(),
         date_trunc(),
+        dayname(),
         from_utc_timestamp(),
         hour(),
         last_day(),

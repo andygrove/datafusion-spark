@@ -2,9 +2,12 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+//! Spark math functions, such as `abs`, `ceil`, `floor`, `round`, `pmod`, `hex` and `width_bucket`.
+
 pub mod abs;
 pub mod atan2;
 pub mod bin;
+pub mod bround;
 pub mod ceil;
 pub mod expm1;
 pub mod factorial;
@@ -13,6 +16,7 @@ pub mod hex;
 pub mod hypot;
 pub mod modulus;
 pub mod negative;
+pub mod positive;
 pub mod pow;
 pub mod rint;
 pub mod round;
@@ -34,6 +38,7 @@ make_udf_function!(hex::SparkHex, hex);
 make_udf_function!(hypot::SparkHypot, hypot);
 make_udf_function!(modulus::SparkMod, modulus);
 make_udf_function!(modulus::SparkPmod, pmod);
+make_udf_function!(positive::SparkPositive, positive);
 make_udf_function!(pow::SparkPow, pow);
 make_udf_function!(rint::SparkRint, rint);
 make_udf_function!(round::SparkRound, round);
@@ -43,6 +48,7 @@ make_udf_function!(trigonometry::SparkCsc, csc);
 make_udf_function!(trigonometry::SparkSec, sec);
 make_udf_function!(negative::SparkNegative, negative);
 make_udf_function!(bin::SparkBin, bin);
+make_udf_function!(bround::SparkBRound, bround);
 
 pub mod expr_fn {
     use datafusion_functions::export_functions;
@@ -85,10 +91,16 @@ pub mod expr_fn {
         "Returns the negation of expr (unary minus).",
         arg1
     ));
+    export_functions!((positive, "Returns expr unchanged (unary plus).", arg1));
     export_functions!((
         bin,
         "Returns the string representation of the long value represented in binary.",
         arg1
+    ));
+    export_functions!((
+        bround,
+        "Rounds the value of expr to scale decimal places using HALF_EVEN rounding mode.",
+        arg1 arg2
     ));
 }
 
@@ -112,6 +124,8 @@ pub fn functions() -> Vec<Arc<ScalarUDF>> {
         csc(),
         sec(),
         negative(),
+        positive(),
         bin(),
+        bround(),
     ]
 }
