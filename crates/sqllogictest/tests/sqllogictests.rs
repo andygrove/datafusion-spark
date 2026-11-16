@@ -85,12 +85,11 @@ impl Mode {
 /// `invoke_with_args` yet, with the issue that tracks it. A failure in one of these
 /// files is reported but does not fail the run. A pass fails the run, so the entry is
 /// removed once the issue is fixed.
-const EVALUATE_KNOWN_FAILURES: [(&str, &str); 8] = [
+const EVALUATE_KNOWN_FAILURES: [(&str, &str); 7] = [
     ("conditional/if.slt", "#305"),
     ("datetime/date_diff.slt", "#307"),
     ("datetime/date_part.slt", "#308"),
     ("datetime/date_trunc.slt", "#309"),
-    ("datetime/time_trunc.slt", "#310"),
     ("datetime/trunc.slt", "#311"),
     ("datetime/add_months.slt", "#312"),
     ("string/base64.slt", "#313"),

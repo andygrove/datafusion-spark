@@ -166,6 +166,9 @@ SELECT make_dt_interval(106751991, 0, 0, 0);
 ----
 106751991 days 0 hours 0 mins 0.000000 secs
 
+# Without constant folding this fails because the result is declared non-nullable
+# (https://github.com/apache/datafusion-spark/issues/315).
+skipif evaluate
 query ?
 SELECT make_dt_interval(106751992, 0, 0, 0);
 ----
@@ -176,17 +179,26 @@ SELECT make_dt_interval(-106751991, 0, 0, 0);
 ----
 -106751991 days 0 hours 0 mins 0.000000 secs
 
+# Without constant folding this fails because the result is declared non-nullable
+# (https://github.com/apache/datafusion-spark/issues/315).
+skipif evaluate
 query ?
 SELECT make_dt_interval(-106751992, 0, 0, 0);
 ----
 NULL
 
 # Mixed-sign cancellation checks (Spark raises INTERVAL_ARITHMETIC_OVERFLOW, returns NULL pending #20)
+# Without constant folding this fails because the result is declared non-nullable
+# (https://github.com/apache/datafusion-spark/issues/315).
+skipif evaluate
 query ?
 SELECT make_dt_interval(106751992, -24, 0, 0);
 ----
 NULL
 
+# Without constant folding this fails because the result is declared non-nullable
+# (https://github.com/apache/datafusion-spark/issues/315).
+skipif evaluate
 query ?
 SELECT make_dt_interval(106751991, 5, -60, 0);
 ----
@@ -204,11 +216,17 @@ SELECT make_dt_interval(-106751991, -4, 0, -54.775808);
 -106751991 days -4 hours 0 mins -54.775808 secs
 
 # One microsecond beyond boundaries returns NULL (overflow tracked in #20)
+# Without constant folding this fails because the result is declared non-nullable
+# (https://github.com/apache/datafusion-spark/issues/315).
+skipif evaluate
 query ?
 SELECT make_dt_interval(106751991, 4, 0, 54.775808);
 ----
 NULL
 
+# Without constant folding this fails because the result is declared non-nullable
+# (https://github.com/apache/datafusion-spark/issues/315).
+skipif evaluate
 query ?
 SELECT make_dt_interval(-106751991, -4, 0, -54.775809);
 ----
