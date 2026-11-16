@@ -207,6 +207,12 @@ SELECT json_array_length(2);
 statement error 'json_array_length' does not support zero arguments
 SELECT json_array_length();
 
+statement error Function 'json_array_length' requires String, but received Boolean
+SELECT json_array_length(true);
+
+statement error Function 'json_array_length' requires String, but received Binary
+SELECT json_array_length(arrow_cast('[1,2]', 'Binary'));
+
 # ANSI mode does not change the result
 statement ok
 SET datafusion.execution.enable_ansi_mode = true;
@@ -246,6 +252,12 @@ NULL
 NULL
 0
 NULL
+
+# The result type is Int32, as in Spark
+query T
+SELECT arrow_typeof(json_array_length(column1)) FROM json_array_length_t LIMIT 1;
+----
+Int32
 
 query I
 SELECT json_array_length(arrow_cast(column1, 'LargeUtf8')) FROM json_array_length_t;
