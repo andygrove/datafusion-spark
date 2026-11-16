@@ -25,7 +25,10 @@ use datafusion_macros::user_doc;
         DataFusion has no built-in equivalent. Negative values give dates before the epoch. \
         Any INT is a valid date. Other numeric and string inputs are cast to INT first, which \
         truncates fractions and raises an error if the value is out of the INT range or is \
-        not a valid number. Returns NULL if the input is NULL.",
+        not a valid number. These errors match Spark with ANSI mode enabled. With ANSI mode \
+        disabled, Spark wraps an out-of-range BIGINT and returns NULL for a malformed string, \
+        while this function still errors (see https://github.com/apache/datafusion-spark/issues/88). \
+        Returns NULL if the input is NULL.",
     syntax_example = "date_from_unix_date(days)",
     sql_example = r#"```sql
 > SELECT date_from_unix_date(1000);

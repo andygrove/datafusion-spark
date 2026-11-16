@@ -166,5 +166,13 @@ SELECT date_from_unix_date(column1) FROM (VALUES (1.7::DOUBLE), (-1.7::DOUBLE), 
 1969-12-31
 NULL
 
+# The result is nullable only when the input is, as in Spark
+query TTT
+DESCRIBE SELECT date_from_unix_date(a) AS not_null_result, date_from_unix_date(b) AS nullable_result
+FROM VALUES (1::INT, NULL::INT), (2::INT, 3::INT) AS t(a, b);
+----
+not_null_result Date32 NO
+nullable_result Date32 YES
+
 statement ok
 DROP TABLE date_from_unix_date_t;
