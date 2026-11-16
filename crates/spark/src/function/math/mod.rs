@@ -11,6 +11,7 @@ pub mod ceil;
 pub mod expm1;
 pub mod factorial;
 pub mod floor;
+pub mod greatest_least;
 pub mod hex;
 pub mod hypot;
 pub mod modulus;
@@ -32,6 +33,8 @@ make_udf_function!(ceil::SparkCeil, ceil);
 make_udf_function!(expm1::SparkExpm1, expm1);
 make_udf_function!(factorial::SparkFactorial, factorial);
 make_udf_function!(floor::SparkFloor, floor);
+make_udf_function!(greatest_least::SparkGreatest, greatest);
+make_udf_function!(greatest_least::SparkLeast, least);
 make_udf_function!(hex::SparkHex, hex);
 make_udf_function!(hypot::SparkHypot, hypot);
 make_udf_function!(modulus::SparkMod, modulus);
@@ -59,6 +62,16 @@ pub mod expr_fn {
         arg1
     ));
     export_functions!((floor, "Returns floor of expr.", arg1));
+    export_functions!((
+        greatest,
+        "Returns the greatest value of all arguments, skipping nulls.",
+        args,
+    ));
+    export_functions!((
+        least,
+        "Returns the least value of all arguments, skipping nulls.",
+        args,
+    ));
     export_functions!((hex, "Computes hex value of the given column.", arg1));
     export_functions!((hypot, "Returns sqrt(a^2 + b^2) without intermediate overflow or underflow.", arg1 arg2));
     export_functions!((modulus, "Returns the remainder of division of the first argument by the second argument.", arg1 arg2));
@@ -102,6 +115,8 @@ pub fn functions() -> Vec<Arc<ScalarUDF>> {
         expm1(),
         factorial(),
         floor(),
+        greatest(),
+        least(),
         hex(),
         hypot(),
         modulus(),

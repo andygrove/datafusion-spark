@@ -35,7 +35,7 @@ pub(super) fn normalize_floats(value: &ColumnarValue) -> Result<ColumnarValue> {
 }
 
 /// Returns whether values of this type are, or hold at any depth, floating point numbers.
-pub(super) fn contains_float(data_type: &DataType) -> bool {
+pub(crate) fn contains_float(data_type: &DataType) -> bool {
     match data_type {
         DataType::Float32 | DataType::Float64 => true,
         DataType::List(field)
@@ -51,7 +51,7 @@ pub(super) fn contains_float(data_type: &DataType) -> bool {
 
 /// Rewrites `-0.0` to `0.0` and every NaN to the canonical NaN at any depth of list, large
 /// list, fixed-size list, struct and map. Children without floats are reused as they are.
-pub(super) fn normalize_array(array: &ArrayRef) -> Result<ArrayRef> {
+pub(crate) fn normalize_array(array: &ArrayRef) -> Result<ArrayRef> {
     if !contains_float(array.data_type()) {
         return Ok(Arc::clone(array));
     }
