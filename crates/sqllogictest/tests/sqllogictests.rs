@@ -6,7 +6,10 @@
 //! functions registered and the Spark SQL dialect enabled.
 //!
 //! Usage: `cargo test -p datafusion-spark-sqllogictest -- [FILTER]`, where `FILTER` is an
-//! optional substring of the test file path.
+//! optional substring of the test file path. Pass `--complete` to rewrite the expected results
+//! in the matching files with the actual results instead of checking them.
+
+mod engine;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -15,8 +18,8 @@ use datafusion::common::config::Dialect;
 use datafusion::execution::SessionStateBuilder;
 use datafusion::prelude::{SessionConfig, SessionContext};
 use datafusion_spark::SessionStateBuilderSpark;
-use datafusion_sqllogictest::{DataFusion, df_value_validator, value_normalizer};
-use indicatif::ProgressBar;
+use datafusion_sqllogictest::{df_value_validator, value_normalizer};
+use engine::SparkDataFusion;
 use sqllogictest::strict_column_validator;
 
 fn collect_slt_files(dir: &Path, files: &mut Vec<PathBuf>) -> std::io::Result<()> {
@@ -42,16 +45,21 @@ fn new_context() -> SessionContext {
     SessionContext::new_with_state(state)
 }
 
-async fn run_file(path: PathBuf, relative_path: PathBuf) -> Result<(), String> {
-    // The DataFusion engine formats floats the way Spark does for paths under `spark/`
-    let engine_path = Path::new("spark").join(&relative_path);
-    let mut runner = sqllogictest::Runner::new(|| async {
-        Ok(DataFusion::new(
-            new_context(),
-            engine_path.clone(),
-            ProgressBar::hidden(),
-        ))
-    });
+async fn run_file(path: PathBuf, complete: bool) -> Result<(), String> {
+    let mut runner =
+        sqllogictest::Runner::new(|| async { Ok(SparkDataFusion::new(new_context())) });
+    if complete {
+        return runner
+            .update_test_file(
+                &path,
+                " ",
+                df_value_validator,
+                value_normalizer,
+                strict_column_validator,
+            )
+            .await
+            .map_err(|e| e.to_string());
+    }
     runner.with_column_validator(strict_column_validator);
     runner.with_normalizer(value_normalizer);
     runner.with_validator(df_value_validator);
@@ -63,7 +71,8 @@ async fn run_file(path: PathBuf, relative_path: PathBuf) -> Result<(), String> {
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    // Ignore flags such as `--nocapture` that `cargo test` may pass through.
+    let complete = std::env::args().any(|arg| arg == "--complete");
+    // Ignore other flags such as `--nocapture` that `cargo test` may pass through.
     let filters: Vec<String> = std::env::args()
         .skip(1)
         .filter(|arg| !arg.starts_with('-'))
@@ -83,7 +92,7 @@ async fn main() -> ExitCode {
         {
             continue;
         }
-        handles.push((relative.clone(), tokio::spawn(run_file(path, relative))));
+        handles.push((relative.clone(), tokio::spawn(run_file(path, complete))));
     }
 
     let total = handles.len();

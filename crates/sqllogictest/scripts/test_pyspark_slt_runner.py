@@ -299,16 +299,15 @@ class FormatTest(unittest.TestCase):
         return r.format_cell(value, tree, time_zone)
 
     def test_doubles(self):
-        # Expected strings from conversion.rs tests and DataFusion's float_to_str.
+        # Expected strings from Rust's `Display` for f64, as the test engine prints them.
         double = ("double",)
         self.assertEqual(self.cell(11.0, double), "11")
         self.assertEqual(self.cell(-0.011, double), "-0.011")
-        self.assertEqual(self.cell(0.12345678901234567, double), "0.123456789012346")
+        self.assertEqual(self.cell(0.12345678901234567, double), "0.12345678901234566")
+        self.assertEqual(self.cell(2.9999999999999996, double), "2.9999999999999996")
         self.assertEqual(self.cell(1e20, double), "100000000000000000000")
-        self.assertEqual(self.cell(-0.0, double), "0")
-        # BigDecimal::round rounds half to even.
-        self.assertEqual(self.cell(0.1234567890123445, double), "0.123456789012344")
-        self.assertEqual(self.cell(0.1234567890123455, double), "0.123456789012346")
+        self.assertEqual(self.cell(1e-20, double), "0.00000000000000000001")
+        self.assertEqual(self.cell(-0.0, double), "-0")
         self.assertEqual(self.cell(float("nan"), double), "NaN")
         self.assertEqual(self.cell(float("-inf"), double), "-Infinity")
 

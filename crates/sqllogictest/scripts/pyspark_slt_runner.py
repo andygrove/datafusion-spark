@@ -925,8 +925,12 @@ def _shortest_f32(value: float) -> str:
     return repr(value)
 
 
-def _round_float(value: float, single: bool, digits: int) -> str:
-    """DataFusion's float_to_str: round, drop trailing zeros, no exponent."""
+def _plain_float(value: float, single: bool) -> str:
+    """The test engine's float text: shortest round-trip digits, no exponent.
+
+    This is Rust's `Display` for floats: a whole number has no `.0`, and `-0.0`
+    keeps its sign. NaN ignores its sign.
+    """
     if math.isnan(value):
         return "NaN"
     if math.isinf(value):
@@ -934,11 +938,7 @@ def _round_float(value: float, single: bool, digits: int) -> str:
     text = _shortest_f32(value) if single else repr(value)
     with localcontext() as ctx:
         ctx.prec = 1000
-        # BigDecimal::round rounds half to even.
-        rounded = Decimal(text).quantize(Decimal(1).scaleb(-digits), ROUND_HALF_EVEN)
-        text = format(rounded.normalize(), "f")
-    # BigDecimal has no negative zero.
-    return "0" if text == "-0" else text
+        return format(Decimal(text).normalize(), "f")
 
 
 def _ryu(value: float, single: bool) -> str:
@@ -1074,11 +1074,9 @@ def format_cell(value, tree: tuple, time_zone: str) -> str:
         if value == "":
             return "(empty)"
         return value.rstrip("\n").replace("\x00", "\\0")
-    if kind == "float":
-        return _round_float(value, single=True, digits=12)
-    if kind == "double":
-        # The engine keeps 15 decimal places for the Spark test files.
-        return _round_float(value, single=False, digits=15)
+    if kind in ("float", "double"):
+        # The engine prints floats at full precision.
+        return _plain_float(value, single=kind == "float")
     return format_nested(value, tree, time_zone)
 
 
