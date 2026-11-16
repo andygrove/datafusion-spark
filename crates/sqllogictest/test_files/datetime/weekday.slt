@@ -53,6 +53,13 @@ SELECT weekday('2024-01-07'::DATE);
 ----
 6
 
+# The whole Int32 epoch-day range: -5877641-06-23 and +5881580-07-11, which
+# are outside chrono's calendar. Verified against Spark 4.2.0.
+query II
+SELECT weekday(date_from_unix_date(-2147483648)), weekday(date_from_unix_date(2147483647));
+----
+1 4
+
 # NULL handling
 query I
 SELECT weekday(NULL::DATE);

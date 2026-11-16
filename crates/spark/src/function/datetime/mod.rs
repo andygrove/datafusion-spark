@@ -11,6 +11,7 @@ mod date_part_name;
 pub mod date_sub;
 pub mod date_trunc;
 pub mod dayname;
+pub mod dayofweek;
 pub mod extract;
 pub mod from_utc_timestamp;
 pub mod last_day;
@@ -40,6 +41,7 @@ make_udf_function!(date_part::SparkDatePart, date_part);
 make_udf_function!(date_sub::SparkDateSub, date_sub);
 make_udf_function!(date_trunc::SparkDateTrunc, date_trunc);
 make_udf_function!(dayname::SparkDayName, dayname);
+make_udf_function!(dayofweek::SparkDayOfWeek, dayofweek);
 make_udf_function!(
     from_utc_timestamp::SparkFromUtcTimestamp,
     from_utc_timestamp
@@ -115,6 +117,11 @@ pub mod expr_fn {
     export_functions!((
         dayname,
         "Returns the three-letter abbreviated day name from a date.",
+        arg1
+    ));
+    export_functions!((
+        dayofweek,
+        "Returns the day of the week for date/timestamp as an integer where Sunday = 1, Monday = 2, ..., Saturday = 7.",
         arg1
     ));
     export_functions!((
@@ -211,6 +218,7 @@ pub fn functions() -> Vec<Arc<ScalarUDF>> {
         date_sub(),
         date_trunc(),
         dayname(),
+        dayofweek(),
         from_utc_timestamp(),
         hour(),
         last_day(),
