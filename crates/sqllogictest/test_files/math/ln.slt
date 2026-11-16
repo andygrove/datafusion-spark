@@ -8,7 +8,71 @@
 # For more information, please see:
 #   https://github.com/apache/datafusion/issues/15914
 
+
 ## Original Query: SELECT ln(1);
 ## PySpark 3.5.5 Result: {'ln(1)': 0.0, 'typeof(ln(1))': 'double', 'typeof(1)': 'int'}
-#query
-#SELECT ln(1::int);
+query R
+SELECT ln(1::int);
+----
+0
+
+# Result is always DOUBLE
+query T
+SELECT arrow_typeof(ln(1::int));
+----
+Float64
+
+query R
+SELECT ln(2::double);
+----
+0.6931471805599453
+
+query R
+SELECT ln(0.5::double);
+----
+-0.6931471805599453
+
+# Integer, float and decimal inputs are cast to DOUBLE
+query RRRR
+SELECT ln(10::tinyint) AS a, ln(10::bigint) AS b, ln(10::float) AS c, ln(10::decimal(5, 2)) AS d;
+----
+2.302585092994046 2.302585092994046 2.302585092994046 2.302585092994046
+
+# Spark returns NULL, not -Infinity or NaN, for an input <= 0
+query RRRR
+SELECT ln(0::int) AS a, ln(-0.0::double) AS b, ln(-1::int) AS c, ln('-Infinity'::double) AS d;
+----
+NULL NULL NULL NULL
+
+query R
+SELECT ln(NULL::double);
+----
+NULL
+
+# NaN is not <= 0, so NaN returns NaN
+query R
+SELECT ln('NaN'::double);
+----
+NaN
+
+query RRR
+SELECT ln('Infinity'::double), ln(1.7976931348623157e308::double), ln(4.9e-324::double);
+----
+Infinity 709.782712893384 -744.4400719213812
+
+# Array path, including NULL and non-positive rows
+query R
+SELECT ln(a) FROM (VALUES (1::double), (0::double), (NULL::double), (-5::double), (2::double)) AS t(a);
+----
+0
+NULL
+NULL
+NULL
+0.6931471805599453
+
+# Spark uses StrictMath.log (fdlibm), which differs from Rust's f64::ln in the
+# last digit for some inputs (f64::ln gives -0.4000133310645469 here)
+query R
+SELECT ln(0.670311110015402::double);
+----
+-0.40001333106454684

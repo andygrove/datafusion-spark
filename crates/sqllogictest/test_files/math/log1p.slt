@@ -8,7 +8,58 @@
 # For more information, please see:
 #   https://github.com/apache/datafusion/issues/15914
 
+
 ## Original Query: SELECT log1p(0);
 ## PySpark 3.5.5 Result: {'LOG1P(0)': 0.0, 'typeof(LOG1P(0))': 'double', 'typeof(0)': 'int'}
-#query
-#SELECT log1p(0::int);
+query R
+SELECT log1p(0::int);
+----
+0
+
+query T
+SELECT arrow_typeof(log1p(0::int));
+----
+Float64
+
+query RR
+SELECT log1p(1::int), log1p(-0.5::double);
+----
+0.6931471805599453 -0.6931471805599453
+
+# Accurate near 0, where ln(1 + x) would round to 0
+query R
+SELECT log1p(1e-20::double);
+----
+0.00000000000000000001
+
+# Spark returns NULL, not -Infinity or NaN, for an input <= -1
+query RRR
+SELECT log1p(-1::int), log1p(-2::int), log1p('-Infinity'::double);
+----
+NULL NULL NULL
+
+query RRR
+SELECT log1p(NULL::double), log1p('NaN'::double), log1p('Infinity'::double);
+----
+NULL NaN Infinity
+
+query R
+SELECT log1p(a) FROM (VALUES (0::double), (-1::double), (NULL::double), (-0.5::double)) AS t(a);
+----
+0
+NULL
+NULL
+-0.6931471805599453
+
+# Spark uses StrictMath.log1p (fdlibm), which differs from Rust's f64::ln_1p in
+# the last digit for some inputs (f64::ln_1p gives 0.5130099025005953 here)
+query R
+SELECT log1p(0.670311110015402::double);
+----
+0.5130099025005954
+
+# -0.0 is above the asymptote, and log1p(-0.0) is -0.0
+query R
+SELECT log1p(-0.0::double);
+----
+-0

@@ -8,7 +8,102 @@
 # For more information, please see:
 #   https://github.com/apache/datafusion/issues/15914
 
+
 ## Original Query: SELECT log(10, 100);
 ## PySpark 3.5.5 Result: {'LOG(10, 100)': 2.0, 'typeof(LOG(10, 100))': 'double', 'typeof(10)': 'int', 'typeof(100)': 'int'}
-#query
-#SELECT log(10::int, 100::int);
+query R
+SELECT log(10::int, 100::int);
+----
+2
+
+query T
+SELECT arrow_typeof(log(10::int, 100::int));
+----
+Float64
+
+query RR
+SELECT log(2::bigint, 1024::bigint), log(0.5::double, 8::double);
+----
+10 -3
+
+# Computed as ln(expr) / ln(base), so results can be off in the last digit.
+# Rust's f64::ln gives 4 for log(3, 81); StrictMath.log, which Spark uses,
+# gives 4.000000000000001.
+query RR
+SELECT log(10::int, 1000::int), log(3::int, 81::int);
+----
+2.9999999999999996 4.000000000000001
+
+query R
+SELECT log(10::decimal(5, 1), 100::decimal(5, 1));
+----
+2
+
+# One argument is the natural logarithm, not base 10 as in DataFusion
+query RRR
+SELECT log(1::int), log(2::double), log(10::decimal(5, 2));
+----
+0 0.6931471805599453 2.302585092994046
+
+query T
+SELECT arrow_typeof(log(1::int));
+----
+Float64
+
+# NULL if either argument is <= 0
+query RRRRRR
+SELECT log(0::int, 10::int), log(-2::int, 10::int), log(2::int, 0::int), log(2::int, -8::int), log(-1::double), log(0::double);
+----
+NULL NULL NULL NULL NULL NULL
+
+# ...even when the other argument is NaN
+query RR
+SELECT log(0::double, 'NaN'::double), log('NaN'::double, -1::double);
+----
+NULL NULL
+
+query RRRR
+SELECT log(NULL::double, 2::double), log(2::double, NULL::double), log(NULL::double), log(NULL::double, NULL::double);
+----
+NULL NULL NULL NULL
+
+query RRR
+SELECT log('NaN'::double, 2::double), log(2::double, 'NaN'::double), log('NaN'::double);
+----
+NaN NaN NaN
+
+# A base of 1 divides by ln(1) = 0
+query RRR
+SELECT log(1::int, 2::int), log(1::double, 0.5::double), log(1::int, 1::int);
+----
+Infinity -Infinity NaN
+
+query RRR
+SELECT log('Infinity'::double, 2::double), log(2::double, 'Infinity'::double), log('Infinity'::double, 'Infinity'::double);
+----
+0 Infinity NaN
+
+# Array path, including NULL and non-positive rows
+query R
+SELECT log(b, x) FROM (VALUES (10::double, 100::double), (2::double, 0::double), (NULL::double, 3::double), (0::double, 3::double), (2::double, 8::double)) AS t(b, x);
+----
+2
+NULL
+NULL
+NULL
+3
+
+# Scalar base with an array expr
+query R
+SELECT log(2::int, x) FROM (VALUES (8::double), (-1::double), (NULL::double)) AS t(x);
+----
+3
+NULL
+NULL
+
+query R
+SELECT log(x) FROM (VALUES (1::double), (0::double), (NULL::double)) AS t(x);
+----
+0
+NULL
+NULL

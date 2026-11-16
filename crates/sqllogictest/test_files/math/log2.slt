@@ -8,7 +8,51 @@
 # For more information, please see:
 #   https://github.com/apache/datafusion/issues/15914
 
+
 ## Original Query: SELECT log2(2);
 ## PySpark 3.5.5 Result: {'LOG2(2)': 1.0, 'typeof(LOG2(2))': 'double', 'typeof(2)': 'int'}
-#query
-#SELECT log2(2::int);
+query R
+SELECT log2(2::int);
+----
+1
+
+query T
+SELECT arrow_typeof(log2(2::int));
+----
+Float64
+
+query RRRR
+SELECT log2(8::int), log2(1024::bigint), log2(0.5::double), log2(3::double);
+----
+3 10 -1 1.584962500721156
+
+# Spark computes ln(x) / ln(2), not an exact base 2 logarithm, so some
+# powers of two are off in the last digit
+query RR
+SELECT log2(536870912::int), log2(2147483648::bigint);
+----
+29.000000000000004 31.000000000000004
+
+query R
+SELECT log2(4.9e-324::double);
+----
+-1074
+
+# Spark returns NULL, not -Infinity or NaN, for an input <= 0
+query RRR
+SELECT log2(0::int), log2(-2::int), log2('-Infinity'::double);
+----
+NULL NULL NULL
+
+query RRR
+SELECT log2(NULL::double), log2('NaN'::double), log2('Infinity'::double);
+----
+NULL NaN Infinity
+
+query R
+SELECT log2(a) FROM (VALUES (8::double), (0::double), (NULL::double), (-1::double)) AS t(a);
+----
+3
+NULL
+NULL
+NULL

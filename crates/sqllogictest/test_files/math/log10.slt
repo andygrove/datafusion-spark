@@ -8,7 +8,51 @@
 # For more information, please see:
 #   https://github.com/apache/datafusion/issues/15914
 
+
 ## Original Query: SELECT log10(10);
 ## PySpark 3.5.5 Result: {'LOG10(10)': 1.0, 'typeof(LOG10(10))': 'double', 'typeof(10)': 'int'}
-#query
-#SELECT log10(10::int);
+query R
+SELECT log10(10::int);
+----
+1
+
+query T
+SELECT arrow_typeof(log10(10::int));
+----
+Float64
+
+query RRR
+SELECT log10(1000::bigint), log10(0.001::double), log10(2::double);
+----
+3 -3 0.3010299956639812
+
+query R
+SELECT log10(100::decimal(5, 1));
+----
+2
+
+# Spark returns NULL, not -Infinity or NaN, for an input <= 0
+query RRR
+SELECT log10(0::int), log10(-10::int), log10('-Infinity'::double);
+----
+NULL NULL NULL
+
+query RRR
+SELECT log10(NULL::double), log10('NaN'::double), log10('Infinity'::double);
+----
+NULL NaN Infinity
+
+query R
+SELECT log10(a) FROM (VALUES (100::double), (0::double), (NULL::double), (-1::double)) AS t(a);
+----
+2
+NULL
+NULL
+NULL
+
+# Spark uses StrictMath.log10 (fdlibm), which differs from Rust's f64::log10 in
+# the last digit for some inputs (f64::log10 gives -0.17372358236907134 here)
+query R
+SELECT log10(0.670311110015402::double);
+----
+-0.17372358236907132
