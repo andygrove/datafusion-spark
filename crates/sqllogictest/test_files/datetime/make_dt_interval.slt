@@ -143,6 +143,9 @@ SELECT make_dt_interval(1491308, 0, 0, 0);
 ----
 1491308 days 0 hours 0 mins 0.000000 secs
 
+# Without constant folding this fails because the result is declared non-nullable
+# (https://github.com/apache/datafusion-spark/issues/315).
+skipif evaluate
 query ?
 SELECT make_dt_interval(1491309, 0, 0, 0);
 ----
