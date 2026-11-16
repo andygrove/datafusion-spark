@@ -6,17 +6,43 @@ use arrow::datatypes::{DataType, Field};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue, exec_err};
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Volatility,
 };
 use datafusion_functions_nested::repeat::ArrayRepeat;
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
 use crate::function::null_utils::{
     NullMaskResolution, apply_null_mask, compute_null_mask,
 };
 
-/// Spark-compatible `array_repeat` expression. The difference with DataFusion's `array_repeat` is the handling of NULL count: in Spark if the count is NULL, the result is NULL.
+/// Spark-compatible `array_repeat` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#array_repeat>
+#[user_doc(
+    doc_section(label = "Array Functions"),
+    description = "Returns an array that contains `element` `count` times. \
+        Unlike DataFusion's `array_repeat`, a NULL `count` returns NULL. \
+        A NULL `element` is repeated like any other value, and a `count` of 0 or less returns an empty array.",
+    syntax_example = "array_repeat(element, count)",
+    sql_example = r#"```sql
+> SELECT array_repeat('123', 2);
+[123, 123]
+> SELECT array_repeat(NULL, 2);
+[NULL, NULL]
+> SELECT array_repeat('123', NULL);
+NULL
+```"#,
+    argument(
+        name = "element",
+        description = "Value to repeat, of any type. NULL is repeated."
+    ),
+    argument(
+        name = "count",
+        description = "Integer number of times to repeat `element`. Non-integer types are an error. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkArrayRepeat {
     signature: Signature,
@@ -54,6 +80,10 @@ impl ScalarUDFImpl for SparkArrayRepeat {
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         spark_array_repeat(args)
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn coerce_types(&self, arg_types: &[DataType]) -> Result<Vec<DataType>> {

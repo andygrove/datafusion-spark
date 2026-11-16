@@ -31,3 +31,7 @@ query I
 SELECT hour(NULL::timestamp);
 ----
 NULL
+
+# Spark implicitly casts a string to TIMESTAMP (https://github.com/apache/datafusion-spark/issues/41)
+statement error Function 'hour' requires Timestamp, but received String
+SELECT hour('2024-01-01 12:34:56');

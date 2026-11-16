@@ -2,6 +2,9 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+//! Spark string functions, such as `concat`, `concat_ws`, `format_string`, `substring`,
+//! `base64`, `like` and `ilike`.
+
 pub mod ascii;
 pub mod base64;
 pub mod char;

@@ -10,15 +10,44 @@ use datafusion_common::{
     Result, ScalarValue, exec_err, internal_err, utils::take_function_args,
 };
 use datafusion_expr::{
-    ArrayFunctionArgument, ArrayFunctionSignature, ColumnarValue, ReturnFieldArgs,
-    ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature, Volatility,
+    ArrayFunctionArgument, ArrayFunctionSignature, ColumnarValue, Documentation,
+    ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
+    Volatility,
 };
 use datafusion_functions_nested::extract::array_slice_udf;
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
-/// Spark slice function implementation
-/// Main difference from DataFusion's array_slice is that the third argument is the length of the slice and not the end index.
+/// Spark-compatible `slice` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#slice>
+#[user_doc(
+    doc_section(label = "Array Functions"),
+    description = "Returns the part of array `x` that starts at `start` and is at most `length` elements long. \
+        Unlike DataFusion's `array_slice`, the third argument is a length, not an end index. \
+        Positions are 1-based, and a negative `start` counts from the end of the array (-1 is the last element). \
+        A `start` past the end, or one that counts back past the first element, returns an empty array, \
+        and a `length` that runs past the end is clamped. \
+        A `start` of 0 or a negative `length` is an error. Returns NULL if any argument is NULL.",
+    syntax_example = "slice(x, start, length)",
+    sql_example = r#"```sql
+> SELECT slice(array(1, 2, 3, 4), 2, 2);
+[2, 3]
+> SELECT slice(array(1, 2, 3, 4), -2, 2);
+[3, 4]
+> SELECT slice(array(1, 2, 3, 4), 100, 2);
+[]
+```"#,
+    argument(name = "x", description = "Array to slice. NULL returns NULL."),
+    argument(
+        name = "start",
+        description = "Integer start position, 1-based. A negative value counts from the end of the array. 0 is an error."
+    ),
+    argument(
+        name = "length",
+        description = "Integer maximum number of elements to return. A negative value is an error."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkSlice {
     signature: Signature,
@@ -75,6 +104,10 @@ impl ScalarUDFImpl for SparkSlice {
         };
 
         Ok(Arc::new(Field::new("slice", data_type, nullable)))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(

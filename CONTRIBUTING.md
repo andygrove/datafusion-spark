@@ -89,3 +89,15 @@ coercion, and is usually more verbose in the setup needed to pass data in (and
 assert output data).
 
 [spark sqllogictest readme]: crates/sqllogictest/test_files/README.md
+
+## API Compatibility
+
+`datafusion-spark` makes minor and patch releases between DataFusion major versions, so `main`
+must not break its public API until it moves to the next DataFusion major version. For example, do
+not remove or rename a public item, or change the signature of a public function. New functions and
+new public items are fine, and so are changes to a function's results that make it match Spark. See
+[Versioning](dev/release/README.md#versioning) for the full policy.
+
+## Releases
+
+The release process is documented in [dev/release/README.md](dev/release/README.md).

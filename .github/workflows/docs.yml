@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+name: Docs
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  rustdoc:
+    name: cargo doc
+    runs-on: ubuntu-latest
+    env:
+      # Fail on broken intra-doc links, invalid HTML and other rustdoc
+      # warnings, as apache/datafusion's `ci/scripts/rust_docs.sh` does.
+      RUSTDOCFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+      # `--all-features` documents the items behind the `core` feature, as
+      # docs.rs does (`[package.metadata.docs.rs] all-features = true`).
+      - run: cargo doc --document-private-items --no-deps --workspace --all-features

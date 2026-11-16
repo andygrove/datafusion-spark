@@ -109,3 +109,7 @@ ORDER BY g;
 1 [5]
 2 [10, 20]
 3 []
+
+# ORDER BY inside the call is not supported (https://github.com/apache/datafusion-spark/issues/112)
+query error expects single batch
+SELECT collect_list(a ORDER BY a DESC) FROM (VALUES (3), (1), (2)) AS t(a);

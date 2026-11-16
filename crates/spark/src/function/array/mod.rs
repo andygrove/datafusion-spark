@@ -2,7 +2,11 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+//! Spark array functions, such as `array`, `array_contains`, `array_repeat`, `shuffle` and `slice`.
+
 pub mod array_contains;
+pub mod array_position;
+mod float_normalize;
 pub mod repeat;
 pub mod shuffle;
 pub mod slice;
@@ -13,6 +17,7 @@ use datafusion_functions::make_udf_function;
 use std::sync::Arc;
 
 make_udf_function!(array_contains::SparkArrayContains, spark_array_contains);
+make_udf_function!(array_position::SparkArrayPosition, array_position);
 make_udf_function!(spark_array::SparkArray, array);
 make_udf_function!(shuffle::SparkShuffle, shuffle);
 make_udf_function!(repeat::SparkArrayRepeat, array_repeat);
@@ -24,6 +29,11 @@ pub mod expr_fn {
     export_functions!((
         spark_array_contains,
         "Returns true if the array contains the element (Spark semantics).",
+        array element
+    ));
+    export_functions!((
+        array_position,
+        "Returns the 1-based position of the element in the array, or 0 if not found (Spark semantics).",
         array element
     ));
     export_functions!((array, "Returns an array with the given elements.", args));
@@ -47,6 +57,7 @@ pub mod expr_fn {
 pub fn functions() -> Vec<Arc<ScalarUDF>> {
     vec![
         spark_array_contains(),
+        array_position(),
         array(),
         shuffle(),
         array_repeat(),

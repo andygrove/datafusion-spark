@@ -14,11 +14,50 @@ use datafusion_common::{
     DataFusionError, Result, ScalarValue, internal_err, plan_datafusion_err,
 };
 use datafusion_expr::{
-    Coercion, ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
-    Signature, TypeSignature, TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs,
+    ScalarUDFImpl, Signature, TypeSignature, TypeSignatureClass, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 
+/// Spark-compatible `make_dt_interval` expression.
+///
+/// <https://spark.apache.org/docs/latest/api/sql/index.html#make_dt_interval>
+#[user_doc(
+    doc_section(label = "Time and Date Functions"),
+    description = "Returns a day-time interval built from days, hours, minutes and seconds. \
+        DataFusion has no built-in equivalent. All arguments are optional from the right and default to 0, \
+        so `make_dt_interval()` is a zero interval. Components can be negative and are added together, \
+        so `make_dt_interval(1, -24)` is zero. The result is a `Duration(Microsecond)` rather than an Arrow interval, \
+        because Arrow's day-time interval only has millisecond precision while Spark's has microsecond precision. \
+        Returns NULL if any argument is NULL or `secs` is NaN or infinite. Overflow returns NULL, where Spark raises an error ([#20](https://github.com/apache/datafusion-spark/issues/20)). \
+        Unlike Spark, where `secs` is a DECIMAL(18, 6), `secs` is cast to DOUBLE and the fraction is rounded to microseconds.",
+    syntax_example = "make_dt_interval([days[, hours[, mins[, secs]]]])",
+    sql_example = r#"```sql
+> SELECT make_dt_interval(1, 12, 30, 1.001001);
+1 days 12 hours 30 mins 1.001001 secs
+> SELECT make_dt_interval(2);
+2 days 0 hours 0 mins 0.000000 secs
+> SELECT make_dt_interval(100, NULL, 3);
+NULL
+```"#,
+    argument(
+        name = "days",
+        description = "Integer number of days, cast to INT. NULL returns NULL."
+    ),
+    argument(
+        name = "hours",
+        description = "Integer number of hours, cast to INT. NULL returns NULL."
+    ),
+    argument(
+        name = "mins",
+        description = "Integer number of minutes, cast to INT. NULL returns NULL."
+    ),
+    argument(
+        name = "secs",
+        description = "Numeric number of seconds, which may have a fraction, cast to DOUBLE. NULL, NaN or an infinite value returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkMakeDtInterval {
     signature: Signature,
@@ -70,6 +109,10 @@ impl SparkMakeDtInterval {
 impl ScalarUDFImpl for SparkMakeDtInterval {
     fn name(&self) -> &str {
         "make_dt_interval"
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn signature(&self) -> &Signature {
@@ -183,40 +226,51 @@ fn make_dt_interval_kernel(args: &[ArrayRef]) -> Result<ArrayRef, DataFusionErro
     Ok(Arc::new(builder.finish()))
 }
 fn make_interval_dt_nano(day: i32, hour: i32, min: i32, sec: f64) -> Option<i64> {
-    const HOURS_PER_DAY: i32 = 24;
-    const MINS_PER_HOUR: i32 = 60;
-    const SECS_PER_MINUTE: i64 = 60;
     const MICROS_PER_SEC: i64 = 1_000_000;
+    const MICROS_PER_MINUTE: i64 = 60 * MICROS_PER_SEC;
+    const MICROS_PER_HOUR: i64 = 60 * MICROS_PER_MINUTE;
+    const MICROS_PER_DAY: i64 = 24 * MICROS_PER_HOUR;
+    const MAX_SECS_ABS: f64 = (1i64 << 53) as f64;
 
-    let total_hours: i32 = day
-        .checked_mul(HOURS_PER_DAY)
-        .and_then(|v| v.checked_add(hour))?;
+    if !sec.is_finite() || sec <= -MAX_SECS_ABS || sec >= MAX_SECS_ABS {
+        return None;
+    }
 
-    let total_mins: i32 = total_hours
-        .checked_mul(MINS_PER_HOUR)
-        .and_then(|v| v.checked_add(min))?;
-
+    // Step 1: Convert seconds (whole and fractional) to microseconds
     let mut sec_whole: i64 = sec.trunc() as i64;
     let sec_frac: f64 = sec - (sec_whole as f64);
     let mut frac_us: i64 = (sec_frac * (MICROS_PER_SEC as f64)).round() as i64;
 
-    if frac_us.abs() >= MICROS_PER_SEC {
-        if frac_us > 0 {
-            frac_us -= MICROS_PER_SEC;
-            sec_whole = sec_whole.checked_add(1)?;
-        } else {
-            frac_us += MICROS_PER_SEC;
-            sec_whole = sec_whole.checked_sub(1)?;
-        }
+    if frac_us >= MICROS_PER_SEC {
+        frac_us -= MICROS_PER_SEC;
+        sec_whole = sec_whole.checked_add(1)?;
+    } else if frac_us <= -MICROS_PER_SEC {
+        frac_us += MICROS_PER_SEC;
+        sec_whole = sec_whole.checked_sub(1)?;
     }
 
-    let total_secs: i64 = (total_mins as i64)
-        .checked_mul(SECS_PER_MINUTE)
-        .and_then(|v| v.checked_add(sec_whole))?;
+    let sec_us: i64 = sec_whole
+        .checked_mul(MICROS_PER_SEC)?
+        .checked_add(frac_us)?;
 
-    let total_us = total_secs
-        .checked_mul(MICROS_PER_SEC)
-        .and_then(|v| v.checked_add(frac_us))?;
+    // Step 2: Accumulate components sequentially in microseconds, matching Spark's
+    // exact IntervalUtils.makeDayTimeInterval evaluation order:
+    //   var micros = secs.toUnscaledLong
+    //   micros = Math.addExact(micros, Math.multiplyExact(days, MICROS_PER_DAY))
+    //   micros = Math.addExact(micros, Math.multiplyExact(hours, MICROS_PER_HOUR))
+    //   micros = Math.addExact(micros, Math.multiplyExact(mins, MICROS_PER_MINUTE))
+    // Checking each addition and multiplication independently prevents opposite-sign
+    // components from cancelling an intermediate overflow.
+    let mut total_us = sec_us;
+
+    let day_us = (day as i64).checked_mul(MICROS_PER_DAY)?;
+    total_us = total_us.checked_add(day_us)?;
+
+    let hour_us = (hour as i64).checked_mul(MICROS_PER_HOUR)?;
+    total_us = total_us.checked_add(hour_us)?;
+
+    let min_us = (min as i64).checked_mul(MICROS_PER_MINUTE)?;
+    total_us = total_us.checked_add(min_us)?;
 
     Some(total_us)
 }
@@ -562,6 +616,364 @@ mod tests {
             "make_dt_interval should return execution error for more than 4 arguments"
         );
 
+        Ok(())
+    }
+    #[test]
+    fn large_day_1_500_000_returns_correct_duration() -> Result<()> {
+        let days = Arc::new(Int32Array::from(vec![Some(1_500_000)])) as ArrayRef;
+        let hours = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let mins = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let secs = Arc::new(Float64Array::from(vec![Some(0.0)])) as ArrayRef;
+
+        let out = run_make_dt_interval(vec![days, hours, mins, secs])?;
+        let out = out
+            .as_any()
+            .downcast_ref::<DurationMicrosecondArray>()
+            .ok_or_else(|| {
+                internal_datafusion_err!("expected DurationMicrosecondArray")
+            })?;
+
+        assert_eq!(out.len(), 1);
+        assert!(!out.is_null(0));
+        assert_eq!(out.value(0), 129_600_000_000_000_000);
+        Ok(())
+    }
+
+    #[test]
+    fn boundary_1_491_308_days_and_hours_and_mins() -> Result<()> {
+        let days = Arc::new(Int32Array::from(vec![Some(1_491_308)])) as ArrayRef;
+        let hours = Arc::new(Int32Array::from(vec![Some(2)])) as ArrayRef;
+        let mins = Arc::new(Int32Array::from(vec![Some(8)])) as ArrayRef;
+        let secs = Arc::new(Float64Array::from(vec![Some(0.0)])) as ArrayRef;
+
+        let out = run_make_dt_interval(vec![days, hours, mins, secs])?;
+        let out = out
+            .as_any()
+            .downcast_ref::<DurationMicrosecondArray>()
+            .ok_or_else(|| {
+                internal_datafusion_err!("expected DurationMicrosecondArray")
+            })?;
+
+        assert_eq!(out.len(), 1);
+        assert!(!out.is_null(0));
+        assert_eq!(out.value(0), 128_849_018_880_000_000);
+        Ok(())
+    }
+
+    #[test]
+    fn boundary_1_491_309_days_exceeds_i32_mins_safely() -> Result<()> {
+        let days = Arc::new(Int32Array::from(vec![Some(1_491_309)])) as ArrayRef;
+        let hours = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let mins = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let secs = Arc::new(Float64Array::from(vec![Some(0.0)])) as ArrayRef;
+
+        let out = run_make_dt_interval(vec![days, hours, mins, secs])?;
+        let out = out
+            .as_any()
+            .downcast_ref::<DurationMicrosecondArray>()
+            .ok_or_else(|| {
+                internal_datafusion_err!("expected DurationMicrosecondArray")
+            })?;
+
+        assert_eq!(out.len(), 1);
+        assert!(!out.is_null(0));
+        assert_eq!(out.value(0), 128_849_097_600_000_000);
+        Ok(())
+    }
+
+    #[test]
+    fn large_negative_day_1_500_000() -> Result<()> {
+        let days = Arc::new(Int32Array::from(vec![Some(-1_500_000)])) as ArrayRef;
+        let hours = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let mins = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let secs = Arc::new(Float64Array::from(vec![Some(0.0)])) as ArrayRef;
+
+        let out = run_make_dt_interval(vec![days, hours, mins, secs])?;
+        let out = out
+            .as_any()
+            .downcast_ref::<DurationMicrosecondArray>()
+            .ok_or_else(|| {
+                internal_datafusion_err!("expected DurationMicrosecondArray")
+            })?;
+
+        assert_eq!(out.len(), 1);
+        assert!(!out.is_null(0));
+        assert_eq!(out.value(0), -129_600_000_000_000_000);
+        Ok(())
+    }
+
+    #[test]
+    fn large_hours_exceeding_i32_minutes() -> Result<()> {
+        let days = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let hours = Arc::new(Int32Array::from(vec![Some(35_791_395)])) as ArrayRef;
+        let mins = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let secs = Arc::new(Float64Array::from(vec![Some(0.0)])) as ArrayRef;
+
+        let out = run_make_dt_interval(vec![days, hours, mins, secs])?;
+        let out = out
+            .as_any()
+            .downcast_ref::<DurationMicrosecondArray>()
+            .ok_or_else(|| {
+                internal_datafusion_err!("expected DurationMicrosecondArray")
+            })?;
+
+        assert_eq!(out.len(), 1);
+        assert!(!out.is_null(0));
+        assert_eq!(out.value(0), 128_849_022_000_000_000);
+        Ok(())
+    }
+
+    #[test]
+    fn max_representable_duration_microsecond_i64_max() -> Result<()> {
+        let days = Arc::new(Int32Array::from(vec![Some(106_751_991)])) as ArrayRef;
+        let hours = Arc::new(Int32Array::from(vec![Some(4)])) as ArrayRef;
+        let mins = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let secs = Arc::new(Float64Array::from(vec![Some(54.775_807)])) as ArrayRef;
+
+        let out = run_make_dt_interval(vec![days, hours, mins, secs])?;
+        let out = out
+            .as_any()
+            .downcast_ref::<DurationMicrosecondArray>()
+            .ok_or_else(|| {
+                internal_datafusion_err!("expected DurationMicrosecondArray")
+            })?;
+
+        assert_eq!(out.len(), 1);
+        assert!(!out.is_null(0));
+        assert_eq!(out.value(0), i64::MAX);
+        Ok(())
+    }
+
+    #[test]
+    fn exceed_i64_max_by_one_microsecond_returns_null() -> Result<()> {
+        let days = Arc::new(Int32Array::from(vec![Some(106_751_991)])) as ArrayRef;
+        let hours = Arc::new(Int32Array::from(vec![Some(4)])) as ArrayRef;
+        let mins = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let secs = Arc::new(Float64Array::from(vec![Some(54.775_808)])) as ArrayRef;
+
+        let out = run_make_dt_interval(vec![days, hours, mins, secs])?;
+        let out = out
+            .as_any()
+            .downcast_ref::<DurationMicrosecondArray>()
+            .ok_or_else(|| {
+                internal_datafusion_err!("expected DurationMicrosecondArray")
+            })?;
+
+        assert_eq!(out.len(), 1);
+        assert!(out.is_null(0));
+        Ok(())
+    }
+
+    #[test]
+    fn overflow_beyond_max_days_returns_null() -> Result<()> {
+        let days = Arc::new(Int32Array::from(vec![Some(106_751_992)])) as ArrayRef;
+        let hours = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let mins = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let secs = Arc::new(Float64Array::from(vec![Some(0.0)])) as ArrayRef;
+
+        let out = run_make_dt_interval(vec![days, hours, mins, secs])?;
+        let out = out
+            .as_any()
+            .downcast_ref::<DurationMicrosecondArray>()
+            .ok_or_else(|| {
+                internal_datafusion_err!("expected DurationMicrosecondArray")
+            })?;
+
+        assert_eq!(out.len(), 1);
+        assert!(out.is_null(0));
+        Ok(())
+    }
+
+    #[test]
+    fn min_representable_duration_microsecond_i64_min() -> Result<()> {
+        let days = Arc::new(Int32Array::from(vec![Some(-106_751_991)])) as ArrayRef;
+        let hours = Arc::new(Int32Array::from(vec![Some(-4)])) as ArrayRef;
+        let mins = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let secs = Arc::new(Float64Array::from(vec![Some(-54.775_808)])) as ArrayRef;
+
+        let out = run_make_dt_interval(vec![days, hours, mins, secs])?;
+        let out = out
+            .as_any()
+            .downcast_ref::<DurationMicrosecondArray>()
+            .ok_or_else(|| {
+                internal_datafusion_err!("expected DurationMicrosecondArray")
+            })?;
+
+        assert_eq!(out.len(), 1);
+        assert!(!out.is_null(0));
+        assert_eq!(out.value(0), i64::MIN);
+        Ok(())
+    }
+
+    #[test]
+    fn fractional_second_rounding_with_large_days() -> Result<()> {
+        let days = Arc::new(Int32Array::from(vec![Some(1_500_000)])) as ArrayRef;
+        let hours = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let mins = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let secs = Arc::new(Float64Array::from(vec![Some(0.000_000_6)])) as ArrayRef;
+
+        let out = run_make_dt_interval(vec![days, hours, mins, secs])?;
+        let out = out
+            .as_any()
+            .downcast_ref::<DurationMicrosecondArray>()
+            .ok_or_else(|| {
+                internal_datafusion_err!("expected DurationMicrosecondArray")
+            })?;
+
+        assert_eq!(out.len(), 1);
+        assert!(!out.is_null(0));
+        assert_eq!(out.value(0), 129_600_000_000_000_001);
+        Ok(())
+    }
+    #[test]
+    fn underflow_i64_min_by_one_microsecond_returns_null() -> Result<()> {
+        let days = Arc::new(Int32Array::from(vec![Some(-106_751_991)])) as ArrayRef;
+        let hours = Arc::new(Int32Array::from(vec![Some(-4)])) as ArrayRef;
+        let mins = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let secs = Arc::new(Float64Array::from(vec![Some(-54.775_809)])) as ArrayRef;
+
+        let out = run_make_dt_interval(vec![days, hours, mins, secs])?;
+        let out = out
+            .as_any()
+            .downcast_ref::<DurationMicrosecondArray>()
+            .ok_or_else(|| {
+                internal_datafusion_err!("expected DurationMicrosecondArray")
+            })?;
+
+        assert_eq!(out.len(), 1);
+        assert!(out.is_null(0));
+        Ok(())
+    }
+
+    #[test]
+    fn underflow_beyond_min_days_returns_null() -> Result<()> {
+        let days = Arc::new(Int32Array::from(vec![Some(-106_751_992)])) as ArrayRef;
+        let hours = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let mins = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let secs = Arc::new(Float64Array::from(vec![Some(0.0)])) as ArrayRef;
+
+        let out = run_make_dt_interval(vec![days, hours, mins, secs])?;
+        let out = out
+            .as_any()
+            .downcast_ref::<DurationMicrosecondArray>()
+            .ok_or_else(|| {
+                internal_datafusion_err!("expected DurationMicrosecondArray")
+            })?;
+
+        assert_eq!(out.len(), 1);
+        assert!(out.is_null(0));
+        Ok(())
+    }
+
+    #[test]
+    fn extreme_float_seconds_returns_null() -> Result<()> {
+        let days = Arc::new(Int32Array::from(vec![Some(0), Some(0), Some(0), Some(0)]))
+            as ArrayRef;
+        let hours = Arc::new(Int32Array::from(vec![Some(0), Some(0), Some(0), Some(0)]))
+            as ArrayRef;
+        let mins = Arc::new(Int32Array::from(vec![Some(0), Some(0), Some(0), Some(0)]))
+            as ArrayRef;
+        let secs = Arc::new(Float64Array::from(vec![
+            Some(-1e20),
+            Some(-1e30),
+            Some(1e20),
+            Some(1e30),
+        ])) as ArrayRef;
+
+        let out = run_make_dt_interval(vec![days, hours, mins, secs])?;
+        let out = out
+            .as_any()
+            .downcast_ref::<DurationMicrosecondArray>()
+            .ok_or_else(|| {
+                internal_datafusion_err!("expected DurationMicrosecondArray")
+            })?;
+
+        assert_eq!(out.len(), 4);
+        for i in 0..4 {
+            assert!(out.is_null(i), "row {i} should be NULL for extreme seconds");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn mixed_sign_intermediate_day_overflow_returns_null() -> Result<()> {
+        // (106751992, -24, 0, 0): day * MICROS_PER_DAY overflows i64.
+        // In Spark, Math.multiplyExact fails immediately before subtracting 24 hours.
+        let days = Arc::new(Int32Array::from(vec![Some(106_751_992)])) as ArrayRef;
+        let hours = Arc::new(Int32Array::from(vec![Some(-24)])) as ArrayRef;
+        let mins = Arc::new(Int32Array::from(vec![Some(0)])) as ArrayRef;
+        let secs = Arc::new(Float64Array::from(vec![Some(0.0)])) as ArrayRef;
+
+        let out = run_make_dt_interval(vec![days, hours, mins, secs])?;
+        let out = out
+            .as_any()
+            .downcast_ref::<DurationMicrosecondArray>()
+            .ok_or_else(|| {
+                internal_datafusion_err!("expected DurationMicrosecondArray")
+            })?;
+
+        assert_eq!(out.len(), 1);
+        assert!(out.is_null(0), "intermediate day overflow must return NULL");
+        Ok(())
+    }
+
+    #[test]
+    fn mixed_sign_intermediate_hour_overflow_returns_null() -> Result<()> {
+        // (106751991, 5, -60, 0): days_us + 5 hours overflows i64 before subtracting 60 mins.
+        // In Spark, Math.addExact fails at the hour step.
+        let days = Arc::new(Int32Array::from(vec![Some(106_751_991)])) as ArrayRef;
+        let hours = Arc::new(Int32Array::from(vec![Some(5)])) as ArrayRef;
+        let mins = Arc::new(Int32Array::from(vec![Some(-60)])) as ArrayRef;
+        let secs = Arc::new(Float64Array::from(vec![Some(0.0)])) as ArrayRef;
+
+        let out = run_make_dt_interval(vec![days, hours, mins, secs])?;
+        let out = out
+            .as_any()
+            .downcast_ref::<DurationMicrosecondArray>()
+            .ok_or_else(|| {
+                internal_datafusion_err!("expected DurationMicrosecondArray")
+            })?;
+
+        assert_eq!(out.len(), 1);
+        assert!(
+            out.is_null(0),
+            "intermediate hour overflow must return NULL"
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn valid_mixed_sign_cancellation_without_overflow() -> Result<()> {
+        let days = Arc::new(Int32Array::from(vec![Some(1), Some(2), Some(0), Some(0)]))
+            as ArrayRef;
+        let hours = Arc::new(Int32Array::from(vec![
+            Some(-24),
+            Some(-48),
+            Some(1),
+            Some(0),
+        ])) as ArrayRef;
+        let mins = Arc::new(Int32Array::from(vec![Some(0), Some(0), Some(-60), Some(1)]))
+            as ArrayRef;
+        let secs = Arc::new(Float64Array::from(vec![
+            Some(0.0),
+            Some(0.0),
+            Some(0.0),
+            Some(-60.0),
+        ])) as ArrayRef;
+
+        let out = run_make_dt_interval(vec![days, hours, mins, secs])?;
+        let out = out
+            .as_any()
+            .downcast_ref::<DurationMicrosecondArray>()
+            .ok_or_else(|| {
+                internal_datafusion_err!("expected DurationMicrosecondArray")
+            })?;
+
+        assert_eq!(out.len(), 4);
+        for i in 0..4 {
+            assert!(!out.is_null(i));
+            assert_eq!(out.value(i), 0, "row {i} should be 0 us");
+        }
         Ok(())
     }
 }

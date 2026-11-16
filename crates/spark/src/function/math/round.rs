@@ -15,23 +15,46 @@ use datafusion_common::types::{
 };
 use datafusion_common::{Result, ScalarValue, exec_err, not_impl_err};
 use datafusion_expr::{
-    Coercion, ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
-    TypeSignatureClass, Volatility,
+    Coercion, ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    TypeSignature, TypeSignatureClass, Volatility,
 };
+use datafusion_macros::user_doc;
 
-/// Spark-compatible `round` expression
+/// Spark-compatible `round` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#round>
-///
-/// Rounds the value of `expr` to `scale` decimal places using HALF_UP rounding mode.
-/// Returns the same type as the input expression.
-///
-/// - `round(expr)` rounds to 0 decimal places (default scale = 0)
-/// - `round(expr, scale)` rounds to `scale` decimal places
-/// - For integer types with negative scale: `round(25, -1)` → `30`
-/// - Uses HALF_UP rounding: 2.5 → 3, -2.5 → -3 (away from zero)
-///
-/// Supported types: Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64,
-/// Float16, Float32, Float64, Decimal32, Decimal64, Decimal128, Decimal256
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Rounds `expr` to `scale` decimal places, rounding halves away from zero \
+        (HALF_UP: 2.5 becomes 3, -2.5 becomes -3). A negative `scale` rounds to the left of the decimal point, \
+        so `round(25, -1)` is 30. The result has the same type as `expr`: integers stay integers, and decimals \
+        keep their precision and scale (`round(2.345::DECIMAL(10, 3), 2)` is 2.350), where Spark and DataFusion's `round` \
+        reduce the decimal scale (Spark returns 2.35 as DECIMAL(10, 2); see [#37](https://github.com/apache/datafusion-spark/issues/37)). Integer overflow depends on ANSI mode: with \
+        `datafusion.execution.enable_ansi_mode` off the result wraps around (`round(2147483647, -1)` is -2147483646), \
+        and with it on the function fails with an overflow error. A `scale` beyond the precision of the value returns \
+        the value unchanged for positive `scale` and 0 for negative `scale`. Infinity and NaN are returned unchanged. \
+        Returns NULL if `expr` or `scale` is NULL. Strings, booleans and timestamps are rejected.",
+    syntax_example = "round(expr[, scale])",
+    sql_example = r#"```sql
+> SELECT round(2.5::DOUBLE);
+3
+> SELECT round(2.345::DOUBLE, 2);
+2.35
+> SELECT round(25, -1);
+30
+> SELECT round(2.345::DECIMAL(10, 3), 2);
+2.350
+```"#,
+    argument(
+        name = "expr",
+        description = "Numeric expression: integer, floating-point or decimal. NULL returns NULL."
+    ),
+    argument(
+        name = "scale",
+        description = "Optional constant integer number of decimal places. Defaults to 0. \
+            A negative value rounds to the left of the decimal point. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkRound {
     signature: Signature,
@@ -104,6 +127,10 @@ impl ScalarUDFImpl for SparkRound {
 
     fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
         Ok(arg_types[0].clone())
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

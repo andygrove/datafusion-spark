@@ -7,13 +7,32 @@ use arrow::datatypes::DataType;
 use datafusion_common::cast::{as_generic_string_array, as_string_view_array};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, exec_err};
-use datafusion_expr::{ColumnarValue, Signature, Volatility};
+use datafusion_expr::{ColumnarValue, Documentation, Signature, Volatility};
 use datafusion_expr::{ScalarFunctionArgs, ScalarUDFImpl};
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
-/// Spark-compatible `soundex` expression
+/// Spark-compatible `soundex` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#soundex>
+#[user_doc(
+    doc_section(label = "String Functions"),
+    description = "Returns the four-character Soundex code of `str`: its first letter in upper case \
+        followed by three digits, padded with `0`. Letters are matched case-insensitively. \
+        A string that does not start with an ASCII letter (for example a digit, space, symbol or `Ñ`) is returned unchanged, \
+        as is the empty string. NULL returns NULL. DataFusion has no built-in equivalent.",
+    syntax_example = "soundex(str)",
+    sql_example = r#"```sql
+> SELECT soundex('Miller');
+M460
+> SELECT soundex('Robert');
+R163
+> SELECT soundex('123');
+123
+```"#,
+    argument(name = "str", description = "String expression. NULL returns NULL.")
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkSoundex {
     signature: Signature,
@@ -34,6 +53,10 @@ impl SparkSoundex {
 }
 
 impl ScalarUDFImpl for SparkSoundex {
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
+    }
+
     fn name(&self) -> &str {
         "soundex"
     }

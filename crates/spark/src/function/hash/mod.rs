@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+//! Spark hash functions, such as `crc32`, `sha1`, `sha2` and `xxhash64`.
+
 pub mod crc32;
 pub mod sha1;
 pub mod sha2;

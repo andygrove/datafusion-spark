@@ -9,19 +9,37 @@ use arrow::compute::kernels::arity::unary;
 use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion_common::{DataFusionError, ScalarValue, exec_err, internal_err};
 use datafusion_expr::{
-    ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
-    Volatility,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
+    Signature, Volatility,
 };
+use datafusion_macros::user_doc;
 use std::sync::Arc;
 
-/// Spark-compatible `floor` function.
-///
-/// Differences from DataFusion's floor:
-/// - Returns Int64 for float and integer inputs (while DataFusion preserves input type)
-/// - For Decimal128(p, s), returns Decimal128(p-s+1, 0) with scale 0
-///   (DataFusion preserves original precision and scale)
+/// Spark-compatible `floor` expression.
 ///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#floor>
+#[user_doc(
+    doc_section(label = "Math Functions"),
+    description = "Returns the largest whole number not greater than `expr`. \
+        Unlike DataFusion's `floor`, which keeps the input type, integer and floating-point inputs return \
+        BIGINT, and `DECIMAL(p, s)` with `s > 0` returns `DECIMAL(p - s + 1, 0)`. Decimals with a scale of 0 \
+        are returned unchanged. Floating-point values outside the BIGINT range saturate to its minimum or \
+        maximum (so Infinity returns 9223372036854775807), and NaN returns 0. Returns NULL if the input is NULL. \
+        Decimal32, Decimal64 and Decimal256 inputs are not supported.",
+    syntax_example = "floor(expr)",
+    sql_example = r#"```sql
+> SELECT floor(-1.1);
+-2
+> SELECT floor(-123.45::DECIMAL(5, 2));
+-124
+> SELECT floor('Infinity'::DOUBLE);
+9223372036854775807
+```"#,
+    argument(
+        name = "expr",
+        description = "Numeric expression: integer, floating-point or decimal. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkFloor {
     signature: Signature,
@@ -80,6 +98,10 @@ impl ScalarUDFImpl for SparkFloor {
             )?,
         };
         Ok(Arc::new(Field::new(self.name(), return_type, nullable)))
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn invoke_with_args(

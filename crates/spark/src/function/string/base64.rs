@@ -16,13 +16,33 @@ use datafusion_common::{Result, exec_err, internal_err};
 use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{Coercion, Expr, ReturnFieldArgs, TypeSignatureClass, lit};
 use datafusion_expr::{
-    ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
+    ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
+    Volatility,
 };
 use datafusion_functions::expr_fn::encode;
 use datafusion_functions::utils::make_scalar_function;
+use datafusion_macros::user_doc;
 
-/// Apache Spark base64 uses padded base64 encoding.
+/// Spark-compatible `base64` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#base64>
+#[user_doc(
+    doc_section(label = "Binary String Functions"),
+    description = "Encodes binary as a padded base64 string, using the standard alphabet. \
+        It is the same as DataFusion's `encode(expr, 'base64pad')`; DataFusion's `encode(expr, 'base64')` \
+        leaves out the padding. String input is encoded as its UTF-8 bytes. Returns NULL if the input is NULL.",
+    syntax_example = "base64(bin)",
+    sql_example = r#"```sql
+> SELECT base64('Spark SQL');
+U3BhcmsgU1FM
+> SELECT base64('Spark S');
+U3BhcmsgUw==
+```"#,
+    argument(
+        name = "bin",
+        description = "Binary or string expression to encode. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkBase64 {
     signature: Signature,
@@ -62,6 +82,10 @@ impl ScalarUDFImpl for SparkBase64 {
         internal_err!("return_type should not be called for {}", self.name())
     }
 
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
+    }
+
     fn return_field_from_args(&self, args: ReturnFieldArgs<'_>) -> Result<FieldRef> {
         let [bin] = take_function_args(self.name(), args.arg_fields)?;
         let return_type = match bin.data_type() {
@@ -95,7 +119,29 @@ impl ScalarUDFImpl for SparkBase64 {
     }
 }
 
+/// Spark-compatible `unbase64` expression.
+///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#unbase64>
+#[user_doc(
+    doc_section(label = "Binary String Functions"),
+    description = "Decodes a base64 string to binary, the same way as Java's MIME decoder, which Spark uses. \
+        DataFusion has no built-in `unbase64`. Padding is optional, and characters outside the base64 \
+        alphabet (such as spaces and line breaks) are skipped. A single leftover character at the end, \
+        malformed padding, or base64 characters after the padding are errors. Returns NULL if the input is NULL.",
+    syntax_example = "unbase64(str)",
+    sql_example = r#"```sql
+> SELECT arrow_cast(unbase64('U3BhcmsgU1FM'), 'Utf8');
+Spark SQL
+> SELECT arrow_cast(unbase64('YW Jj'), 'Utf8');
+abc
+> SELECT hex(unbase64('123'));
+D76D
+```"#,
+    argument(
+        name = "str",
+        description = "String or binary expression holding base64 text. NULL returns NULL."
+    )
+)]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkUnBase64 {
     signature: Signature,
@@ -133,6 +179,10 @@ impl ScalarUDFImpl for SparkUnBase64 {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         internal_err!("return_type should not be called for {}", self.name())
+    }
+
+    fn documentation(&self) -> Option<&Documentation> {
+        self.doc()
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs<'_>) -> Result<FieldRef> {
