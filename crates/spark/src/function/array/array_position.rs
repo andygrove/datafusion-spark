@@ -202,7 +202,10 @@ fn null_type_err<T>(name: &str) -> Result<T> {
 
 /// Spark's `TypeCoercion.findTightestCommonType`, on the arrow types that Spark's types
 /// map to.
-fn tightest_common_type(left: &DataType, right: &DataType) -> Option<DataType> {
+pub(super) fn tightest_common_type(
+    left: &DataType,
+    right: &DataType,
+) -> Option<DataType> {
     use DataType::*;
     if left == right {
         return Some(left.clone());
@@ -349,7 +352,7 @@ fn finer_unit(left: TimeUnit, right: TimeUnit) -> TimeUnit {
 }
 
 /// Spark cannot order maps, so it rejects them at any depth of the element type.
-fn contains_map(data_type: &DataType) -> bool {
+pub(super) fn contains_map(data_type: &DataType) -> bool {
     match data_type {
         DataType::Map(_, _) => true,
         DataType::List(field)
