@@ -2,9 +2,9 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
-//! Logarithms that return the same bits as Java's `StrictMath`.
+//! Logarithms and `expm1` that return the same bits as Java's `StrictMath`.
 //!
-//! Spark evaluates `ln`, `log`, `log10`, `log2` and `log1p` with
+//! Spark evaluates `ln`, `log`, `log10`, `log2`, `log1p` and `expm1` with
 //! `java.lang.StrictMath`, which the Java specification requires to return
 //! exactly the results of fdlibm 5.3. Rust's `f64::ln` calls the platform's
 //! libm, which differs from fdlibm in the last bit for a few percent of inputs,
@@ -12,7 +12,8 @@
 //! simplified fdlibm's final steps and so also rounds differently.
 //!
 //! These functions are a direct translation of fdlibm 5.3's `e_log.c`,
-//! `e_log10.c` and `s_log1p.c` from C to Rust, keeping its order of operations.
+//! `e_log10.c`, `s_log1p.c` and `s_expm1.c` from C to Rust, keeping its order
+//! of operations.
 //! They match `StrictMath` bit for bit on 2 million random inputs, on JDK 17
 //! and JDK 21. Special values (0, negative numbers, NaN and infinities) give
 //! the IEEE 754 results. The callers map the inputs that Spark sends to NULL
@@ -237,6 +238,105 @@ pub(crate) fn log1p(x: f64) -> f64 {
     }
 }
 
+const O_THRESHOLD: f64 = f64::from_bits(0x40862e42_fefa39ef);
+const INVLN2: f64 = f64::from_bits(0x3ff71547_652b82fe);
+const HUGE: f64 = 1.0e300;
+const TINY: f64 = 1.0e-300;
+const Q1: f64 = f64::from_bits(0xbfa11111_111110f4);
+const Q2: f64 = f64::from_bits(0x3f5a01a0_19fe5585);
+const Q3: f64 = f64::from_bits(0xbf14ce19_9eaadbb7);
+const Q4: f64 = f64::from_bits(0x3ed0cfca_86e65239);
+const Q5: f64 = f64::from_bits(0xbe8afdb7_6e09c32d);
+
+/// `StrictMath.expm1`: `exp(x) - 1`, accurate near 0 (fdlibm `expm1`).
+pub(crate) fn expm1(mut x: f64) -> f64 {
+    let mut hx = hi(x) as u32;
+    let negative = hx & 0x8000_0000 != 0;
+    hx &= 0x7fff_ffff;
+
+    // Huge and non-finite arguments.
+    if hx >= 0x4043_687a {
+        if hx >= 0x4086_2e42 {
+            if hx >= 0x7ff0_0000 {
+                if ((hx & 0x000f_ffff) | lo(x)) != 0 {
+                    return x + x;
+                }
+                return if negative { -1.0 } else { x };
+            }
+            if x > O_THRESHOLD {
+                return HUGE * HUGE;
+            }
+        }
+        if negative && x + TINY < 0.0 {
+            return TINY - 1.0;
+        }
+    }
+
+    // Argument reduction.
+    let k: i32;
+    let mut c = 0.0;
+    if hx > 0x3fd6_2e42 {
+        let (hi_part, lo_part);
+        if hx < 0x3ff0_a2b2 {
+            if negative {
+                hi_part = x + LN2_HI;
+                lo_part = -LN2_LO;
+                k = -1;
+            } else {
+                hi_part = x - LN2_HI;
+                lo_part = LN2_LO;
+                k = 1;
+            }
+        } else {
+            k = (INVLN2 * x + if negative { -0.5 } else { 0.5 }) as i32;
+            let t = k as f64;
+            hi_part = x - t * LN2_HI;
+            lo_part = t * LN2_LO;
+        }
+        x = hi_part - lo_part;
+        c = (hi_part - x) - lo_part;
+    } else if hx < 0x3c90_0000 {
+        let t = HUGE + x;
+        return x - (t - (HUGE + x));
+    } else {
+        k = 0;
+    }
+
+    // x is now in the primary range.
+    let hfx = 0.5 * x;
+    let hxs = x * hfx;
+    let r1 = 1.0 + hxs * (Q1 + hxs * (Q2 + hxs * (Q3 + hxs * (Q4 + hxs * Q5))));
+    let t = 3.0 - r1 * hfx;
+    let mut e = hxs * ((r1 - t) / (6.0 - x * t));
+    if k == 0 {
+        return x - (x * e - hxs);
+    }
+    e = x * (e - c) - c;
+    e -= hxs;
+    if k == -1 {
+        return 0.5 * (x - e) - 0.5;
+    }
+    if k == 1 {
+        return if x < -0.25 {
+            -2.0 * (e - (x + 0.5))
+        } else {
+            1.0 + 2.0 * (x - e)
+        };
+    }
+    if k <= -2 || k > 56 {
+        let y = 1.0 - (e - x);
+        return with_hi(y, hi(y).wrapping_add(k << 20)) - 1.0;
+    }
+    let y = if k < 20 {
+        let t = with_hi(1.0, 0x3ff0_0000 - (0x20_0000 >> k));
+        t - (e - x)
+    } else {
+        let t = with_hi(1.0, (0x3ff - k) << 20);
+        (x - (e + t)) + 1.0
+    };
+    with_hi(y, hi(y).wrapping_add(k << 20))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -350,5 +450,43 @@ mod tests {
         assert_eq!(log1p(f64::INFINITY), f64::INFINITY);
         assert_eq!(log1p(0.0), 0.0);
         assert_eq!(log1p(-0.0).to_bits(), (-0.0f64).to_bits());
+    }
+
+    /// Inputs with the raw bits of `StrictMath.expm1` on JDK 17, covering each
+    /// branch of the argument reduction. macOS's `f64::exp_m1(1.0)` is 1 ulp off.
+    const STRICT_MATH_EXPM1: &[(f64, i64)] = &[
+        (1.0, 4610417272575012562),
+        (-1.0, -4619503181483112348),
+        (1e-10, 4457293557087970531),
+        (0.3, 4599974115899632214),
+        (-0.3, -4625031413077833738),
+        (0.6, 4605580207391462366),
+        (2.5, 4622484802509070523),
+        (-2.5, -4616928973993188996),
+        (15.0, 4704274570552355463),
+        (30.0, 4801805078135318253),
+        (50.0, 4931882512844065605),
+        (100.0, 5256625774849891317),
+        (-40.0, -4616189618054758400),
+        (709.0, 9213593174447348891),
+        (1e-300, 118622047889322841),
+    ];
+
+    #[test]
+    fn expm1_matches_strict_math() {
+        for &(x, bits) in STRICT_MATH_EXPM1 {
+            assert_eq!(expm1(x).to_bits() as i64, bits, "expm1({x})");
+        }
+    }
+
+    #[test]
+    fn expm1_special_values() {
+        assert_eq!(expm1(0.0).to_bits(), 0.0f64.to_bits());
+        assert_eq!(expm1(-0.0).to_bits(), (-0.0f64).to_bits());
+        assert!(expm1(f64::NAN).is_nan());
+        assert_eq!(expm1(f64::INFINITY), f64::INFINITY);
+        assert_eq!(expm1(f64::NEG_INFINITY), -1.0);
+        assert_eq!(expm1(710.0), f64::INFINITY);
+        assert_eq!(expm1(-800.0), -1.0);
     }
 }

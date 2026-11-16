@@ -3,6 +3,7 @@
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 use crate::function::error_utils::unsupported_data_type_exec_err;
+use crate::function::math::fdlibm;
 use arrow::array::{ArrayRef, AsArray};
 use arrow::datatypes::{DataType, Float64Type};
 use datafusion_common::utils::take_function_args;
@@ -17,6 +18,10 @@ use std::sync::Arc;
 /// Spark-compatible `expm1` expression.
 ///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#expm1>
+///
+/// Spark computes this with `java.lang.StrictMath.expm1`, so this uses the fdlibm
+/// translation in [`fdlibm`] rather than `f64::exp_m1`, which calls the platform's
+/// libm and differs in the last digit on some platforms.
 #[user_doc(
     doc_section(label = "Math Functions"),
     description = "Returns `exp(expr) - 1` as a DOUBLE, computed without the precision loss of \
@@ -74,13 +79,13 @@ impl ScalarUDFImpl for SparkExpm1 {
         let [arg] = take_function_args(self.name(), args.args)?;
         match arg {
             ColumnarValue::Scalar(ScalarValue::Float64(value)) => Ok(
-                ColumnarValue::Scalar(ScalarValue::Float64(value.map(|x| x.exp_m1()))),
+                ColumnarValue::Scalar(ScalarValue::Float64(value.map(fdlibm::expm1))),
             ),
             ColumnarValue::Array(array) => match array.data_type() {
                 DataType::Float64 => Ok(ColumnarValue::Array(Arc::new(
                     array
                         .as_primitive::<Float64Type>()
-                        .unary::<_, Float64Type>(|x| x.exp_m1()),
+                        .unary::<_, Float64Type>(fdlibm::expm1),
                 )
                     as ArrayRef)),
                 other => Err(unsupported_data_type_exec_err(
