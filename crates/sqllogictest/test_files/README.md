@@ -90,6 +90,20 @@ that links the issue. Whole files that fail in `evaluate` mode are listed in
 `EVALUATE_KNOWN_FAILURES` in `tests/sqllogictests.rs`. Remove the entry when the issue is
 fixed: a listed file that passes fails the run.
 
+## Filling in expected results
+
+Pass `--complete` to rewrite the expected output of the matching files with the
+results of running them:
+
+```shell
+cargo test -p datafusion-spark-sqllogictest -- math/expm1 --complete
+```
+
+Write the queries with an empty result after `----`, run with `--complete`, then
+review the diff. It records whatever the functions return, so check the results against
+Spark (see below) before committing them. Completion runs in `simplify` mode unless
+`--mode` says otherwise. A normal run afterwards checks that both modes agree.
+
 ## Checking the expected results against Spark
 
 The expected results in these files come from DataFusion. To compare them with

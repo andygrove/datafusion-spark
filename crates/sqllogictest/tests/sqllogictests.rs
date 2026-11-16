@@ -22,9 +22,13 @@
 //! skips every `onlyif` record that is not for `spark`. Whole files that cannot run in
 //! `evaluate` mode yet are listed in [`EVALUATE_KNOWN_FAILURES`].
 //!
-//! Usage: `cargo test -p datafusion-spark-sqllogictest -- [FILTER]... [--mode=MODE]`, where
-//! each `FILTER` is a substring of the test file path and `MODE` is `simplify` or
-//! `evaluate` (both by default).
+//! Usage: `cargo test -p datafusion-spark-sqllogictest -- [FILTER]... [--mode=MODE]
+//! [--complete]`, where each `FILTER` is a substring of the test file path and `MODE` is
+//! `simplify` or `evaluate` (both by default).
+//!
+//! `--complete` rewrites the expected output of each matching file with the results of
+//! running it, in `simplify` mode unless `--mode` says otherwise. Review the diff before
+//! committing it, since it records whatever the functions return.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -185,10 +189,13 @@ fn new_context(mode: Mode) -> SessionContext {
     SessionContext::new_with_state(builder.build())
 }
 
+/// Runs the file at `path`, or with `complete`, rewrites its expected output with the
+/// results of this run.
 async fn run_file(
     path: PathBuf,
     relative_path: PathBuf,
     mode: Mode,
+    complete: bool,
 ) -> Result<(), String> {
     // The DataFusion engine formats floats the way Spark does for paths under `spark/`
     let engine_path = Path::new("spark").join(&relative_path);
@@ -200,6 +207,19 @@ async fn run_file(
         ))
     });
     runner.add_label(mode.label());
+    if complete {
+        // Records skipped for this mode's label are written back unchanged.
+        return runner
+            .update_test_file(
+                &path,
+                " ",
+                df_value_validator,
+                value_normalizer,
+                strict_column_validator,
+            )
+            .await
+            .map_err(|e| e.to_string());
+    }
     runner.with_column_validator(strict_column_validator);
     runner.with_normalizer(value_normalizer);
     runner.with_validator(df_value_validator);
@@ -212,7 +232,11 @@ async fn run_file(
 #[tokio::main]
 async fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    let complete = args.iter().any(|arg| arg == "--complete");
     let modes: Vec<Mode> = match args.iter().find_map(|arg| arg.strip_prefix("--mode=")) {
+        // Completion writes one set of results, so it runs one mode. Both modes must
+        // produce the same results, which a normal run then checks.
+        None if complete => vec![Mode::Simplify],
         None => Mode::ALL.to_vec(),
         Some(name) => match Mode::ALL.into_iter().find(|m| m.label() == name) {
             Some(mode) => vec![mode],
@@ -243,7 +267,8 @@ async fn main() -> ExitCode {
             continue;
         }
         for &mode in &modes {
-            let task = tokio::spawn(run_file(path.clone(), relative.clone(), mode));
+            let task =
+                tokio::spawn(run_file(path.clone(), relative.clone(), mode, complete));
             handles.push((relative.clone(), mode, task));
         }
     }
@@ -262,6 +287,7 @@ async fn main() -> ExitCode {
             handle.await.map_err(|e| e.to_string()).and_then(|r| r),
             known_failure,
         ) {
+            (Ok(()), _) if complete => println!("COMPLETED {name}"),
             (Ok(()), None) => println!("PASS {name}"),
             (Err(_), Some(issue)) => {
                 println!("XFAIL {name} (known failure, see {issue})")
