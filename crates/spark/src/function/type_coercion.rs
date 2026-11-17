@@ -106,9 +106,24 @@ pub(crate) fn complex_type(
                 .collect::<Option<Vec<_>>>()?;
             Some(Struct(Fields::from(fields)))
         }
-        // The entries are a struct of the key and the value, so the struct arm widens both.
+        // The entries are a struct of the key and the value. Spark's `MapType` has no field
+        // names, so the key and the value are matched by position.
         (Map(lf, sorted), Map(rf, _)) => {
-            let entries = complex_type(lf.data_type(), rf.data_type(), find_type)?;
+            let (Struct(lkv), Struct(rkv)) = (lf.data_type(), rf.data_type()) else {
+                return None;
+            };
+            let [lk, lv] = lkv.iter().collect::<Vec<_>>()[..] else {
+                return None;
+            };
+            let [rk, rv] = rkv.iter().collect::<Vec<_>>()[..] else {
+                return None;
+            };
+            let key = find_type(lk.data_type(), rk.data_type())?;
+            let value = find_type(lv.data_type(), rv.data_type())?;
+            let entries = Struct(Fields::from(vec![
+                Field::new(lk.name(), key, false),
+                Field::new(lv.name(), value, lv.is_nullable() || rv.is_nullable()),
+            ]));
             Some(Map(
                 Arc::new(Field::new(lf.name(), entries, false)),
                 *sorted,
@@ -310,6 +325,16 @@ mod tests {
         );
         let a = Struct(Fields::from(vec![Field::new("a", Int32, false)]));
         let b = Struct(Fields::from(vec![Field::new("b", Int32, false)]));
+        // Map entries named differently are matched by position.
+        let renamed = Struct(Fields::from(vec![
+            Field::new("keys", Int64, false),
+            Field::new("values", Int16, true),
+        ]));
+        let renamed = Map(Arc::new(Field::new("entries", renamed, false)), false);
+        assert_eq!(
+            tightest_common_type(&map(Int32, Int32), &renamed, false),
+            Some(map(Int64, Int32))
+        );
         let wide = Struct(Fields::from(vec![Field::new("a", Int64, true)]));
         assert_eq!(tightest_common_type(&a, &wide, false), Some(wide));
         assert_eq!(tightest_common_type(&a, &b, false), None);

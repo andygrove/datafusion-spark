@@ -35,7 +35,7 @@ pub(crate) fn normalize_floats(value: &ColumnarValue) -> Result<ColumnarValue> {
 }
 
 /// Returns whether values of this type are, or hold at any depth, floating point numbers.
-pub(crate) fn contains_float(data_type: &DataType) -> bool {
+fn contains_float(data_type: &DataType) -> bool {
     match data_type {
         DataType::Float32 | DataType::Float64 => true,
         DataType::List(field)
