@@ -467,21 +467,30 @@ where
     T: ArrowPrimitiveType,
     T::Native: Float,
 {
-    let candidate = candidate.as_primitive::<T>().values();
-    let current = current.as_primitive::<T>().values();
-    // IEEE 754 `>` already treats `-0.0` as equal to `0.0`, so only NaN needs handling.
-    let gt = |a: T::Native, b: T::Native| {
-        if a.is_nan() {
-            !b.is_nan()
+    let candidate: &[T::Native] = candidate.as_primitive::<T>().values();
+    let current: &[T::Native] = current.as_primitive::<T>().values();
+    // IEEE 754 `>` already treats `-0.0` as equal to `0.0` and is false when either side is
+    // NaN, so only a NaN `a` over a non-NaN `b` needs adding. `&` and `|` instead of `&&` and
+    // `||` keep the loop free of branches so it vectorizes.
+    let gt = |a: T::Native, b: T::Native| (a > b) | (a.is_nan() & !b.is_nan());
+    let len = current.len();
+    if scalar {
+        let c = candidate[0];
+        if greatest {
+            BooleanBuffer::collect_bool(len, |row| gt(c, current[row]))
         } else {
-            !b.is_nan() && a > b
+            BooleanBuffer::collect_bool(len, |row| gt(current[row], c))
         }
-    };
-    BooleanBuffer::collect_bool(current.len(), |row| {
-        let c = candidate[if scalar { 0 } else { row }];
-        let r = current[row];
-        if greatest { gt(c, r) } else { gt(r, c) }
-    })
+    } else {
+        // Slicing first tells the compiler both slices have `len` values, so it drops the
+        // bounds check on every row.
+        let candidate = &candidate[..len];
+        if greatest {
+            BooleanBuffer::collect_bool(len, |row| gt(candidate[row], current[row]))
+        } else {
+            BooleanBuffer::collect_bool(len, |row| gt(current[row], candidate[row]))
+        }
+    }
 }
 
 /// An argument after the first, with its values as they are and as they are compared. A
