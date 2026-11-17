@@ -260,10 +260,108 @@ SELECT regexp_extract('a', '\w{1000}\w{1000}\w{1000}', 0);
 # ----
 # (empty)
 
-# Spark 4.2.0 rejects Python-style named groups; DataFusion returns 'a'
+# Patterns that the Rust regex engine accepts but Java rejects are invalid, as
+# in Spark 4.2.0: the R flag, \b{...} word boundaries, Python-style named groups
+# and group names that are not an ASCII letter followed by letters and digits
+statement error ^.*\[INVALID_PARAMETER_VALUE\.PATTERN\] The value of parameter\(s\) `regexp` in `regexp_extract` is invalid: '\(\?R\)a\$'\. SQLSTATE: 22023$
+SELECT regexp_extract('a', '(?R)a$', 0);
+
+statement error INVALID_PARAMETER_VALUE.PATTERN
+SELECT regexp_extract('a', '(?-R)a', 0);
+
+statement error INVALID_PARAMETER_VALUE.PATTERN
+SELECT regexp_extract('abc', '\b{start}abc', 0);
+
+statement error INVALID_PARAMETER_VALUE.PATTERN
+SELECT regexp_extract('abc', 'abc\b{end}', 0);
+
+statement error INVALID_PARAMETER_VALUE.PATTERN
+SELECT regexp_extract('abc', '\b{start-half}abc', 0);
+
+statement error INVALID_PARAMETER_VALUE.PATTERN
+SELECT regexp_extract('abc', 'abc\b{end-half}', 0);
+
+statement error INVALID_PARAMETER_VALUE.PATTERN.*is invalid: '\(\?P<n>a\)'\.
+SELECT regexp_extract('a', '(?P<n>a)', 1);
+
+statement error INVALID_PARAMETER_VALUE.PATTERN
+SELECT regexp_extract('x', '(?<a_b>x)', 1);
+
+statement error INVALID_PARAMETER_VALUE.PATTERN
+SELECT regexp_extract('x', '(?<_a>x)', 1);
+
+statement error INVALID_PARAMETER_VALUE.PATTERN
+SELECT regexp_extract('x', '(?<a.b>x)', 1);
+
+query T
+SELECT regexp_extract('x', '(?<a1>x)', 1);
+----
+x
+
+# Patterns that both engines accept but read differently are unsupported, so
+# they do not silently return a different answer than Spark. Java's U flag is
+# UNICODE_CHARACTER_CLASS, where the Rust engine's swaps greediness.
+statement error Unsupported regex pattern '\(\?U\)a\+' in `regexp_extract`: Java's flag 'U'
+SELECT regexp_extract('aaa', '(?U)a+', 0);
+
+statement error Unsupported regex pattern .* in `regexp_extract`: Java's flag 'U'
+SELECT regexp_extract('aaa', '(?U:a+)', 0);
+
+# Java reads [[:alpha:]] as a nested class of the characters ':alph'
+statement error Unsupported regex pattern .* in `regexp_extract`: Java reads \[:name:\]
+SELECT regexp_extract('x', '[[:alpha:]]', 0);
+
+statement error Unsupported regex pattern .* in `regexp_extract`: Java reads \[:name:\]
+SELECT regexp_extract('ab', '[[:^alpha:]]', 0);
+
+# Java has no class difference operators
+statement error Unsupported regex pattern .* in `regexp_extract`: Java has no class operator '--'
+SELECT regexp_extract('b', '[a-c--b]', 0);
+
+statement error Unsupported regex pattern .* in `regexp_extract`: Java has no class operator '~~'
+SELECT regexp_extract('~', '[a~~b]', 0);
+
+# Java reads \< and \> as the literal characters
+statement error Unsupported regex pattern .* in `regexp_extract`: Java reads \\< and \\> as literal characters
+SELECT regexp_extract('a<b', '\<b', 0);
+
+statement error Unsupported regex pattern .* in `regexp_extract`: Java reads \\< and \\> as literal characters
+SELECT regexp_extract('a>', 'a\>', 0);
+
+# Java's POSIX classes match ASCII only, where the Rust engine reads the same
+# names as Unicode properties
+statement error Unsupported regex pattern '\\\\p\{Alpha\}' in `regexp_extract`: Java's \\p\{Alpha\} is an ASCII-only POSIX class
+SELECT regexp_extract('é', '\p{Alpha}', 0);
+
+statement error Unsupported regex pattern .* in `regexp_extract`: Java's \\P\{Lower\} is an ASCII-only POSIX class
+SELECT regexp_extract('é', '\P{Lower}', 0);
+
+statement error Unsupported regex pattern .* in `regexp_extract`: Java's \\p\{Space\} is an ASCII-only POSIX class
+SELECT regexp_extract('a', '[a\p{Space}]', 0);
+
+# A pattern column is checked the same way
+statement error Unsupported regex pattern .* in `regexp_extract`: Java's flag 'U'
+SELECT regexp_extract(column1, column2, 0) FROM (VALUES ('aaa', 'a+'), ('aaa', '(?U)a+'));
+
+# Spark 4.2.0 results for those patterns, in both ANSI modes
+# https://github.com/apache/datafusion-spark/issues/255
+# query TTTTTTTTTTT
+# SELECT regexp_extract('aaa', '(?U)a+', 0), concat('[', regexp_extract('x', '[[:alpha:]]', 0), ']'), regexp_extract(':', '[[:alpha:]]', 0), regexp_extract('ab', '[[:^alpha:]]', 0), regexp_extract('b', '[a-c--b]', 0), regexp_extract('~', '[a~~b]', 0), regexp_extract('a<b', '\<b', 0), regexp_extract('a>', 'a\>', 0), concat('[', regexp_extract('é', '\p{Alpha}', 0), ']'), regexp_extract('é', '\P{Lower}', 0), regexp_extract('1', '\p{Digit}', 0);
+# ----
+# aaa [] : a b ~ <b a> [] é 1
+
+# Constructs that mean the same in both engines are accepted: the default (?-U),
+# class intersection and Unicode properties that are not POSIX names
+query TTT
+SELECT regexp_extract('aaa', '(?-U)a+', 0), regexp_extract('b', '[a-c&&b]', 0), regexp_extract('é', '\p{L}', 0);
+----
+aaa b é
+
+# Spark 4.2.0 rejects Unicode property names that Java does not know, such as
+# \p{Letter}, \p{Latin} and \p{alpha}; DataFusion returns 'é'
 # https://github.com/apache/datafusion-spark/issues/255
 # statement error INVALID_PARAMETER_VALUE.PATTERN
-# SELECT regexp_extract('a', '(?P<n>a)', 1);
+# SELECT regexp_extract('é', '\p{Letter}', 0);
 
 # Wrong number of arguments
 statement error

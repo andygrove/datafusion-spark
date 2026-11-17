@@ -24,6 +24,10 @@ use datafusion_expr::{
 };
 use datafusion_macros::user_doc;
 use regex::{CaptureLocations, Regex};
+use regex_syntax::ast::{
+    AssertionKind, Ast, ClassSetBinaryOp, ClassSetBinaryOpKind, ClassSetItem,
+    ClassUnicode, ClassUnicodeKind, Flag, Flags, FlagsItemKind, GroupKind, Visitor,
+};
 
 use crate::function::error_utils::invalid_arg_count_exec_err;
 
@@ -50,13 +54,20 @@ const NAME: &str = "regexp_extract";
         or unopened groups and classes, invalid class ranges and repetitions, and unknown flags are reported as \
         `INVALID_PARAMETER_VALUE.PATTERN`; any other pattern the Rust engine rejects is reported as unsupported, \
         including a few that Java rejects too, such as `\\y`. \
+        Rust syntax that Java rejects is also `INVALID_PARAMETER_VALUE.PATTERN`: the `R` flag, `\\b{start}` and \
+        the other `\\b{...}` word boundaries, `(?P<name>...)`, and group names that are not an ASCII letter \
+        followed by ASCII letters and digits. Syntax that both engines accept but read differently is reported as \
+        unsupported rather than evaluated to a different answer: the `U` flag (Java's UNICODE_CHARACTER_CLASS, \
+        which swaps greediness in Rust), `[:alpha:]` and the other POSIX classes in brackets, the class operators \
+        `--` and `~~`, `\\<` and `\\>`, and the names of Java's ASCII-only POSIX classes, such as `\\p{Alpha}` \
+        and `\\p{Lower}`. Other Unicode property names that Java does not know, such as `\\p{Letter}` or \
+        `\\p{Latin}`, are accepted, where Java rejects them. \
         Possessive quantifiers are read as nested greedy repetition (`a++` as `(a+)+`), so they can match \
         where Java's would not. \
         `\\d`, `\\w` and `\\s` match Unicode characters, where Java's match only ASCII. \
         `.` matches `\\r`, where Java's does not. `$` matches only at the very end of the input, where Java's also \
         matches before a final line terminator. `(?i)` folds case using Unicode rules (so `k` matches the Kelvin \
-        sign), where Java folds only ASCII by default. Rust's `(?P<name>...)` named groups are accepted, where Java \
-        rejects them as an invalid pattern.",
+        sign), where Java folds only ASCII by default.",
     syntax_example = "regexp_extract(str, regexp[, idx])",
     sql_example = r#"```sql
 > SELECT regexp_extract('1a 2b 14m', '(\d+)([a-z]+)');
@@ -112,18 +123,27 @@ impl Hash for SparkRegexpExtract {
 const PATTERN_CACHE_SIZE: usize = 64;
 
 #[derive(Debug, Default)]
-struct PatternCache(Mutex<HashMap<String, Regex>>);
+struct PatternCache {
+    patterns: Mutex<HashMap<String, Regex>>,
+    /// How many patterns were compiled, so a test can tell that a later batch
+    /// read the cache rather than compiling and inserting the pattern again.
+    #[cfg(test)]
+    compiles: std::sync::atomic::AtomicUsize,
+}
 
 impl PatternCache {
     fn get_or_compile(&self, pattern: &str) -> Result<Regex> {
         let lock = || {
-            self.0
+            self.patterns
                 .lock()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
         };
         if let Some(regex) = lock().get(pattern) {
             return Ok(regex.clone());
         }
+        #[cfg(test)]
+        self.compiles
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let regex = compile(pattern)?;
         let mut patterns = lock();
         if patterns.len() >= PATTERN_CACHE_SIZE {
@@ -379,66 +399,222 @@ fn check_group_index(regex: &Regex, idx: i32) -> Result<usize> {
 }
 
 fn compile(pattern: &str) -> Result<Regex> {
-    Regex::new(pattern).map_err(|err| {
-        let quoted = to_sql_value(pattern);
-        match unsupported_reason(pattern, &err) {
-            Some(reason) => DataFusionError::NotImplemented(format!(
-                "Unsupported regex pattern {quoted} in `{NAME}`: {reason}. \
-                 See https://github.com/apache/datafusion-spark/issues/255"
-            )),
-            None => exec_datafusion_err!(
+    let quoted = to_sql_value(pattern);
+    let unsupported = |reason: String| {
+        DataFusionError::NotImplemented(format!(
+            "Unsupported regex pattern {quoted} in `{NAME}`: {reason}. \
+             See https://github.com/apache/datafusion-spark/issues/255"
+        ))
+    };
+    match java_difference(pattern) {
+        None => {}
+        Some(JavaDifference::Invalid) => {
+            return Err(exec_datafusion_err!(
                 "[INVALID_PARAMETER_VALUE.PATTERN] The value of parameter(s) `regexp` in \
                  `{NAME}` is invalid: {quoted}. SQLSTATE: 22023"
-            ),
+            ));
         }
+        Some(JavaDifference::Unsupported(reason)) => return Err(unsupported(reason)),
+    }
+    // The pattern parsed, so a later stage of the Rust engine rejected it.
+    Regex::new(pattern).map_err(|err| match err {
+        regex::Error::CompiledTooBig(_) => unsupported(
+            "the compiled pattern exceeds the Rust regex size limit".to_string(),
+        ),
+        err => unsupported(format!("the Rust regex engine rejects it ({err})")),
     })
 }
 
-/// Why a pattern that the Rust engine rejects may still be valid in Java, or
-/// `None` if Java rejects it too.
+/// How `java.util.regex`, which Spark uses, would treat a pattern differently
+/// from the Rust regex engine.
+#[derive(Debug)]
+enum JavaDifference {
+    /// Java rejects the pattern, so it is reported as an invalid pattern.
+    Invalid,
+    /// Java accepts the pattern but the Rust engine rejects it, or reads it
+    /// differently, so it is reported as unsupported rather than evaluated to
+    /// a different answer than Spark's.
+    Unsupported(String),
+}
+
+/// Checks a pattern with `regex_syntax`, whose AST and error kinds are API,
+/// rather than matching on the text of [`regex::Error`].
 ///
-/// The pattern is parsed again with `regex_syntax`, whose error kinds are API,
-/// rather than matching on the text of [`regex::Error`]. Only the kinds of
-/// syntax error that Java also raises are reported as an invalid pattern.
-/// Anything else, such as `\Q...\E`, `\Z`, `\h`, `(?>...)` or `(?d)`, is
-/// reported as unsupported, which also covers a few patterns that Java rejects,
-/// such as `\y`.
-fn unsupported_reason(pattern: &str, err: &regex::Error) -> Option<String> {
+/// A pattern that does not parse is invalid only for the kinds of syntax error
+/// that Java also raises. Anything else, such as `\Q...\E`, `\Z`, `\h`,
+/// `(?>...)` or `(?d)`, is unsupported, which also covers a few patterns that
+/// Java rejects, such as `\y`. A pattern that parses is walked for the
+/// constructs that the two engines read differently.
+fn java_difference(pattern: &str) -> Option<JavaDifference> {
     use regex_syntax::ast::ErrorKind;
-    if let regex::Error::CompiledTooBig(_) = err {
-        return Some(
-            "the compiled pattern exceeds the Rust regex size limit".to_string(),
-        );
-    }
-    let Err(ast_err) = regex_syntax::ast::parse::Parser::new().parse(pattern) else {
-        // The pattern parses, so a later stage of the Rust engine rejected it.
-        return Some(format!("the Rust regex engine rejects it ({err})"));
+    let ast_err = match regex_syntax::ast::parse::Parser::new().parse(pattern) {
+        Ok(ast) => return regex_syntax::ast::visit(&ast, JavaDifferences).err(),
+        Err(err) => err,
     };
+    let unsupported = |reason: String| Some(JavaDifference::Unsupported(reason));
     match ast_err.kind() {
         ErrorKind::GroupUnclosed
         | ErrorKind::GroupUnopened
         | ErrorKind::ClassUnclosed
         | ErrorKind::ClassRangeInvalid
         | ErrorKind::RepetitionMissing
-        | ErrorKind::RepetitionCountInvalid => None,
+        | ErrorKind::RepetitionCountInvalid => Some(JavaDifference::Invalid),
         // Java also rejects an unknown flag, except `d` (UNIX_LINES) and `>`
         // (an atomic group).
         ErrorKind::FlagUnrecognized => {
             let span = ast_err.span();
             let flag = &pattern[span.start.offset..span.end.offset];
-            matches!(flag, "d" | ">").then(|| {
-                format!("the Rust regex engine does not support the flag '{flag}'")
-            })
+            if matches!(flag, "d" | ">") {
+                unsupported(format!(
+                    "the Rust regex engine does not support the flag '{flag}'"
+                ))
+            } else {
+                Some(JavaDifference::Invalid)
+            }
         }
-        ErrorKind::UnsupportedLookAround => {
-            Some("look-around is not supported by the Rust regex engine".to_string())
-        }
-        ErrorKind::UnsupportedBackreference => {
-            Some("backreferences are not supported by the Rust regex engine".to_string())
-        }
-        kind => Some(format!(
+        ErrorKind::UnsupportedLookAround => unsupported(
+            "look-around is not supported by the Rust regex engine".to_string(),
+        ),
+        ErrorKind::UnsupportedBackreference => unsupported(
+            "backreferences are not supported by the Rust regex engine".to_string(),
+        ),
+        kind => unsupported(format!(
             "the Rust regex engine does not support it ({kind})"
         )),
+    }
+}
+
+/// Java's POSIX character classes, which match ASCII only (unless the `U` flag
+/// is set, which is unsupported). The Rust engine reads the same names as
+/// Unicode properties, so `\p{Alpha}` matches `é` there but not in Java.
+const JAVA_POSIX_CLASSES: [&str; 13] = [
+    "Lower", "Upper", "ASCII", "Alpha", "Digit", "Alnum", "Punct", "Graph", "Print",
+    "Blank", "Cntrl", "XDigit", "Space",
+];
+
+/// Finds the constructs of a parsed pattern that Java rejects or reads
+/// differently. Each is checked by its AST node, so an escaped or quoted
+/// look-alike, such as `\[\[:alpha:\]\]`, is not reported.
+struct JavaDifferences;
+
+impl JavaDifferences {
+    fn check_flags(flags: &Flags) -> Result<(), JavaDifference> {
+        // Java has no R flag, even negated.
+        if flags
+            .items
+            .iter()
+            .any(|item| item.kind == FlagsItemKind::Flag(Flag::CRLF))
+        {
+            return Err(JavaDifference::Invalid);
+        }
+        // `(?-U)` is the default in both engines, so only setting it differs.
+        if flags.flag_state(Flag::SwapGreed) == Some(true) {
+            return Err(JavaDifference::Unsupported(
+                "Java's flag 'U' is UNICODE_CHARACTER_CLASS, where the Rust regex \
+                 engine's swaps greediness"
+                    .to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    fn check_unicode_class(class: &ClassUnicode) -> Result<(), JavaDifference> {
+        match &class.kind {
+            ClassUnicodeKind::Named(name)
+                if JAVA_POSIX_CLASSES.contains(&name.as_str()) =>
+            {
+                let p = if class.negated { 'P' } else { 'p' };
+                Err(JavaDifference::Unsupported(format!(
+                    "Java's \\{p}{{{name}}} is an ASCII-only POSIX class, where the Rust \
+                     regex engine's is a Unicode property"
+                )))
+            }
+            _ => Ok(()),
+        }
+    }
+}
+
+impl Visitor for JavaDifferences {
+    type Output = ();
+    type Err = JavaDifference;
+
+    fn finish(self) -> Result<(), JavaDifference> {
+        Ok(())
+    }
+
+    fn visit_pre(&mut self, ast: &Ast) -> Result<(), JavaDifference> {
+        match ast {
+            Ast::Flags(set) => Self::check_flags(&set.flags),
+            Ast::Group(group) => match &group.kind {
+                GroupKind::NonCapturing(flags) => Self::check_flags(flags),
+                // Java rejects `(?P<name>...)`, and a name that is not an ASCII
+                // letter followed by ASCII letters and digits.
+                GroupKind::CaptureName { starts_with_p, name } => {
+                    let mut chars = name.name.chars();
+                    let valid = !starts_with_p
+                        && chars.next().is_some_and(|c| c.is_ascii_alphabetic())
+                        && chars.all(|c| c.is_ascii_alphanumeric());
+                    if valid {
+                        Ok(())
+                    } else {
+                        Err(JavaDifference::Invalid)
+                    }
+                }
+                GroupKind::CaptureIndex(_) => Ok(()),
+            },
+            Ast::Assertion(assertion) => match assertion.kind {
+                // Java rejects `\b{start}`, `\b{end}`, `\b{start-half}` and
+                // `\b{end-half}`.
+                AssertionKind::WordBoundaryStart
+                | AssertionKind::WordBoundaryEnd
+                | AssertionKind::WordBoundaryStartHalf
+                | AssertionKind::WordBoundaryEndHalf => Err(JavaDifference::Invalid),
+                AssertionKind::WordBoundaryStartAngle
+                | AssertionKind::WordBoundaryEndAngle => Err(JavaDifference::Unsupported(
+                    "Java reads \\< and \\> as literal characters, where the Rust regex \
+                     engine reads them as word boundaries"
+                        .to_string(),
+                )),
+                AssertionKind::StartLine
+                | AssertionKind::EndLine
+                | AssertionKind::StartText
+                | AssertionKind::EndText
+                | AssertionKind::WordBoundary
+                | AssertionKind::NotWordBoundary => Ok(()),
+            },
+            Ast::ClassUnicode(class) => Self::check_unicode_class(class),
+            _ => Ok(()),
+        }
+    }
+
+    fn visit_class_set_item_pre(
+        &mut self,
+        item: &ClassSetItem,
+    ) -> Result<(), JavaDifference> {
+        match item {
+            ClassSetItem::Ascii(_) => Err(JavaDifference::Unsupported(
+                "Java reads [:name:] inside a class as a nested class of its characters, \
+                 where the Rust regex engine reads it as a POSIX class"
+                    .to_string(),
+            )),
+            ClassSetItem::Unicode(class) => Self::check_unicode_class(class),
+            _ => Ok(()),
+        }
+    }
+
+    fn visit_class_set_binary_op_pre(
+        &mut self,
+        op: &ClassSetBinaryOp,
+    ) -> Result<(), JavaDifference> {
+        let operator = match op.kind {
+            // `&&` is intersection in both engines.
+            ClassSetBinaryOpKind::Intersection => return Ok(()),
+            ClassSetBinaryOpKind::Difference => "--",
+            ClassSetBinaryOpKind::SymmetricDifference => "~~",
+        };
+        Err(JavaDifference::Unsupported(format!(
+            "Java has no class operator '{operator}', which it reads as literal characters"
+        )))
     }
 }
 
@@ -589,8 +765,14 @@ mod tests {
                 ColumnarValue::Array(Arc::new(StringArray::from(vec![subject])));
             invoke(&udf, vec![subject, pattern(r"(\d)")], 1).unwrap();
         }
-        let patterns = udf.patterns.0.lock().unwrap();
-        assert_eq!(patterns.len(), 1);
-        assert!(patterns.contains_key(r"(\d)"));
+        // Counting compiles, not cache entries, since a cache that is never
+        // read would also end up with one entry for the pattern.
+        assert_eq!(
+            udf.patterns
+                .compiles
+                .load(std::sync::atomic::Ordering::Relaxed),
+            1
+        );
+        assert!(udf.patterns.patterns.lock().unwrap().contains_key(r"(\d)"));
     }
 }
