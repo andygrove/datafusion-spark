@@ -40,7 +40,7 @@ SELECT ln(10::tinyint) AS a, ln(10::bigint) AS b, ln(10::float) AS c, ln(10::dec
 
 # Spark returns NULL, not -Infinity or NaN, for an input <= 0
 query RRRR
-SELECT ln(0::int) AS a, ln(-0.0::double) AS b, ln(-1::int) AS c, ln('-Infinity'::double) AS d;
+SELECT ln(0::int) AS a, ln('-0.0'::double) AS b, ln(-1::int) AS c, ln('-Infinity'::double) AS d;
 ----
 NULL NULL NULL NULL
 
@@ -76,3 +76,26 @@ query R
 SELECT ln(0.670311110015402::double);
 ----
 -0.40001333106454684
+
+# Spark implicitly casts a string argument to DOUBLE
+query RR
+SELECT ln('10'), ln(a) FROM (VALUES ('1'), (NULL)) AS t(a);
+----
+2.302585092994046 0
+2.302585092994046 NULL
+
+statement ok
+set datafusion.execution.enable_ansi_mode = true;
+
+query error Cannot cast string 'abc' to value of Float64 type
+SELECT ln('abc');
+
+statement ok
+set datafusion.execution.enable_ansi_mode = false;
+
+# Spark 4.2.0 returns NULL for a malformed string when ANSI mode is off; DataFusion errors
+# https://github.com/apache/datafusion-spark/issues/88
+# query R
+# SELECT ln('abc');
+# ----
+# NULL

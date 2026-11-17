@@ -101,6 +101,26 @@ SELECT log(2::int, x) FROM (VALUES (8::double), (-1::double), (NULL::double)) AS
 NULL
 NULL
 
+# NULL, non-positive and NaN scalar bases with an array expr
+query RRRR
+SELECT log(NULL::double, x), log(0::double, x), log(-2::double, x), log('NaN'::double, x) FROM (VALUES (8::double)) AS t(x);
+----
+NULL NULL NULL NaN
+
+# Array base with a scalar expr
+query R
+SELECT log(b, 8::double) FROM (VALUES (2::double), (0::double), (NULL::double)) AS t(b);
+----
+3
+NULL
+NULL
+
+# Spark implicitly casts a string argument to DOUBLE
+query RR
+SELECT log('2', '8'), log('10');
+----
+3 2.302585092994046
+
 query R
 SELECT log(x) FROM (VALUES (1::double), (0::double), (NULL::double)) AS t(x);
 ----

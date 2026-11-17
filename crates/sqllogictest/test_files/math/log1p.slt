@@ -60,6 +60,6 @@ SELECT log1p(0.670311110015402::double);
 
 # -0.0 is above the asymptote, and log1p(-0.0) is -0.0
 query R
-SELECT log1p(-0.0::double);
+SELECT log1p('-0.0'::double);
 ----
 -0

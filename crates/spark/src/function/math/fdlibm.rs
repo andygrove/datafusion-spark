@@ -428,6 +428,12 @@ mod tests {
         }
     }
 
+    /// `log2` divides by `std::f64::consts::LN_2` instead of `log(2.0)`.
+    #[test]
+    fn log_of_two_is_ln_2() {
+        assert_eq!(log(2.0), std::f64::consts::LN_2);
+    }
+
     #[test]
     fn log1p_negative_inputs() {
         assert_eq!(log1p(-0.5), -std::f64::consts::LN_2);
