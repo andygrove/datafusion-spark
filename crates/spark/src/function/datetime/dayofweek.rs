@@ -191,7 +191,7 @@ impl ScalarUDFImpl for SparkDayOfWeek {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::array::DictionaryArray;
+    use arrow::array::{Date64Array, DictionaryArray};
     use datafusion_common::config::ConfigOptions;
 
     fn invoke(arg: ColumnarValue, rows: usize) -> Result<ColumnarValue> {
@@ -295,6 +295,23 @@ mod tests {
         assert_eq!(
             out.iter().collect::<Vec<_>>(),
             [Some(5), Some(6), Some(5), None, None]
+        );
+    }
+
+    /// A dictionary of Date64 values is cast to epoch days before mapping.
+    /// SQL never reaches this path, because coercion unpacks the dictionary
+    /// to its value type first, so only a direct call covers it.
+    #[test]
+    fn date64_dictionary_input() {
+        let values = Arc::new(Date64Array::from(vec![Some(0), Some(-86_400_000), None]))
+            as ArrayRef;
+        let keys = Int32Array::from(vec![Some(0), Some(1), None, Some(2)]);
+        let dict = DictionaryArray::<Int32Type>::new(keys, values);
+        let out = invoke_array(Arc::new(dict));
+        assert_eq!(out.data_type(), &DataType::Int32);
+        assert_eq!(
+            out.iter().collect::<Vec<_>>(),
+            [Some(5), Some(4), None, None]
         );
     }
 
