@@ -127,7 +127,7 @@ SELECT regexp_extract('a', NULL, 99);
 NULL
 
 # Group index out of range
-statement error INVALID_PARAMETER_VALUE.REGEX_GROUP_INDEX.*Expects group index between 0 and 0, but got 1
+statement error ^.*\[INVALID_PARAMETER_VALUE\.REGEX_GROUP_INDEX\] The value of parameter\(s\) `idx` in `regexp_extract` is invalid: Expects group index between 0 and 0, but got 1\. SQLSTATE: 22023$
 SELECT regexp_extract('1a 2b 14m', '\d+');
 
 statement error Expects group index between 0 and 0, but got 1
@@ -146,7 +146,7 @@ statement error Expects group index between 0 and 2, but got -1
 SELECT regexp_extract('1a 2b 14m', '(\d+)([a-z]+)', -1);
 
 # Invalid pattern
-statement error INVALID_PARAMETER_VALUE.PATTERN
+statement error ^.*\[INVALID_PARAMETER_VALUE\.PATTERN\] The value of parameter\(s\) `regexp` in `regexp_extract` is invalid: '\(\?l\)'\. SQLSTATE: 22023$
 SELECT regexp_extract('1a 2b 14m', '(?l)');
 
 statement error INVALID_PARAMETER_VALUE.PATTERN.*'\(unclosed'
@@ -164,6 +164,12 @@ query T
 SELECT regexp_extract('abc', '', 0);
 ----
 (empty)
+
+# A zero-width group, and a group that ends after a multi-byte character
+query TT
+SELECT regexp_extract('éx', '()', 1), regexp_extract('éx', '(é)', 1);
+----
+(empty) é
 
 # Known differences between the Rust regex engine and java.util.regex
 # https://github.com/apache/datafusion-spark/issues/255
@@ -188,6 +194,30 @@ SELECT regexp_extract('aa', '(a)\1', 0);
 # SELECT regexp_extract('aa', '(a)\1', 0);
 # ----
 # aa
+
+# Java constructs that the Rust regex engine does not have are unsupported, not
+# invalid: quoting, \Z, \h, atomic groups and the d flag
+statement error Unsupported regex pattern '\\\\Q\.\\\\E' in `regexp_extract`
+SELECT regexp_extract('a.b', '\Q.\E', 0);
+
+statement error Unsupported regex pattern .* in `regexp_extract`
+SELECT regexp_extract('ab', 'b\Z', 0);
+
+statement error Unsupported regex pattern .* in `regexp_extract`
+SELECT regexp_extract('a b', '\h', 0);
+
+statement error Unsupported regex pattern .* in `regexp_extract`: the Rust regex engine does not support the flag '>'
+SELECT regexp_extract('aab', '(?>a+)b', 0);
+
+statement error Unsupported regex pattern .* in `regexp_extract`: the Rust regex engine does not support the flag 'd'
+SELECT regexp_extract('ab', '(?d)b', 0);
+
+# Spark 4.2.0 results for those patterns, in both ANSI modes
+# https://github.com/apache/datafusion-spark/issues/255
+# query TTTTT
+# SELECT regexp_extract('a.b', '\Q.\E', 0), regexp_extract('ab', 'b\Z', 0), concat('[', regexp_extract('a b', '\h', 0), ']'), regexp_extract('aab', '(?>a+)b', 0), regexp_extract('ab', '(?d)b', 0);
+# ----
+# . b [ ] aab b
 
 # Spark 4.2.0 treats a++ as a possessive quantifier that does not give back,
 # so a++a cannot match; the Rust regex engine reads a++ as (a+)+ and returns 'aaa'
@@ -377,13 +407,46 @@ SELECT regexp_extract('a1', '(\d)', 1.5::DOUBLE);
 ----
 1
 
-# An idx that cannot be cast to INT is an error, as in Spark
+# A string idx column is cast to INT
+query T
+SELECT regexp_extract('a1', '([a-z])(\d)', column1) FROM (VALUES ('0'), ('1'), ('2'), (CAST(NULL AS STRING)));
+----
+a1
+a
+1
+NULL
+
+# With ANSI mode on, an idx that cannot be cast to INT is an error, as in Spark
 # (Spark raises CAST_OVERFLOW and CAST_INVALID_INPUT)
+statement ok
+set datafusion.execution.enable_ansi_mode = true;
+
 statement error Can't cast value 4294967297 to type Int32
 SELECT regexp_extract('a1', '(\d)', 4294967297::BIGINT);
 
 statement error Cannot cast string 'x' to value of Int32 type
 SELECT regexp_extract('a1', '(\d)', 'x');
+
+statement ok
+set datafusion.execution.enable_ansi_mode = false;
+
+# With ANSI mode off, Spark 4.2.0 wraps an out-of-range BIGINT (to 1 here), returns
+# NULL for a malformed string, and casts NaN to 0. DataFusion's cast errors instead.
+# https://github.com/apache/datafusion-spark/issues/88
+# query T
+# SELECT regexp_extract('a1', '(\d)', 4294967297::BIGINT);
+# ----
+# 1
+#
+# query T
+# SELECT regexp_extract('a1', '(\d)', 'x');
+# ----
+# NULL
+#
+# query T
+# SELECT regexp_extract('a1', '(\d)', 'NaN'::DOUBLE);
+# ----
+# 1
 
 # A str that cannot be cast to a string is a planning error, as in Spark
 # (Spark raises DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE)
