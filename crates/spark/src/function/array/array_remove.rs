@@ -7,13 +7,13 @@ use crate::function::type_coercion::{
     is_orderable, spark_sql_type, struct_field_types_match, tightest_common_type,
 };
 use arrow::array::{
-    Array, ArrayRef, AsArray, BooleanArray, BooleanBufferBuilder, GenericListArray,
-    OffsetSizeTrait, Scalar, make_comparator,
+    Array, ArrayRef, ArrowPrimitiveType, AsArray, BooleanArray, BooleanBufferBuilder,
+    GenericListArray, OffsetSizeTrait, Scalar, make_comparator,
 };
 use arrow::buffer::{BooleanBuffer, NullBuffer, OffsetBuffer};
 use arrow::compute::kernels::cmp::eq;
 use arrow::compute::{SortOptions, filter};
-use arrow::datatypes::{DataType, Field};
+use arrow::datatypes::{DataType, Field, Float32Type, Float64Type};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue, exec_err, plan_err};
 use datafusion_expr::{
@@ -21,6 +21,7 @@ use datafusion_expr::{
     Volatility,
 };
 use datafusion_macros::user_doc;
+use num_traits::Float;
 use std::sync::Arc;
 
 /// Spark-compatible `array_remove` expression.
@@ -151,52 +152,77 @@ fn remove<O: OffsetSizeTrait>(
     };
     let row_is_valid = |row: usize| row_nulls.as_ref().is_none_or(|n| n.is_valid(row));
 
-    // Equality is computed on copies with canonical NaN and 0.0 at any depth, so that it
-    // follows Spark's float equality, while the kept elements are taken from the original
-    // values. The comparator treats NULLs nested inside the compared values as equal.
-    let mut is_equal: Box<dyn Fn(usize, usize) -> bool> = Box::new(|_, _| false);
     // When every element is NULL there is nothing to compare: NULL elements are kept and a
     // NULL element makes every row NULL. This also covers the NULL type.
     let any_comparison =
         values.logical_null_count() < values.len() && (0..list.len()).any(row_is_valid);
-    if any_comparison {
-        let normalized = normalize_array(&values)?;
-        let needle = normalize_array(element)?;
-        is_equal = if constant && !normalized.data_type().is_nested() {
-            // Compare every value with the constant at once.
-            let equal = eq(&normalized, &Scalar::new(Arc::clone(&needle)))?;
-            let equal = equal.values().clone();
-            Box::new(move |i, _| equal.value(i))
-        } else {
+    let value_nulls = values.logical_nulls();
+    let mut new_offsets = Vec::with_capacity(list.len() + 1);
+    new_offsets.push(O::usize_as(0));
+    let mut kept = 0usize;
+
+    let keep = if any_comparison && constant && !values.data_type().is_nested() {
+        // A constant element that is not nested is compared with every value at once, and
+        // the elements to keep are found with bitmap operations.
+        let equal = match values.data_type() {
+            DataType::Float32 => float_equal::<Float32Type>(&values, element),
+            DataType::Float64 => float_equal::<Float64Type>(&values, element),
+            _ => eq(&values, &Scalar::new(Arc::clone(element)))?
+                .values()
+                .clone(),
+        };
+        let mut keep = !&equal;
+        if let Some(nulls) = &value_nulls {
+            keep = &keep | &!nulls.inner();
+        }
+        if row_nulls.as_ref().is_some_and(|n| n.null_count() > 0) {
+            // The elements of a NULL row are dropped.
+            let mut in_valid_row = BooleanBufferBuilder::new(len);
+            for (row, w) in offsets.windows(2).enumerate() {
+                in_valid_row.append_n((w[1] - w[0]).as_usize(), row_is_valid(row));
+            }
+            keep = &keep & &in_valid_row.finish();
+        }
+        for w in offsets.windows(2) {
+            let (start, end) = (w[0].as_usize() - base, w[1].as_usize() - base);
+            kept += keep.slice(start, end - start).count_set_bits();
+            new_offsets.push(O::usize_as(kept));
+        }
+        keep
+    } else {
+        // Equality is computed on copies with canonical NaN and 0.0 at any depth, so that it
+        // follows Spark's float equality, while the kept elements are taken from the
+        // original values. The comparator treats NULLs nested inside the compared values as
+        // equal.
+        let mut is_equal: Box<dyn Fn(usize, usize) -> bool> = Box::new(|_, _| false);
+        if any_comparison {
+            let normalized = normalize_array(&values)?;
+            let needle = normalize_array(element)?;
             let cmp = make_comparator(
                 normalized.as_ref(),
                 needle.as_ref(),
                 SortOptions::default(),
             )?;
-            Box::new(move |i, row| cmp(i, if constant { 0 } else { row }).is_eq())
-        };
-    }
-
-    let value_nulls = values.logical_nulls();
-    let mut keep = BooleanBufferBuilder::new(len);
-    let mut new_offsets = Vec::with_capacity(list.len() + 1);
-    new_offsets.push(O::usize_as(0));
-    let mut kept = 0usize;
-    for (row, w) in offsets.windows(2).enumerate() {
-        let (start, end) = (w[0].as_usize() - base, w[1].as_usize() - base);
-        if row_is_valid(row) {
-            for i in start..end {
-                let keep_it = value_nulls.as_ref().is_some_and(|n| n.is_null(i))
-                    || !is_equal(i, row);
-                keep.append(keep_it);
-                kept += usize::from(keep_it);
-            }
-        } else {
-            keep.append_n(end - start, false);
+            is_equal =
+                Box::new(move |i, row| cmp(i, if constant { 0 } else { row }).is_eq());
         }
-        new_offsets.push(O::usize_as(kept));
-    }
-    let keep: BooleanBuffer = keep.finish();
+        let mut keep = BooleanBufferBuilder::new(len);
+        for (row, w) in offsets.windows(2).enumerate() {
+            let (start, end) = (w[0].as_usize() - base, w[1].as_usize() - base);
+            if row_is_valid(row) {
+                for i in start..end {
+                    let keep_it = value_nulls.as_ref().is_some_and(|n| n.is_null(i))
+                        || !is_equal(i, row);
+                    keep.append(keep_it);
+                    kept += usize::from(keep_it);
+                }
+            } else {
+                keep.append_n(end - start, false);
+            }
+            new_offsets.push(O::usize_as(kept));
+        }
+        keep.finish()
+    };
     let kept_values = if kept == len {
         values
     } else {
@@ -212,6 +238,23 @@ fn remove<O: OffsetSizeTrait>(
         kept_values,
         row_nulls,
     )?))
+}
+
+/// For each value, whether it equals the one-row `element` under Spark's float equality,
+/// where NaN equals NaN and `-0.0` equals `0.0`. The bits of NULL values are arbitrary.
+fn float_equal<T>(values: &ArrayRef, element: &ArrayRef) -> BooleanBuffer
+where
+    T: ArrowPrimitiveType,
+    T::Native: Float,
+{
+    let values = values.as_primitive::<T>().values();
+    let needle = element.as_primitive::<T>().value(0);
+    if needle.is_nan() {
+        BooleanBuffer::collect_bool(values.len(), |i| values[i].is_nan())
+    } else {
+        // IEEE 754 `==` already treats `-0.0` as equal to `0.0`.
+        BooleanBuffer::collect_bool(values.len(), |i| values[i] == needle)
+    }
 }
 
 /// Casts the array element and the element to their tightest common type, and rejects the
@@ -265,7 +308,7 @@ fn coerce_array_and_element(
 mod tests {
     use super::*;
     use arrow::array::{Float32Array, Float64Array, Int32Array, ListArray, StructArray};
-    use arrow::datatypes::{Fields, Float32Type, Float64Type, Int32Type};
+    use arrow::datatypes::{Fields, Int32Type};
 
     fn negative_nan() -> f64 {
         f64::from_bits(f64::NAN.to_bits() | (1 << 63))
@@ -505,5 +548,64 @@ mod tests {
             let err = udf.coerce_types(&[array, element]).unwrap_err().to_string();
             assert!(err.contains("ARRAY_FUNCTION_DIFF_TYPES"), "{err}");
         }
+    }
+
+    /// The bitmap path for a constant element that is not nested must agree with the
+    /// comparator path, which a column holding the same element takes.
+    #[test]
+    fn constant_fast_path_matches_comparator_path() {
+        let edge = [
+            Some(1.0),
+            Some(-0.0),
+            Some(0.0),
+            Some(f64::NAN),
+            Some(negative_nan()),
+            Some(f64::INFINITY),
+            None,
+        ];
+        // Every edge value in several orders, with NULL rows and empty rows.
+        let rows: Vec<Option<Vec<Option<f64>>>> = (0..edge.len())
+            .map(|i| Some(edge.iter().cycle().skip(i).take(i + 2).copied().collect()))
+            .chain([None, Some(vec![]), Some(vec![None])])
+            .collect();
+        let list = ListArray::from_iter_primitive::<Float64Type, _, _>(rows.clone());
+        let n = rows.len();
+        for array in [
+            Arc::new(list.clone()) as ArrayRef,
+            Arc::new(list.slice(1, n - 2)),
+        ] {
+            let len = array.len();
+            for needle in edge {
+                let constant: ArrayRef = Arc::new(Float64Array::from(vec![needle]));
+                let column: ArrayRef = Arc::new(Float64Array::from(vec![needle; len]));
+                let fast = remove::<i32>(&array, &constant, true).unwrap();
+                let generic = remove::<i32>(&array, &column, false).unwrap();
+                assert_eq!(
+                    format!("{fast:?}"),
+                    format!("{generic:?}"),
+                    "needle {needle:?}"
+                );
+            }
+        }
+
+        let ints = ListArray::from_iter_primitive::<Int32Type, _, _>(vec![
+            Some(vec![Some(1), None, Some(2), Some(1)]),
+            None,
+            Some(vec![Some(2)]),
+        ]);
+        let ints: ArrayRef = Arc::new(ints);
+        let fast = remove::<i32>(
+            &ints,
+            &(Arc::new(Int32Array::from(vec![1])) as ArrayRef),
+            true,
+        )
+        .unwrap();
+        let generic = remove::<i32>(
+            &ints,
+            &(Arc::new(Int32Array::from(vec![1; 3])) as ArrayRef),
+            false,
+        )
+        .unwrap();
+        assert_eq!(format!("{fast:?}"), format!("{generic:?}"));
     }
 }
