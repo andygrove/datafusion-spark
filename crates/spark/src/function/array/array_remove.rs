@@ -4,7 +4,7 @@
 
 use crate::function::float_normalize::normalize_array;
 use crate::function::type_coercion::{
-    is_orderable, struct_field_types_match, tightest_common_type,
+    is_orderable, spark_sql_type, struct_field_types_match, tightest_common_type,
 };
 use arrow::array::{
     Array, ArrayRef, AsArray, BooleanArray, BooleanBufferBuilder, GenericListArray,
@@ -28,10 +28,9 @@ use std::sync::Arc;
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#array_remove>
 #[user_doc(
     doc_section(label = "Array Functions"),
-    description = "Removes all elements that are equal to the element from the array. The \
-        result is NULL when the array or the element is NULL, while the DataFusion built-in \
-        removes the NULL elements when the element is NULL. NULL elements in the array are \
-        always kept. Corresponding NULLs nested inside compared arrays or structs are equal. \
+    description = "Removes all elements that are equal to the element from the array, while \
+        the DataFusion built-in removes only the first one. The result is NULL when the array \
+        or the element is NULL. NULL elements in the array are always kept. Corresponding NULLs nested inside compared arrays or structs are equal. \
         For floating point values, also inside nested arrays and structs, NaN is equal to NaN \
         and -0.0 is equal to 0.0; the elements that are kept keep their original values. As \
         in Spark, the array element and the element are cast to their tightest common type, \
@@ -39,8 +38,8 @@ use std::sync::Arc;
         decimal only if the decimal can hold all its values, and a date widens to a \
         timestamp. Other combinations are an error, for example a string and a number, two \
         different decimals, or structs whose field names or field types differ, as in Spark \
-        with ANSI mode off (with ANSI mode on, Spark widens struct field types). Map \
-        elements are also an error.",
+        with ANSI mode off (with ANSI mode on, Spark widens struct field types). Map and \
+        INTERVAL elements, at any depth, are also an error.",
     syntax_example = "array_remove(array, element)",
     sql_example = r#"```sql
 > SELECT array_remove(array(1, 2, 3, NULL, 3), 3);
@@ -230,7 +229,9 @@ fn coerce_array_and_element(
         plan_err!(
             "[DATATYPE_MISMATCH.ARRAY_FUNCTION_DIFF_TYPES] Input to `{name}` should have \
              been \"ARRAY\" followed by a value with same element type, but it's \
-             [{array}, {element}]"
+             [\"{}\", \"{}\"]. SQLSTATE: 42K09",
+            spark_sql_type(array),
+            spark_sql_type(element)
         )
     };
     let (item, large) = match array {
@@ -238,6 +239,7 @@ fn coerce_array_and_element(
         DataType::LargeList(field) => (field, true),
         _ => return diff_types_err(),
     };
+    // Spark's `ArrayRemove` calls the non-ANSI `TypeCoercion.findTightestCommonType`.
     let common = tightest_common_type(item.data_type(), element, false)
         .filter(|_| struct_field_types_match(item.data_type(), element));
     let Some(common) = common else {
@@ -246,7 +248,8 @@ fn coerce_array_and_element(
     if !is_orderable(&common) {
         return plan_err!(
             "[DATATYPE_MISMATCH.INVALID_ORDERING_TYPE] The `{name}` does not support \
-             ordering on type {common}"
+             ordering on type \"{}\". SQLSTATE: 42K09",
+            spark_sql_type(&common)
         );
     }
     let item = Arc::new(Field::new(item.name(), common.clone(), true));

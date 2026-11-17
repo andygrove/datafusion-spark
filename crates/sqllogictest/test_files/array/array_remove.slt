@@ -7,6 +7,8 @@
 # array or the element is NULL.
 # Expected values verified with pyspark==4.2.0.
 
+# Every matching element is removed. The DataFusion built-in removes only the first, and
+# returns [1, 3, 2] here.
 query ?
 SELECT array_remove(array(1, 2, 3, 2), 2);
 ----
@@ -43,7 +45,7 @@ SELECT array_remove(array(1, 1), 1);
 ----
 []
 
-# A NULL element returns NULL. The DataFusion built-in removes the NULL elements instead.
+# A NULL element returns NULL
 query ?
 SELECT array_remove(array(1, 2, 3), CAST(NULL AS INT));
 ----
@@ -82,7 +84,7 @@ SELECT array_remove(array(NULL, NULL), NULL);
 NULL
 
 # An untyped NULL array is not an array
-query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_remove` should have been "ARRAY" followed by a value with same element type
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_remove` should have been "ARRAY" followed by a value with same element type, but it's \["VOID", "BIGINT"\]\. SQLSTATE: 42K09
 SELECT array_remove(NULL, 1);
 
 query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
@@ -91,7 +93,7 @@ SELECT array_remove(NULL, NULL);
 query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
 SELECT array_remove(1, 1);
 
-query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_remove` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<BIGINT>", "ARRAY<BIGINT>"\]\. SQLSTATE: 42K09
 SELECT array_remove(array(1, 2, 3, 2), array(2));
 
 query ?
@@ -193,11 +195,18 @@ SELECT array_remove(array(named_struct('a', 1, 'b', CAST('-0.0' AS DOUBLE)), nam
 [{a: 2, b: 1.0}]
 
 # Maps cannot be ordered, so map elements are rejected at any depth
-query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_remove` does not support ordering on type
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_remove` does not support ordering on type "MAP<BIGINT, BIGINT>"\. SQLSTATE: 42K09
 SELECT array_remove(array(map(1, 2)), map(1, 2));
 
 query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\]
 SELECT array_remove(array(named_struct('m', map(1, 2))), named_struct('m', map(1, 2)));
+
+# Intervals cannot be ordered either
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_remove` does not support ordering on type "INTERVAL"\. SQLSTATE: 42K09
+SELECT array_remove(array(make_interval(1)), make_interval(1));
+
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_remove` does not support ordering on type "ARRAY<INTERVAL>"\. SQLSTATE: 42K09
+SELECT array_remove(array(array(make_interval(1))), array(make_interval(1)));
 
 ###
 ### Type coercion
