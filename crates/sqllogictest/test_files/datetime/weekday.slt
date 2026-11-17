@@ -112,6 +112,12 @@ SELECT weekday(arrow_cast('2024-01-07 03:00:00', 'Timestamp(Nanosecond, Some("UT
 ----
 6
 
+# Date64 is cast to epoch days
+query II
+SELECT weekday(arrow_cast('2024-01-07'::DATE, 'Date64')), weekday(arrow_cast('1969-12-31'::DATE, 'Date64'));
+----
+6 2
+
 # Error: wrong argument type (string without cast)
 statement error Function 'weekday' requires Date, but received String
 SELECT weekday('not-a-date');

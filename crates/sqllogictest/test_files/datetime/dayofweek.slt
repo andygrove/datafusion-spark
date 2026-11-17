@@ -98,6 +98,31 @@ NULL
 # ----
 # NULL
 
+# Spark reads '2009' and '2009-07' as the first day of that year or month, in both ANSI
+# modes. DataFusion's string to date cast rejects them. Tracked by
+# https://github.com/apache/datafusion-spark/issues/88
+# query II
+# SELECT dayofweek('2009'::STRING), dayofweek('2009-07'::STRING);
+# ----
+# 5 4
+
+# Date64 is cast to epoch days
+query II
+SELECT dayofweek(arrow_cast('2024-01-07'::DATE, 'Date64')), dayofweek(arrow_cast('1969-12-31'::DATE, 'Date64'));
+----
+1 4
+
+query I
+SELECT dayofweek(d) FROM (VALUES (arrow_cast('2024-01-07'::DATE, 'Date64')), (arrow_cast(NULL::DATE, 'Date64'))) AS t(d);
+----
+1
+NULL
+
+query I
+SELECT dayofweek(arrow_cast(arrow_cast('2024-01-07'::DATE, 'Date64'), 'Dictionary(Int32, Date64)'));
+----
+1
+
 # With ANSI mode on, Spark raises CAST_INVALID_INPUT for a malformed string
 statement ok
 set datafusion.execution.enable_ansi_mode = true;

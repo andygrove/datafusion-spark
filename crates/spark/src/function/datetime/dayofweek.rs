@@ -84,12 +84,21 @@ fn epoch_day_array<F: Fn(i32) -> i32 + Copy>(
     array: &ArrayRef,
     kernel: F,
 ) -> Result<ArrayRef> {
+    // The date signature also admits Date64, which holds milliseconds since the
+    // epoch. Arrow's cast turns it into epoch days.
+    if array.data_type() == &DataType::Date64 {
+        return epoch_day_array(name, &cast(array, &DataType::Date32)?, kernel);
+    }
     // A dictionary-encoded date column: map the dictionary values, rewrap the
     // keys, then unpack to a plain Int32 array, so the work is proportional to
     // the cardinality rather than the row count.
     if let DataType::Dictionary(_, _) = array.data_type() {
         let dict = array.as_any_dictionary();
-        let Some(values) = dict.values().as_primitive_opt::<Date32Type>() else {
+        let values = match dict.values().data_type() {
+            DataType::Date64 => cast(dict.values(), &DataType::Date32)?,
+            _ => Arc::clone(dict.values()),
+        };
+        let Some(values) = values.as_primitive_opt::<Date32Type>() else {
             return exec_err!("`{name}` expects a date, got {}", array.data_type());
         };
         let mapped = Arc::new(map_dates(values, kernel)) as ArrayRef;
@@ -111,7 +120,8 @@ fn epoch_day_array<F: Fn(i32) -> i32 + Copy>(
         DataFusion's `date_part('dow', ...)`, which counts from 0 (Sunday) to 6 (Saturday). \
         DataFusion has no built-in `dayofweek`. \
         Strings are implicitly cast to DATE. A malformed string is an error, even with ANSI mode off \
-        where Spark returns NULL. \
+        where Spark returns NULL. A string that Spark reads as a partial date, such as '2009' or \
+        '2009-07', is also an error, where Spark uses the first day of that year or month. \
         Timestamps are cast to DATE first, so the time of day is ignored. A timestamp with a time zone \
         is converted in its own time zone, not the session time zone that Spark uses. \
         Returns NULL if the input is NULL.",
