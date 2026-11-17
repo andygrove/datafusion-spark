@@ -110,3 +110,7 @@ name = "from_utc_timestamp"
 [[bench]]
 harness = false
 name = "stack"
+
+[[bench]]
+harness = false
+name = "greatest_least"

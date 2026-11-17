@@ -21,13 +21,14 @@
 use crate::function::float_normalize::{contains_float, normalize_array};
 use crate::function::type_coercion::{is_orderable, spark_sql_type, wider_type};
 use arrow::array::{
-    Array, ArrayRef, BooleanArray, Datum, Scalar, make_comparator, new_null_array,
+    Array, ArrayRef, ArrowPrimitiveType, AsArray, BooleanArray, Datum, Scalar,
+    make_comparator, new_null_array,
 };
 use arrow::buffer::BooleanBuffer;
 use arrow::compute::kernels::cmp::{gt, lt};
 use arrow::compute::kernels::zip::zip;
 use arrow::compute::{SortOptions, cast};
-use arrow::datatypes::{DataType, Field, FieldRef};
+use arrow::datatypes::{DataType, Field, FieldRef, Float32Type, Float64Type};
 use datafusion_common::config::ConfigOptions;
 use datafusion_common::{DataFusionError, Result, ScalarValue, plan_err};
 use datafusion_expr::{
@@ -35,6 +36,7 @@ use datafusion_expr::{
     ScalarUDFImpl, Signature, Volatility,
 };
 use datafusion_macros::user_doc;
+use num_traits::Float;
 use std::sync::Arc;
 
 /// Spark-compatible `greatest` expression.
@@ -91,7 +93,7 @@ impl SparkGreatest {
 
     /// Creates a `greatest` that coerces its arguments as Spark does with
     /// `datafusion.execution.enable_ansi_mode` set to `enable_ansi_mode`.
-    pub fn new_with_ansi_mode(enable_ansi_mode: bool) -> Self {
+    fn new_with_ansi_mode(enable_ansi_mode: bool) -> Self {
         Self {
             inner: GreatestLeast::new(true, enable_ansi_mode),
         }
@@ -147,7 +149,7 @@ impl SparkLeast {
 
     /// Creates a `least` that coerces its arguments as Spark does with
     /// `datafusion.execution.enable_ansi_mode` set to `enable_ansi_mode`.
-    pub fn new_with_ansi_mode(enable_ansi_mode: bool) -> Self {
+    fn new_with_ansi_mode(enable_ansi_mode: bool) -> Self {
         Self {
             inner: GreatestLeast::new(false, enable_ansi_mode),
         }
@@ -243,7 +245,8 @@ impl GreatestLeast {
         let message = format!(
             "[WRONG_NUM_ARGS.WITHOUT_SUGGESTION] The `{}` requires > 1 parameters but the \
              actual number is {count}. Please, refer to \
-             'https://spark.apache.org/docs/latest/sql-ref-functions.html' for a fix.",
+             'https://spark.apache.org/docs/latest/sql-ref-functions.html' for a fix. \
+             SQLSTATE: 42605",
             self.name()
         );
         Err(if planning {
@@ -267,7 +270,7 @@ impl GreatestLeast {
         let Some(common) = common else {
             return plan_err!(
                 "[DATATYPE_MISMATCH.DATA_DIFF_TYPES] Input to `{}` should all be the same \
-                 type, but it's [{}]",
+                 type, but it's [{}]. SQLSTATE: 42K09",
                 self.name(),
                 arg_types
                     .iter()
@@ -279,7 +282,7 @@ impl GreatestLeast {
         if !is_orderable(&common) {
             return plan_err!(
                 "[DATATYPE_MISMATCH.INVALID_ORDERING_TYPE] The `{}` does not support ordering \
-                 on type \"{}\"",
+                 on type \"{}\". SQLSTATE: 42K09",
                 self.name(),
                 spark_sql_type(&common)
             );
@@ -315,9 +318,10 @@ impl GreatestLeast {
                 cast(&array, data_type)?
             })
         };
-        // Floats are compared in a copy where `-0.0` is `0.0` and every NaN is the canonical
-        // NaN, where Arrow's total order agrees with Spark's. The result keeps the original.
-        let normalize = contains_float(data_type);
+        // Nested floats are compared in a copy where `-0.0` is `0.0` and every NaN is the
+        // canonical NaN, where Arrow's total order agrees with Spark's. The result keeps the
+        // original. Flat floats are compared in place by `spark_float_ordered`.
+        let normalize = data_type.is_nested() && contains_float(data_type);
         let comparable = |array: &ArrayRef| -> Result<ArrayRef> {
             if normalize {
                 normalize_array(array)
@@ -389,15 +393,31 @@ impl GreatestLeast {
         };
 
         if !current.data_type().is_nested() {
-            let candidate_cmp = candidate.cmp_datum();
-            let ordered = if self.greatest {
-                gt(candidate_cmp.as_ref(), current_cmp)?
-            } else {
-                lt(candidate_cmp.as_ref(), current_cmp)?
-            };
             // Where either side is NULL the comparison's value is arbitrary, but such rows are
             // decided by the null masks below.
-            let mut take = ordered.values().clone();
+            let mut take = match current.data_type() {
+                DataType::Float32 => spark_float_ordered::<Float32Type>(
+                    &candidate.cmp,
+                    candidate.scalar,
+                    current_cmp,
+                    self.greatest,
+                ),
+                DataType::Float64 => spark_float_ordered::<Float64Type>(
+                    &candidate.cmp,
+                    candidate.scalar,
+                    current_cmp,
+                    self.greatest,
+                ),
+                _ => {
+                    let candidate_cmp = candidate.cmp_datum();
+                    let ordered = if self.greatest {
+                        gt(candidate_cmp.as_ref(), current_cmp)?
+                    } else {
+                        lt(candidate_cmp.as_ref(), current_cmp)?
+                    };
+                    ordered.values().clone()
+                }
+            };
             if let Some(nulls) = &current_nulls {
                 take = &take | &!nulls.inner();
             }
@@ -432,6 +452,36 @@ impl GreatestLeast {
             }
         }))
     }
+}
+
+/// For each row, whether `candidate` ranks strictly before `current` in Spark's float order,
+/// where NaN is greater than every other value and `-0.0` equals `0.0`. A scalar candidate is
+/// a one-row array.
+fn spark_float_ordered<T>(
+    candidate: &ArrayRef,
+    scalar: bool,
+    current: &ArrayRef,
+    greatest: bool,
+) -> BooleanBuffer
+where
+    T: ArrowPrimitiveType,
+    T::Native: Float,
+{
+    let candidate = candidate.as_primitive::<T>().values();
+    let current = current.as_primitive::<T>().values();
+    // IEEE 754 `>` already treats `-0.0` as equal to `0.0`, so only NaN needs handling.
+    let gt = |a: T::Native, b: T::Native| {
+        if a.is_nan() {
+            !b.is_nan()
+        } else {
+            !b.is_nan() && a > b
+        }
+    };
+    BooleanBuffer::collect_bool(current.len(), |row| {
+        let c = candidate[if scalar { 0 } else { row }];
+        let r = current[row];
+        if greatest { gt(c, r) } else { gt(r, c) }
+    })
 }
 
 /// An argument after the first, with its values as they are and as they are compared. A
@@ -617,7 +667,7 @@ mod tests {
                 let result =
                     invoke(greatest, args, 1, DataType::Float32)?.into_array(1)?;
                 let value = result
-                    .as_primitive::<arrow::datatypes::Float32Type>()
+                    .as_primitive::<Float32Type>()
                     .value(0);
                 assert_eq!(value.to_bits(), expected.to_bits(), "greatest={greatest}");
             }

@@ -187,20 +187,29 @@ SELECT greatest(column1, column2), greatest(column1, 3::int, column2), greatest(
 NULL 3 NULL 0 b
 7 7 NaN Infinity c
 
+# A constant first argument, followed by columns. A NULL constant is skipped.
+query IIIR
+SELECT greatest(3::int, column1), greatest(NULL::int, column1), greatest(NULL::int, column1, column2), greatest(0::double, column3) FROM t;
+----
+3 1 2 NaN
+5 5 5 0
+3 NULL NULL 0
+3 NULL 7 Infinity
+
 statement ok
 DROP TABLE t;
 
 # Errors
 
 # At least two arguments
-query error \[WRONG_NUM_ARGS\.WITHOUT_SUGGESTION\] The `greatest` requires > 1 parameters but the actual number is 1
+query error \[WRONG_NUM_ARGS\.WITHOUT_SUGGESTION\] The `greatest` requires > 1 parameters but the actual number is 1\. Please, refer to 'https://spark\.apache\.org/docs/latest/sql-ref-functions\.html' for a fix\. SQLSTATE: 42605
 SELECT greatest(1::int);
 
 query error
 SELECT greatest();
 
 # Strings are not promoted
-query error \[DATATYPE_MISMATCH\.DATA_DIFF_TYPES\] Input to `greatest` should all be the same type, but it's \["INT", "STRING"\]
+query error \[DATATYPE_MISMATCH\.DATA_DIFF_TYPES\] Input to `greatest` should all be the same type, but it's \["INT", "STRING"\]\. SQLSTATE: 42K09
 SELECT greatest(1::int, 'a');
 
 query error \[DATATYPE_MISMATCH\.DATA_DIFF_TYPES\] Input to `greatest` should all be the same type, but it's \["DATE", "STRING"\]
@@ -216,8 +225,15 @@ query error \[DATATYPE_MISMATCH\.DATA_DIFF_TYPES\]
 SELECT greatest(named_struct('a', 1), named_struct('b', 1));
 
 # Maps cannot be ordered
-query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `greatest` does not support ordering on type "MAP<INT, INT>"
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `greatest` does not support ordering on type "MAP<INT, INT>"\. SQLSTATE: 42K09
 SELECT greatest(map(1::int, 2::int), map(1::int, 3::int));
+
+# Intervals cannot be ordered
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `greatest` does not support ordering on type "INTERVAL"\. SQLSTATE: 42K09
+SELECT greatest(make_interval(1), make_interval(2));
+
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `greatest` does not support ordering on type "ARRAY<INTERVAL>"\. SQLSTATE: 42K09
+SELECT greatest(array(make_interval(1)), array(make_interval(2)));
 
 # An integer and a FLOAT widen to FLOAT with ANSI mode off, and to DOUBLE with it on
 query T
