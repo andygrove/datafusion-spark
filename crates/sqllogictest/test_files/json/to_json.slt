@@ -1,0 +1,351 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+# Tests for Spark-compatible to_json function
+# https://spark.apache.org/docs/latest/api/sql/index.html#to_json
+#
+# Expected values follow Spark's JacksonGenerator with default options:
+# NULL struct fields omitted, Base64 binary, Java's Double.toString and
+# BigDecimal.toString number formatting, yyyy-MM-dd'T'HH:mm:ss.SSS[XXX] timestamps.
+
+## Basics
+
+query T
+SELECT to_json(named_struct('a', 1::INT, 'b', 'x'::STRING));
+----
+{"a":1,"b":"x"}
+
+# NULL struct fields are omitted
+query T
+SELECT to_json(named_struct('a', 1::INT, 'b', NULL::STRING));
+----
+{"a":1}
+
+query T
+SELECT to_json(named_struct('a', NULL::INT));
+----
+{}
+
+# a NULL struct produces NULL
+query T
+SELECT to_json(CASE WHEN false THEN named_struct('a', 1::INT) END);
+----
+NULL
+
+query T
+SELECT to_json(named_struct('b', true, 'i', 42::BIGINT, 's', 'text'::STRING));
+----
+{"b":true,"i":42,"s":"text"}
+
+# array input
+query T rowsort
+SELECT to_json(named_struct('id', id, 'name', name))
+FROM (VALUES (1::INT, 'a'::STRING), (2::INT, NULL::STRING), (NULL::INT, 'c'::STRING)) AS t(id, name);
+----
+{"id":1,"name":"a"}
+{"id":2}
+{"name":"c"}
+
+## Nesting
+
+query T
+SELECT to_json(named_struct('n', named_struct('a', 1::INT, 'b', NULL::INT)));
+----
+{"n":{"a":1}}
+
+query T
+SELECT to_json(named_struct('l', [1::INT, NULL::INT, 3::INT]));
+----
+{"l":[1,null,3]}
+
+query T
+SELECT to_json(named_struct('l', [named_struct('a', 1::INT), named_struct('a', NULL::INT)]));
+----
+{"l":[{"a":1},{}]}
+
+query T
+SELECT to_json(named_struct('m', map(['k'], [named_struct('a', 1::INT)])));
+----
+{"m":{"k":{"a":1}}}
+
+query T
+SELECT to_json(named_struct('l', [map(['k'], [1::INT])]));
+----
+{"l":[{"k":1}]}
+
+## Maps
+
+# NULL map values are kept, unlike NULL struct fields
+query T
+SELECT to_json(named_struct('m', map(['k'], [NULL::INT])));
+----
+{"m":{"k":null}}
+
+query T
+SELECT to_json(named_struct('m', map(['a', 'b'], [1::INT, NULL::INT])));
+----
+{"m":{"a":1,"b":null}}
+
+# map keys are written as strings, with the text of Spark's internal value
+query T
+SELECT to_json(named_struct('m', map([1::INT], ['v'])));
+----
+{"m":{"1":"v"}}
+
+query T
+SELECT to_json(named_struct('m', map([true], ['v'])));
+----
+{"m":{"true":"v"}}
+
+# dates are days since the epoch
+query T
+SELECT to_json(named_struct('m', map([DATE '2024-01-01'], [1::INT])));
+----
+{"m":{"19723":1}}
+
+# timestamps are microseconds since the epoch
+query T
+SELECT to_json(named_struct('m', map([TIMESTAMP '2024-01-01 01:02:03.123456'], [1::INT])));
+----
+{"m":{"1704070923123456":1}}
+
+# floats and decimals like Java's Double.toString and BigDecimal.toString
+query T
+SELECT to_json(named_struct('m', map([1e10::DOUBLE], [1::INT])));
+----
+{"m":{"1.0E10":1}}
+
+query T
+SELECT to_json(named_struct('m', map(['NaN'::DOUBLE], [1::INT])));
+----
+{"m":{"NaN":1}}
+
+query T
+SELECT to_json(named_struct('m', map([0.0000001::DECIMAL(10, 8)], [1::INT])));
+----
+{"m":{"1.0E-7":1}}
+
+## Binary values are Base64 strings
+
+query T
+SELECT to_json(named_struct('b', X'0001FF'));
+----
+{"b":"AAH/"}
+
+query T
+SELECT to_json(named_struct('b', arrow_cast('abc', 'Binary')));
+----
+{"b":"YWJj"}
+
+query T
+SELECT to_json(named_struct('b', arrow_cast('abc', 'LargeBinary')));
+----
+{"b":"YWJj"}
+
+query T
+SELECT to_json(named_struct('b', arrow_cast('abc', 'BinaryView')));
+----
+{"b":"YWJj"}
+
+query T
+SELECT to_json(named_struct('l', [arrow_cast('abc', 'Binary'), arrow_cast(NULL, 'Binary')]));
+----
+{"l":["YWJj",null]}
+
+## Floats are written like Java's Double.toString
+
+query T
+SELECT to_json(named_struct('x', 1.0::DOUBLE));
+----
+{"x":1.0}
+
+query T
+SELECT to_json(named_struct('x', 0.001::DOUBLE));
+----
+{"x":0.001}
+
+query T
+SELECT to_json(named_struct('x', 1e-5::DOUBLE));
+----
+{"x":1.0E-5}
+
+query T
+SELECT to_json(named_struct('x', 123456789::DOUBLE));
+----
+{"x":1.23456789E8}
+
+query T
+SELECT to_json(named_struct('x', 1e10::DOUBLE));
+----
+{"x":1.0E10}
+
+query T
+SELECT to_json(named_struct('x', -2.5::DOUBLE));
+----
+{"x":-2.5}
+
+query T
+SELECT to_json(named_struct('x', 0.1::FLOAT));
+----
+{"x":0.1}
+
+query T
+SELECT to_json(named_struct('x', 1e10::FLOAT));
+----
+{"x":1.0E10}
+
+# non-finite values are the strings NaN, Infinity and -Infinity
+query T
+SELECT to_json(named_struct('x', 'NaN'::DOUBLE));
+----
+{"x":"NaN"}
+
+query T
+SELECT to_json(named_struct('x', 'Infinity'::DOUBLE));
+----
+{"x":"Infinity"}
+
+query T
+SELECT to_json(named_struct('x', '-Infinity'::DOUBLE));
+----
+{"x":"-Infinity"}
+
+query T
+SELECT to_json(named_struct('x', 'NaN'::FLOAT));
+----
+{"x":"NaN"}
+
+query T rowsort
+SELECT to_json(named_struct('x', x))
+FROM (VALUES (1e-5::DOUBLE), (1.0::DOUBLE), ('NaN'::DOUBLE), (NULL::DOUBLE)) AS t(x);
+----
+{"x":"NaN"}
+{"x":1.0E-5}
+{"x":1.0}
+{}
+
+## Decimals are written like Java's BigDecimal.toString
+
+query T
+SELECT to_json(named_struct('d', 1.5::DECIMAL(10, 2)));
+----
+{"d":1.50}
+
+query T
+SELECT to_json(named_struct('d', 123::DECIMAL(10, 0)));
+----
+{"d":123}
+
+query T
+SELECT to_json(named_struct('d', -0.05::DECIMAL(10, 2)));
+----
+{"d":-0.05}
+
+query T
+SELECT to_json(named_struct('d', 0.000001::DECIMAL(10, 6)));
+----
+{"d":0.000001}
+
+# scientific notation when the adjusted exponent is below -6
+query T
+SELECT to_json(named_struct('d', 0.0000001::DECIMAL(10, 8)));
+----
+{"d":1.0E-7}
+
+query T
+SELECT to_json(named_struct('d', 0::DECIMAL(38, 10)));
+----
+{"d":0E-10}
+
+## Timestamps
+
+# TIMESTAMP (an instant): milliseconds, written in the session time zone with its offset, Z for UTC
+query T
+SELECT to_json(named_struct('t', arrow_cast('2024-01-01T01:02:03.123456Z', 'Timestamp(Microsecond, Some("UTC"))')));
+----
+{"t":"2024-01-01T01:02:03.123Z"}
+
+# TIMESTAMP_NTZ (a wall-clock time): no offset
+query T
+SELECT to_json(named_struct('t', TIMESTAMP '2024-01-01 01:02:03.123456'));
+----
+{"t":"2024-01-01T01:02:03.123"}
+
+query T
+SELECT to_json(named_struct('t', TIMESTAMP '2024-01-01 01:02:03'));
+----
+{"t":"2024-01-01T01:02:03.000"}
+
+statement ok
+SET datafusion.execution.time_zone = '+02:00';
+
+query T
+SELECT to_json(named_struct('t', arrow_cast('2024-01-01T01:02:03.123456Z', 'Timestamp(Microsecond, Some("UTC"))')));
+----
+{"t":"2024-01-01T03:02:03.123+02:00"}
+
+# the session time zone does not apply to TIMESTAMP_NTZ
+query T
+SELECT to_json(named_struct('t', TIMESTAMP '2024-01-01 01:02:03.123456'));
+----
+{"t":"2024-01-01T01:02:03.123"}
+
+statement ok
+RESET datafusion.execution.time_zone;
+
+## Dates are written as yyyy-MM-dd
+
+query T
+SELECT to_json(named_struct('d', DATE '2024-01-01'));
+----
+{"d":"2024-01-01"}
+
+query T
+SELECT to_json(named_struct('d', arrow_cast(DATE '2024-01-01', 'Date64')));
+----
+{"d":"2024-01-01"}
+
+## Strings are escaped like Jackson
+
+query T
+SELECT to_json(named_struct('s', 'a' || chr(31) || 'b'));
+----
+{"s":"a\u001Fb"}
+
+query T
+SELECT to_json(named_struct('s', 'q"' || chr(10) || 'é'));
+----
+{"s":"q\"\né"}
+
+query T
+SELECT to_json(named_struct('m', map([chr(31)], [chr(1)])));
+----
+{"m":{"\u001F":"\u0001"}}
+
+# dictionary-encoded values are written like their values
+query T
+SELECT to_json(named_struct('s', arrow_cast('a', 'Dictionary(Int32, Utf8)')));
+----
+{"s":"a"}
+
+## Errors
+
+query error Error during planning: to_json expects a struct argument, got Utf8
+SELECT to_json('abc'::STRING);
+
+query error 'to_json' does not support zero arguments
+SELECT to_json();
+
+query error to_json.* but received 2
+SELECT to_json(named_struct('a', 1::INT), named_struct('b', 2::INT));
+
+# types without a Spark JSON representation are rejected at planning time
+query error Error during planning: to_json: field i has type Interval\(MonthDayNano\), which has no Spark JSON representation
+SELECT to_json(named_struct('i', INTERVAL '1' DAY));
+
+query error Error during planning: to_json: field s.l\[\] has type Interval\(MonthDayNano\), which has no Spark JSON representation
+SELECT to_json(named_struct('s', named_struct('l', [INTERVAL '1' DAY])));
+
+query error Error during planning: to_json: field m has map key type List\(.*\), which is not supported
+SELECT to_json(named_struct('m', map([[1::INT]], [1::INT])));
