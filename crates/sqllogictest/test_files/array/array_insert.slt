@@ -138,18 +138,28 @@ statement error INVALID_INDEX_OF_ZERO
 SELECT array_insert(column1, 0, column3) FROM array_insert_t WHERE column1 IS NOT NULL;
 
 # Index 0 is invalid
-statement error INVALID_INDEX_OF_ZERO
+statement error ^.*\[INVALID_INDEX_OF_ZERO\] The index 0 is invalid\. An index shall be either < 0 or > 0 \(the first element has index 1\)\. SQLSTATE: 22003$
 SELECT array_insert(make_array(1, 2), 0, 5);
 
+# Struct fields are paired by position, so reordered fields have no common type,
+# as in Spark 4.2.0 in both ANSI modes
+statement error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_insert(make_array(named_struct('a', 1::INT, 'b', 2::INT)), 1, named_struct('b', 3::INT, 'a', 4::INT));
+
+# Struct field types are not widened, as in Spark with ANSI mode off. With ANSI
+# mode on, Spark widens them.
+statement error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_insert(make_array(named_struct('a', 1::INT)), 1, named_struct('a', 2::BIGINT));
+
 # Exceeding the maximum array length
-query error \[COLLECTION_SIZE_LIMIT_EXCEEDED\.FUNCTION\] Can't create array with 2147483647 elements which exceeding the array size limit 2147483632, unsuccessful try to create arrays in the function `array_insert`\.
+query error \[COLLECTION_SIZE_LIMIT_EXCEEDED\.FUNCTION\] Can't create array with 2147483647 elements which exceeding the array size limit 2147483632, unsuccessful try to create arrays in the function `array_insert`\. SQLSTATE: 54000
 SELECT array_insert(make_array(1, 2), 2147483647, 5);
 
 # ... also for a position from a column
 statement ok
 CREATE TABLE array_insert_big AS VALUES (make_array(1, 2), 2147483647, 5);
 
-query error \[COLLECTION_SIZE_LIMIT_EXCEEDED\.FUNCTION\] Can't create array with 2147483647 elements which exceeding the array size limit 2147483632, unsuccessful try to create arrays in the function `array_insert`\.
+query error \[COLLECTION_SIZE_LIMIT_EXCEEDED\.FUNCTION\] Can't create array with 2147483647 elements which exceeding the array size limit 2147483632, unsuccessful try to create arrays in the function `array_insert`\. SQLSTATE: 54000
 SELECT array_insert(column1, column2, column3) FROM array_insert_big;
 
 # The index must be an integer

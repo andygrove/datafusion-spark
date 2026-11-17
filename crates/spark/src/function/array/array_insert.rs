@@ -15,14 +15,15 @@ use datafusion_common::{
     DataFusionError, Result, ScalarValue, exec_err, internal_err, plan_datafusion_err,
     plan_err,
 };
-use datafusion_expr::type_coercion::binary::{
-    binary_numeric_coercion, type_union_resolution,
-};
 use datafusion_expr::{
     ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
     Signature, Volatility,
 };
 use datafusion_macros::user_doc;
+
+use crate::function::type_coercion::{
+    spark_sql_type, struct_field_types_match, tightest_common_type,
+};
 
 /// `ByteArrayUtils.MAX_ROUNDED_ARRAY_LENGTH` (`Integer.MAX_VALUE - 15`) in Spark.
 const MAX_ROUNDED_ARRAY_LENGTH: i64 = 2_147_483_632;
@@ -112,159 +113,13 @@ fn list_element_field(data_type: &DataType) -> Option<&FieldRef> {
     }
 }
 
-/// The precision and scale of a decimal type.
-fn decimal_precision_scale(t: &DataType) -> Option<(u8, i8)> {
-    match t {
-        DataType::Decimal32(p, s)
-        | DataType::Decimal64(p, s)
-        | DataType::Decimal128(p, s)
-        | DataType::Decimal256(p, s) => Some((*p, *s)),
-        _ => None,
-    }
-}
-
-/// The precision Spark's `DecimalType.forType` gives an integer type.
-fn integer_digits(t: &DataType) -> Option<i16> {
-    match t {
-        DataType::Int8 | DataType::UInt8 => Some(3),
-        DataType::Int16 | DataType::UInt16 => Some(5),
-        DataType::Int32 | DataType::UInt32 => Some(10),
-        DataType::Int64 | DataType::UInt64 => Some(20),
-        _ => None,
-    }
-}
-
-/// Whether Spark's `findTightestCommonType` has no common type for `a` and
-/// `b` where DataFusion's coercion finds one, at the top level or inside a
-/// list, struct or map.
-///
-/// DataFusion coerces these pairs (for example INT and STRING to STRING, or
-/// two decimals to a wider decimal), but Spark rejects them:
-/// - a string or binary type with a type of another kind,
-/// - a decimal with a floating point type,
-/// - two decimals of different precision or scale,
-/// - an integer with a decimal that cannot hold the whole integer range
-///   (Spark's `DecimalType.isWiderThan`).
-fn spark_rejects_pair(a: &DataType, b: &DataType) -> bool {
-    #[derive(PartialEq)]
-    enum Kind {
-        String,
-        Binary,
-        Other,
-    }
-    fn kind(t: &DataType) -> Kind {
-        match t {
-            DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => Kind::String,
-            DataType::Binary
-            | DataType::LargeBinary
-            | DataType::BinaryView
-            | DataType::FixedSizeBinary(_) => Kind::Binary,
-            _ => Kind::Other,
-        }
-    }
-    match (a, b) {
-        (DataType::Null, _) | (_, DataType::Null) => false,
-        (DataType::Dictionary(_, v), other) | (other, DataType::Dictionary(_, v)) => {
-            spark_rejects_pair(v, other)
-        }
-        (DataType::RunEndEncoded(_, v), other)
-        | (other, DataType::RunEndEncoded(_, v)) => {
-            spark_rejects_pair(v.data_type(), other)
-        }
-        (DataType::Struct(fa), DataType::Struct(fb)) => fa.iter().any(|fa| {
-            fb.iter()
-                .find(|fb| fb.name() == fa.name())
-                .is_some_and(|fb| spark_rejects_pair(fa.data_type(), fb.data_type()))
-        }),
-        // A map's entries are a struct of the key and the value.
-        (DataType::Map(ea, _), DataType::Map(eb, _)) => {
-            match (ea.data_type(), eb.data_type()) {
-                (DataType::Struct(ka), DataType::Struct(kb)) => ka
-                    .iter()
-                    .zip(kb.iter())
-                    .any(|(fa, fb)| spark_rejects_pair(fa.data_type(), fb.data_type())),
-                _ => false,
-            }
-        }
-        _ => {
-            if let (Some(fa), Some(fb)) = (list_element_field(a), list_element_field(b)) {
-                return spark_rejects_pair(fa.data_type(), fb.data_type());
-            }
-            if kind(a) != kind(b) {
-                return true;
-            }
-            let (decimal, other) =
-                match (decimal_precision_scale(a), decimal_precision_scale(b)) {
-                    (Some(da), Some(db)) => return da != db,
-                    (Some(d), None) => (d, b),
-                    (None, Some(d)) => (d, a),
-                    (None, None) => return false,
-                };
-            let (precision, scale) = decimal;
-            if other.is_floating() {
-                true
-            } else if let Some(digits) = integer_digits(other) {
-                scale < 0 || i16::from(precision) - i16::from(scale) < digits
-            } else {
-                false
-            }
-        }
-    }
-}
-
-/// The Spark SQL name of a type, as Spark prints it in error messages.
-fn spark_type_name(t: &DataType) -> String {
-    match t {
-        DataType::Null => "VOID".to_string(),
-        DataType::Boolean => "BOOLEAN".to_string(),
-        DataType::Int8 => "TINYINT".to_string(),
-        DataType::Int16 => "SMALLINT".to_string(),
-        DataType::Int32 => "INT".to_string(),
-        DataType::Int64 => "BIGINT".to_string(),
-        DataType::Float32 => "FLOAT".to_string(),
-        DataType::Float64 => "DOUBLE".to_string(),
-        DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View => "STRING".to_string(),
-        DataType::Binary
-        | DataType::LargeBinary
-        | DataType::BinaryView
-        | DataType::FixedSizeBinary(_) => "BINARY".to_string(),
-        DataType::Date32 | DataType::Date64 => "DATE".to_string(),
-        DataType::Timestamp(_, None) => "TIMESTAMP_NTZ".to_string(),
-        DataType::Timestamp(_, Some(_)) => "TIMESTAMP".to_string(),
-        DataType::Dictionary(_, v) => spark_type_name(v),
-        DataType::RunEndEncoded(_, v) => spark_type_name(v.data_type()),
-        DataType::List(f) | DataType::LargeList(f) | DataType::FixedSizeList(f, _) => {
-            format!("ARRAY<{}>", spark_type_name(f.data_type()))
-        }
-        DataType::Struct(fields) => {
-            let fields: Vec<String> = fields
-                .iter()
-                .map(|f| format!("{}: {}", f.name(), spark_type_name(f.data_type())))
-                .collect();
-            format!("STRUCT<{}>", fields.join(", "))
-        }
-        DataType::Map(entries, _) => match entries.data_type() {
-            DataType::Struct(kv) if kv.len() == 2 => format!(
-                "MAP<{}, {}>",
-                spark_type_name(kv[0].data_type()),
-                spark_type_name(kv[1].data_type())
-            ),
-            _ => t.to_string(),
-        },
-        other => match decimal_precision_scale(other) {
-            Some((p, s)) => format!("DECIMAL({p},{s})"),
-            None => other.to_string(),
-        },
-    }
-}
-
 /// Spark's error when the first argument is not an array, or the item does
 /// not share a type with the array's elements.
 fn diff_types_err(array: &DataType, item: &DataType) -> DataFusionError {
     plan_datafusion_err!(
-        "[DATATYPE_MISMATCH.ARRAY_FUNCTION_DIFF_TYPES] Input to `array_insert` should have been \"ARRAY\" followed by a value with same element type, but it's [\"{}\", \"{}\"].",
-        spark_type_name(array),
-        spark_type_name(item)
+        "[DATATYPE_MISMATCH.ARRAY_FUNCTION_DIFF_TYPES] Input to `array_insert` should have been \"ARRAY\" followed by a value with same element type, but it's [\"{}\", \"{}\"]. SQLSTATE: 42K09",
+        spark_sql_type(array),
+        spark_sql_type(item)
     )
 }
 
@@ -321,27 +176,19 @@ impl ScalarUDFImpl for SparkArrayInsert {
         // the INT range then fails the cast instead of being silently truncated.
         if !pos.is_integer() {
             return plan_err!(
-                "[DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE] The second parameter of `array_insert` requires the \"INT\" type, however it has the type \"{}\".",
-                spark_type_name(pos)
+                "[DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE] The second parameter of `array_insert` requires the \"INT\" type, however it has the type \"{}\". SQLSTATE: 42K09",
+                spark_sql_type(pos)
             );
         }
 
-        // Spark uses the tightest common type of the element and the item.
-        // Besides numeric widening, that unifies types of the same family, such
-        // as Utf8 and Utf8View (parquet's default for strings), timestamps of
-        // different units, and nested types that differ only in nullability.
+        // Spark's `ArrayInsert` casts both to the non-ANSI
+        // `TypeCoercion.findTightestCommonType` of the element and the item. That
+        // unifies Utf8 and Utf8View (parquet's default for strings), timestamps
+        // of different units, and nested types that differ only in nullability,
+        // and pairs struct fields by position.
         let elem_type = elem.data_type();
-        let common = if elem_type == item || *item == DataType::Null {
-            Some(elem_type.clone())
-        } else if *elem_type == DataType::Null {
-            Some(item.clone())
-        } else if spark_rejects_pair(elem_type, item) {
-            None
-        } else if let Some(common) = binary_numeric_coercion(elem_type, item) {
-            Some(common)
-        } else {
-            type_union_resolution(&[elem_type.clone(), item.clone()])
-        };
+        let common = tightest_common_type(elem_type, item, false)
+            .filter(|_| struct_field_types_match(elem_type, item));
         let Some(common) = common else {
             return Err(diff_types_err(array, item));
         };
@@ -416,7 +263,7 @@ struct Placement {
 fn place(pos: i32, len: usize, legacy: bool) -> Result<Placement> {
     if pos == 0 {
         return exec_err!(
-            "[INVALID_INDEX_OF_ZERO] The index 0 is invalid. An index shall be either < 0 or > 0 (the first element has index 1)."
+            "[INVALID_INDEX_OF_ZERO] The index 0 is invalid. An index shall be either < 0 or > 0 (the first element has index 1). SQLSTATE: 22003"
         );
     }
     let n = len as i64;
@@ -437,7 +284,7 @@ fn place(pos: i32, len: usize, legacy: bool) -> Result<Placement> {
     };
     if new_len > MAX_ROUNDED_ARRAY_LENGTH {
         return exec_err!(
-            "[COLLECTION_SIZE_LIMIT_EXCEEDED.FUNCTION] Can't create array with {new_len} elements which exceeding the array size limit {MAX_ROUNDED_ARRAY_LENGTH}, unsuccessful try to create arrays in the function `array_insert`."
+            "[COLLECTION_SIZE_LIMIT_EXCEEDED.FUNCTION] Can't create array with {new_len} elements which exceeding the array size limit {MAX_ROUNDED_ARRAY_LENGTH}, unsuccessful try to create arrays in the function `array_insert`. SQLSTATE: 54000"
         );
     }
     Ok(Placement {
@@ -483,6 +330,16 @@ fn array_insert<O: OffsetSizeTrait>(
 
     let values = list.values().to_data();
     let item_data = item.to_data();
+    // `MutableArrayData` panics on mixed types. SQL coerces the item to the
+    // element type, but a caller that builds the physical expression directly,
+    // such as Comet, may not.
+    if values.data_type() != item_data.data_type() {
+        return internal_err!(
+            "array_insert expects the item type {} to match the element type {}",
+            item_data.data_type(),
+            values.data_type()
+        );
+    }
     let mut out = MutableArrayData::with_capacities(
         vec![&values, &item_data],
         true,
@@ -650,6 +507,41 @@ mod tests {
         ]);
         assert_eq!(got.to_data(), expected.to_data());
         Ok(())
+    }
+
+    /// A caller that skips coercion must get an error, not a panic, when the
+    /// item type differs from the element type.
+    #[test]
+    fn mismatched_item_type_is_an_error() {
+        let list =
+            ListArray::from_iter_primitive::<Int32Type, _, _>(vec![Some(vec![Some(1)])]);
+        let list: ArrayRef = Arc::new(list);
+        let pos: ArrayRef = Arc::new(Int32Array::from(vec![1]));
+        let item: ArrayRef = Arc::new(arrow::array::Int64Array::from(vec![2]));
+        let args = vec![
+            ColumnarValue::Array(Arc::clone(&list)),
+            ColumnarValue::Array(pos),
+            ColumnarValue::Array(item),
+        ];
+        let arg_fields = args
+            .iter()
+            .map(|arg| Arc::new(Field::new("a", arg.data_type(), true)))
+            .collect();
+        let error = SparkArrayInsert::new()
+            .invoke_with_args(ScalarFunctionArgs {
+                args,
+                arg_fields,
+                number_rows: 1,
+                return_field: Arc::new(Field::new("r", list.data_type().clone(), true)),
+                config_options: Arc::new(Default::default()),
+            })
+            .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("expects the item type Int64 to match the element type Int32"),
+            "{error}"
+        );
     }
 
     #[test]
