@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+name: Bug report
+description: A function returns a different result from Spark, errors, or panics
+type: Bug
+labels: bug
+body:
+  - type: textarea
+    attributes:
+      label: Describe the bug
+      description: >
+        Which function behaves differently from Spark, and how? For example,
+        "`round` returns 2.0 for 2.5 where Spark returns 3.0".
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: To Reproduce
+      description: >
+        A query that shows the bug, run with `datafusion-spark` (for example in a
+        `.slt` file), and its result.
+      render: sql
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Expected behavior
+      description: >
+        Spark's result for the same query. Say whether `spark.sql.ansi.enabled`
+        was on, since many functions behave differently in ANSI mode.
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: Spark versions
+      description: >
+        The Spark versions you checked, and whether their results differ.
+      placeholder: 3.5.8 and 4.2.0, both return 3.0
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: datafusion-spark version
+      description: The release, or the commit of `main`.
+      placeholder: 56.0.0
+  - type: textarea
+    attributes:
+      label: Additional context
+      description: >
+        Anything else, such as a link to the Spark source that implements the
+        function.

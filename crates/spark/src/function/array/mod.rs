@@ -7,7 +7,6 @@
 pub mod array_contains;
 pub mod array_position;
 pub mod array_remove;
-mod float_normalize;
 pub mod repeat;
 pub mod shuffle;
 pub mod slice;

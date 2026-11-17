@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+# Fails when a workflow uses a GitHub Action that is not on the ASF
+# Infrastructure allowlist. The ASF only lets allowlisted actions run, so this
+# catches the problem on the pull request. Taken from apache/datafusion-iceberg,
+# which uses
+# https://github.com/apache/infrastructure-actions/tree/main/allowlist-check
+
+name: ASF Allowlist Check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  asf-allowlist-check:
+    name: ASF allowlist check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: apache/infrastructure-actions/allowlist-check@main

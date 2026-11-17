@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+name: Function request
+description: Implement a Spark function that datafusion-spark does not have yet
+type: Feature
+labels: enhancement
+title: Implement Spark-compatible `<function>`
+body:
+  - type: textarea
+    attributes:
+      label: What the function does
+      description: >
+        Its arguments, the types it accepts (including the types Spark casts to
+        implicitly), its result type, and how it handles NULL. Link Spark's
+        documentation or source for the function.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Examples
+      description: Queries and Spark's results for them.
+      render: sql
+  - type: textarea
+    attributes:
+      label: Edge cases to test
+      description: >
+        For example NULL arguments, empty input, overflow, NaN, invalid input,
+        and the difference ANSI mode makes.
+  - type: textarea
+    attributes:
+      label: Differences across Spark versions
+      description: >
+        Whether the function's behavior differs between Spark versions, and
+        from which version it is available.
+      placeholder: None found (3.4 through 4.2).

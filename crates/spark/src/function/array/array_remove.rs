@@ -2,8 +2,10 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
-use super::array_position::{contains_map, tightest_common_type};
-use super::float_normalize::normalize_array;
+use crate::function::float_normalize::normalize_array;
+use crate::function::type_coercion::{
+    is_orderable, struct_field_types_match, tightest_common_type,
+};
 use arrow::array::{
     Array, ArrayRef, AsArray, BooleanArray, BooleanBufferBuilder, GenericListArray,
     OffsetSizeTrait, Scalar, make_comparator,
@@ -236,10 +238,12 @@ fn coerce_array_and_element(
         DataType::LargeList(field) => (field, true),
         _ => return diff_types_err(),
     };
-    let Some(common) = tightest_common_type(item.data_type(), element) else {
+    let common = tightest_common_type(item.data_type(), element, false)
+        .filter(|_| struct_field_types_match(item.data_type(), element));
+    let Some(common) = common else {
         return diff_types_err();
     };
-    if contains_map(&common) {
+    if !is_orderable(&common) {
         return plan_err!(
             "[DATATYPE_MISMATCH.INVALID_ORDERING_TYPE] The `{name}` does not support \
              ordering on type {common}"

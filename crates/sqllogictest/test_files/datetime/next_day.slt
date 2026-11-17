@@ -166,14 +166,141 @@ SELECT next_day('2015-07-23', arrow_cast('Mon', 'Utf8View'));
 2015-07-27
 
 # With ANSI mode on, Spark raises ILLEGAL_DAY_OF_WEEK for an unrecognized day name.
-# This implementation always returns NULL (https://github.com/apache/datafusion-spark/issues/113).
+# https://github.com/apache/datafusion-spark/issues/113
 statement ok
 set datafusion.execution.enable_ansi_mode = true;
 
+query error \[ILLEGAL_DAY_OF_WEEK\] Illegal input for day of week: xx\. SQLSTATE: 22009
+SELECT next_day(DATE '2024-01-01', 'xx');
+
+query error \[ILLEGAL_DAY_OF_WEEK\] Illegal input for day of week:\s+MO\s+\. SQLSTATE: 22009
+SELECT next_day(DATE '2015-01-14', ' MO ');
+
+query error \[ILLEGAL_DAY_OF_WEEK\] Illegal input for day of week:\s+MO\. SQLSTATE: 22009
+SELECT next_day(DATE '2015-01-14', ' MO');
+
+query error \[ILLEGAL_DAY_OF_WEEK\] Illegal input for day of week: MO\s+\. SQLSTATE: 22009
+SELECT next_day(DATE '2015-01-14', 'MO ');
+
+# Empty weekday string under ANSI mode
+query error \[ILLEGAL_DAY_OF_WEEK\] Illegal input for day of week:\s*\. SQLSTATE: 22009
+SELECT next_day(DATE '2024-01-01', '');
+
+# 4-character invalid abbreviation under ANSI mode
+query error \[ILLEGAL_DAY_OF_WEEK\] Illegal input for day of week: TUES\. SQLSTATE: 22009
+SELECT next_day(DATE '2024-01-01', 'TUES');
+
+# NULL inputs short-circuit in ANSI mode
+query D
+SELECT next_day(NULL::DATE, 'xx');
+----
+NULL
+
+query D
+SELECT next_day(DATE '2024-01-01', NULL);
+----
+NULL
+
+# Valid day names succeed in ANSI mode (including lowercase and mixed case)
+query D
+SELECT next_day(DATE '2024-01-01', 'TU');
+----
+2024-01-02
+
+query D
+SELECT next_day(DATE '2024-01-01', 'Tuesday');
+----
+2024-01-02
+
+query D
+SELECT next_day(DATE '2024-01-01', 'tu');
+----
+2024-01-02
+
+query D
+SELECT next_day(DATE '2024-01-01', 'mOnDaY');
+----
+2024-01-08
+
+# LargeUtf8 and Utf8View with invalid day under ANSI mode
+query error \[ILLEGAL_DAY_OF_WEEK\] Illegal input for day of week: invalid_day\. SQLSTATE: 22009
+SELECT next_day('2024-01-01', arrow_cast('invalid_day', 'LargeUtf8'));
+
+query error \[ILLEGAL_DAY_OF_WEEK\] Illegal input for day of week: invalid_day\. SQLSTATE: 22009
+SELECT next_day('2024-01-01', arrow_cast('invalid_day', 'Utf8View'));
+
+# Unicode day names folding via Unicode case folding (Spark DateTimeUtils.toUpperCase(Locale.ROOT))
+query D
+SELECT next_day(DATE '2024-01-01', 'ſu');
+----
+2024-01-07
+
+query D
+SELECT next_day(DATE '2024-01-01', 'frı');
+----
+2024-01-05
+
+# Column inputs with ANSI mode enabled (maintainer test gap)
+query D
+SELECT next_day(a, b) FROM VALUES (NULL::DATE, 'xx'), (DATE '2024-01-01', 'TU') AS t(a, b);
+----
+NULL
+2024-01-02
+
+query error \[ILLEGAL_DAY_OF_WEEK\] Illegal input for day of week: xx\. SQLSTATE: 22009
+SELECT next_day(a, b) FROM VALUES (DATE '2024-01-01', 'xx'), (DATE '2024-01-01', 'TU') AS t(a, b);
+
+statement ok
+set datafusion.execution.enable_ansi_mode = false;
+
+# With ANSI mode off, invalid day of week returns NULL (legacy / non-ANSI behavior)
 query D
 SELECT next_day(DATE '2024-01-01', 'xx');
 ----
 NULL
 
-statement ok
-set datafusion.execution.enable_ansi_mode = false;
+query D
+SELECT next_day(DATE '2015-01-14', ' MO ');
+----
+NULL
+
+query D
+SELECT next_day(DATE '2015-01-14', ' MO');
+----
+NULL
+
+query D
+SELECT next_day(DATE '2015-01-14', 'MO ');
+----
+NULL
+
+query D
+SELECT next_day(DATE '2024-01-01', '');
+----
+NULL
+
+query D
+SELECT next_day(DATE '2024-01-01', 'TUES');
+----
+NULL
+
+query D
+SELECT next_day(DATE '2024-01-01', 'tu');
+----
+2024-01-02
+
+query D
+SELECT next_day(DATE '2024-01-01', 'mOnDaY');
+----
+2024-01-08
+
+# Unicode day names with ANSI mode off
+query D
+SELECT next_day(DATE '2024-01-01', 'ſu');
+----
+2024-01-07
+
+query D
+SELECT next_day(DATE '2024-01-01', 'frı');
+----
+2024-01-05
