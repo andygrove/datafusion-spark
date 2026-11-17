@@ -666,9 +666,7 @@ mod tests {
             ] {
                 let result =
                     invoke(greatest, args, 1, DataType::Float32)?.into_array(1)?;
-                let value = result
-                    .as_primitive::<Float32Type>()
-                    .value(0);
+                let value = result.as_primitive::<Float32Type>().value(0);
                 assert_eq!(value.to_bits(), expected.to_bits(), "greatest={greatest}");
             }
         }
