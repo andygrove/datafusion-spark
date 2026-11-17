@@ -386,6 +386,8 @@ class CompareTest(unittest.TestCase):
         )
         self.assertIsNone(r.numeric_difference(["0.1235"], ["0.1234"], "nosort"))
         self.assertIsNone(r.numeric_difference(["NULL"], ["0"], "nosort"))
+        self.assertIsNone(r.numeric_difference(["0"], ["-0"], "nosort"))
+        self.assertEqual(r.numeric_difference(["-0"], ["-0.0"], "nosort"), "scale")
         # Strings that Python's float() accepts are not numbers here.
         self.assertIsNone(r.numeric_difference(["007"], ["7"], "nosort"))
         self.assertIsNone(r.numeric_difference(["1_0"], ["10"], "nosort"))

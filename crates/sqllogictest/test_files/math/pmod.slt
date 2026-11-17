@@ -228,10 +228,13 @@ SELECT pmod(5.0::float8, 2.5::float8) as pmod_float_5;
 ----
 0
 
-query R
-SELECT pmod(-5.0::float8, 2.5::float8) as pmod_float_6;
-----
-0
+# Spark 4.2.0 returns -0.0 because its `remainder < 0` check is false for -0.0.
+# DataFusion treats -0.0 as negative, adds the divisor and returns 0.
+# https://github.com/apache/datafusion-spark/issues/343
+# query R
+# SELECT pmod(-5.0::float8, 2.5::float8) as pmod_float_6;
+# ----
+# -0
 
 # PMOD tests with float32
 query R
@@ -426,6 +429,9 @@ SELECT pmod(10.5, 3.0) as pmod_scalar_3;
 ----
 1.5
 
+# DataFusion types the untyped `-7.2` and `3.0` as DOUBLE, while Spark reads them as
+# DECIMAL and returns 1.8 (https://github.com/apache/datafusion-spark/issues/97).
+# The `::float8` query above checks the DOUBLE result.
 query R
 SELECT pmod(-7.2, 3.0) as pmod_scalar_4;
 ----

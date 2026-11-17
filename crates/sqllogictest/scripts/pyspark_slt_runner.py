@@ -1182,6 +1182,9 @@ def numeric_difference(expected: list[str], actual: list[str], sort_mode: str) -
                 return None
             e_float, a_float = float(e), float(a)
             if e_float == a_float:
+                # -0.0 == 0.0 in Python, but a different sign on zero is a real difference.
+                if math.copysign(1, e_float) != math.copysign(1, a_float):
+                    return None
                 continue
             if not math.isclose(e_float, a_float, rel_tol=1e-12, abs_tol=1e-15):
                 return None
