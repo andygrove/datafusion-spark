@@ -161,7 +161,14 @@ fn remove<O: OffsetSizeTrait>(
     new_offsets.push(O::usize_as(0));
     let mut kept = 0usize;
 
-    let keep = if any_comparison && constant && !values.data_type().is_nested() {
+    // A caller that skips coercion, such as Comet, can pass an element of another type. The
+    // bitmap path would panic on its downcast, so such an element takes the comparator path,
+    // which returns an error.
+    let keep = if any_comparison
+        && constant
+        && !values.data_type().is_nested()
+        && element.data_type() == values.data_type()
+    {
         // A constant element that is not nested is compared with every value at once, and
         // the elements to keep are found with bitmap operations.
         let equal = match values.data_type() {
@@ -521,6 +528,33 @@ mod tests {
                 let x: Vec<u64> = x.values().iter().map(|v| v.to_bits()).collect();
                 let expected: Vec<u64> = expected.iter().map(|v| v.to_bits()).collect();
                 assert_eq!(x, expected, "remove {value}");
+            }
+        }
+    }
+
+    /// Without coercion, an element whose type differs from the array's element type is an
+    /// error, whether it is a constant or a column.
+    #[test]
+    fn mismatched_element_type_is_an_error() {
+        let array = float_list(&[Some(vec![Some(1.0), Some(2.0)])]);
+        let ints: ArrayRef =
+            Arc::new(ListArray::from_iter_primitive::<Int32Type, _, _>(vec![
+                Some(vec![Some(1), Some(2)]),
+            ]));
+        for (array, element) in [
+            (&array, ScalarValue::Float32(Some(1.0))),
+            (&array, ScalarValue::Int64(Some(1))),
+            (&ints, ScalarValue::Int64(Some(1))),
+        ] {
+            for constant in [true, false] {
+                let element = element.to_array().unwrap();
+                let err = remove::<i32>(array, &element, constant)
+                    .unwrap_err()
+                    .to_string();
+                assert!(
+                    err.contains("Can't compare arrays of different types"),
+                    "{err}"
+                );
             }
         }
     }
