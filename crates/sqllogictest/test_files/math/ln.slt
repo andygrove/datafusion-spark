@@ -99,3 +99,11 @@ set datafusion.execution.enable_ansi_mode = false;
 # SELECT ln('abc');
 # ----
 # NULL
+
+# Spark parses strings with Java's Double.valueOf, which accepts a d or f suffix in both
+# ANSI modes; DataFusion errors
+# https://github.com/apache/datafusion-spark/issues/88
+# query R
+# SELECT ln('10d');
+# ----
+# 2.302585092994046

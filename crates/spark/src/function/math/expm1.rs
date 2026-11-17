@@ -20,8 +20,10 @@ use std::sync::Arc;
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#expm1>
 ///
 /// Spark computes this with `java.lang.StrictMath.expm1`, so this uses the fdlibm
-/// translation in [`fdlibm`] rather than `f64::exp_m1`, which calls the platform's
-/// libm and differs in the last digit on some platforms.
+/// translation in the private `math::fdlibm` module rather than `f64::exp_m1`,
+/// which calls the platform's libm and differs in the last digit on some platforms.
+/// The module is named in plain text because rustdoc rejects a public item's link
+/// to a private one.
 #[user_doc(
     doc_section(label = "Math Functions"),
     description = "Returns `exp(expr) - 1` as a DOUBLE, computed without the precision loss of \

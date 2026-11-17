@@ -13,12 +13,20 @@
 //! one-argument `log` is base 10 where Spark's is the natural logarithm.
 //!
 //! Spark computes the logarithms with `java.lang.StrictMath`, so these use the
-//! fdlibm translation in [`super::fdlibm`] to return the same bits. Rust's
-//! `f64::ln` differs in the last digit for some inputs.
+//! fdlibm translation in the private `math::fdlibm` module to return the same
+//! bits. Rust's `f64::ln` differs in the last digit for some inputs. The module
+//! is named in plain text because rustdoc rejects a public item's link to a
+//! private one.
 //!
-//! Spark implicitly casts numeric and string arguments to DOUBLE. With ANSI
-//! mode off, Spark returns NULL for a malformed string, while these functions
-//! raise an error (see <https://github.com/apache/datafusion-spark/issues/88>).
+//! Spark implicitly casts numeric and string arguments to DOUBLE. The string
+//! cast differs from Spark in two ways until it is ported
+//! (<https://github.com/apache/datafusion-spark/issues/88>):
+//!
+//! - With ANSI mode off, Spark returns NULL for a malformed string, while these
+//!   functions raise an error.
+//! - Spark parses strings with Java's `Double.valueOf`, which accepts a trailing
+//!   `d`, `D`, `f` or `F` (`ln('10d')` is `ln(10)`) in both ANSI modes. These
+//!   functions raise an error for such a string.
 
 use std::f64::consts::LN_2;
 use std::sync::Arc;
