@@ -192,7 +192,10 @@ fn remove<O: OffsetSizeTrait>(
         }
         for w in offsets.windows(2) {
             let (start, end) = (w[0].as_usize() - base, w[1].as_usize() - base);
-            kept += keep.slice(start, end - start).count_set_bits();
+            // Counted in place: `BooleanBuffer::slice` would clone the buffer for every row.
+            kept += keep
+                .inner()
+                .count_set_bits_offset(keep.offset() + start, end - start);
             new_offsets.push(O::usize_as(kept));
         }
         keep
