@@ -59,6 +59,50 @@ pub(crate) fn tightest_common_type(
     }
 }
 
+/// Spark's `findWiderTypeWithoutStringPromotionForTwo`: the tightest common type, then a
+/// decimal wide enough for both, then the same for the elements of arrays and the fields of
+/// structs. Strings are never promoted. `ansi_mode` picks between `AnsiTypeCoercion` and
+/// `TypeCoercion`, which differ only in that ANSI widens an integer and a FLOAT to DOUBLE.
+pub(crate) fn wider_type(
+    left: &DataType,
+    right: &DataType,
+    ansi_mode: bool,
+) -> Option<DataType> {
+    tightest_common_type(left, right, ansi_mode)
+        .or_else(|| wider_decimal_type(left, right))
+        .or_else(|| complex_type(left, right, &|l, r| wider_type(l, r, ansi_mode)))
+}
+
+/// Spark's `findWiderTypeForDecimal`, with `DecimalType.boundedPreferIntegralDigits`, which
+/// gives up fractional digits rather than integral ones when the precision exceeds 38.
+fn wider_decimal_type(left: &DataType, right: &DataType) -> Option<DataType> {
+    use DataType::*;
+    let (p1, s1, p2, s2) = match (left, right) {
+        (Decimal128(p1, s1), Decimal128(p2, s2)) => {
+            (*p1 as i16, *s1 as i16, *p2 as i16, *s2 as i16)
+        }
+        (int, Decimal128(p, s)) | (Decimal128(p, s), int)
+            if integral_digits(int).is_some() =>
+        {
+            (integral_digits(int)?, 0, *p as i16, *s as i16)
+        }
+        (Float32 | Float64, Decimal128(_, _)) | (Decimal128(_, _), Float32 | Float64) => {
+            return Some(Float64);
+        }
+        _ => return None,
+    };
+    let scale = s1.max(s2);
+    let range = (p1 - s1).max(p2 - s2);
+    let precision = scale + range;
+    const MAX_PRECISION: i16 = 38;
+    if precision <= MAX_PRECISION {
+        Some(Decimal128(precision as u8, scale as i8))
+    } else {
+        let scale = (scale - (precision - MAX_PRECISION)).max(0);
+        Some(Decimal128(MAX_PRECISION as u8, scale as i8))
+    }
+}
+
 /// Spark's `findTypeForComplex`: widens the elements of arrays, the keys and values of maps,
 /// and the fields of structs with `find_type`. A nested field is nullable if it is on either
 /// side. Struct fields must have the same names in the same order. Spark compares them

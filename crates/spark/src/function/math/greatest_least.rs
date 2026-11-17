@@ -18,7 +18,8 @@
 //! coerce their arguments with DataFusion's comparison coercion, which for example compares a
 //! number with a string. Spark rejects that.
 
-use crate::function::array::float_normalize::{contains_float, normalize_array};
+use crate::function::float_normalize::{contains_float, normalize_array};
+use crate::function::type_coercion::{is_orderable, spark_sql_type, wider_type};
 use arrow::array::{
     Array, ArrayRef, BooleanArray, Datum, Scalar, make_comparator, new_null_array,
 };
@@ -26,7 +27,7 @@ use arrow::buffer::BooleanBuffer;
 use arrow::compute::kernels::cmp::{gt, lt};
 use arrow::compute::kernels::zip::zip;
 use arrow::compute::{SortOptions, cast};
-use arrow::datatypes::{DataType, Field, FieldRef, Fields, TimeUnit};
+use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion_common::config::ConfigOptions;
 use datafusion_common::{DataFusionError, Result, ScalarValue, plan_err};
 use datafusion_expr::{
@@ -459,270 +460,6 @@ impl Candidate {
     }
 }
 
-/// Spark's `findWiderTypeWithoutStringPromotionForTwo`: the tightest common type, then a
-/// decimal wide enough for both, then the same for the elements of arrays and the fields of
-/// structs. Strings are never promoted. `ansi_mode` picks between `AnsiTypeCoercion` and
-/// `TypeCoercion`, which differ only in that ANSI widens an integer and a FLOAT to DOUBLE.
-fn wider_type(left: &DataType, right: &DataType, ansi_mode: bool) -> Option<DataType> {
-    tightest_common_type(left, right, ansi_mode)
-        .or_else(|| wider_decimal_type(left, right))
-        .or_else(|| complex_type(left, right, ansi_mode))
-}
-
-/// Spark's `findTightestCommonType`, on the Arrow types that Spark's types map to. Arrays and
-/// structs are handled by [`complex_type`] with [`wider_type`], which gives the same result.
-fn tightest_common_type(
-    left: &DataType,
-    right: &DataType,
-    ansi_mode: bool,
-) -> Option<DataType> {
-    use DataType::*;
-    if left == right {
-        return Some(left.clone());
-    }
-    if let (Some(l), Some(r)) = (numeric_precedence(left), numeric_precedence(right)) {
-        let wider = if l >= r { left } else { right };
-        // With ANSI mode on, an integer and a FLOAT widen to DOUBLE, which holds every INT
-        // exactly.
-        return Some(if ansi_mode && *wider == Float32 {
-            Float64
-        } else {
-            wider.clone()
-        });
-    }
-    match (left, right) {
-        (Null, other) | (other, Null) => Some(other.clone()),
-        // Spark has one string type and one binary type.
-        (l, r) if is_string(l) && is_string(r) => Some(wider_physical_type(l, r)),
-        (l, r) if is_binary(l) && is_binary(r) => Some(wider_physical_type(l, r)),
-        // The decimal must hold every value of the integral type.
-        (int, Decimal128(p, s)) | (Decimal128(p, s), int) => {
-            let digits = integral_digits(int)?;
-            (*p as i16 - *s as i16 >= digits).then_some(Decimal128(*p, *s))
-        }
-        (Date32, ts @ Timestamp(_, _)) | (ts @ Timestamp(_, _), Date32) => {
-            Some(ts.clone())
-        }
-        // TIMESTAMP_NTZ and TIMESTAMP widen to TIMESTAMP.
-        (Timestamp(lu, ltz), Timestamp(ru, rtz)) => Some(Timestamp(
-            finer_unit(*lu, *ru),
-            ltz.clone().or_else(|| rtz.clone()),
-        )),
-        _ => None,
-    }
-}
-
-/// Spark's `findWiderTypeForDecimal`, with `DecimalType.boundedPreferIntegralDigits`, which
-/// gives up fractional digits rather than integral ones when the precision exceeds 38.
-fn wider_decimal_type(left: &DataType, right: &DataType) -> Option<DataType> {
-    use DataType::*;
-    let (p1, s1, p2, s2) = match (left, right) {
-        (Decimal128(p1, s1), Decimal128(p2, s2)) => {
-            (*p1 as i16, *s1 as i16, *p2 as i16, *s2 as i16)
-        }
-        (int, Decimal128(p, s)) | (Decimal128(p, s), int)
-            if integral_digits(int).is_some() =>
-        {
-            (integral_digits(int)?, 0, *p as i16, *s as i16)
-        }
-        (Float32 | Float64, Decimal128(_, _)) | (Decimal128(_, _), Float32 | Float64) => {
-            return Some(Float64);
-        }
-        _ => return None,
-    };
-    let scale = s1.max(s2);
-    let range = (p1 - s1).max(p2 - s2);
-    let precision = scale + range;
-    const MAX_PRECISION: i16 = 38;
-    if precision <= MAX_PRECISION {
-        Some(Decimal128(precision as u8, scale as i8))
-    } else {
-        let scale = (scale - (precision - MAX_PRECISION)).max(0);
-        Some(Decimal128(MAX_PRECISION as u8, scale as i8))
-    }
-}
-
-/// Spark's `findTypeForComplex` with [`wider_type`] for the elements and fields. A nested field
-/// is nullable if it is on either side. Struct fields must have the same names in the same
-/// order. Spark compares them ignoring case, but this requires an exact match.
-fn complex_type(left: &DataType, right: &DataType, ansi_mode: bool) -> Option<DataType> {
-    use DataType::*;
-    match (left, right) {
-        (
-            List(lf) | LargeList(lf) | FixedSizeList(lf, _),
-            List(rf) | LargeList(rf) | FixedSizeList(rf, _),
-        ) => {
-            let item = wider_type(lf.data_type(), rf.data_type(), ansi_mode)?;
-            let field = Arc::new(Field::new(
-                lf.name(),
-                item,
-                lf.is_nullable() || rf.is_nullable(),
-            ));
-            Some(match (left, right) {
-                (FixedSizeList(_, ln), FixedSizeList(_, rn)) if ln == rn => {
-                    FixedSizeList(field, *ln)
-                }
-                (LargeList(_), _) | (_, LargeList(_)) => LargeList(field),
-                _ => List(field),
-            })
-        }
-        (Struct(lf), Struct(rf)) if lf.len() == rf.len() => {
-            let fields = lf
-                .iter()
-                .zip(rf.iter())
-                .map(|(a, b)| {
-                    if a.name() != b.name() {
-                        return None;
-                    }
-                    let data_type = wider_type(a.data_type(), b.data_type(), ansi_mode)?;
-                    Some(Field::new(
-                        a.name(),
-                        data_type,
-                        a.is_nullable() || b.is_nullable(),
-                    ))
-                })
-                .collect::<Option<Vec<_>>>()?;
-            Some(Struct(Fields::from(fields)))
-        }
-        // Spark finds a common map type, which is then rejected as not orderable.
-        (Map(lf, sorted), Map(rf, _)) => {
-            let entries = wider_type(lf.data_type(), rf.data_type(), ansi_mode)?;
-            Some(Map(
-                Arc::new(Field::new(lf.name(), entries, false)),
-                *sorted,
-            ))
-        }
-        _ => None,
-    }
-}
-
-/// Whether Spark can order values of this type. It cannot order maps, at any depth.
-fn is_orderable(data_type: &DataType) -> bool {
-    match data_type {
-        DataType::Map(_, _) | DataType::Union(_, _) => false,
-        DataType::List(field)
-        | DataType::LargeList(field)
-        | DataType::ListView(field)
-        | DataType::LargeListView(field)
-        | DataType::FixedSizeList(field, _) => is_orderable(field.data_type()),
-        DataType::Struct(fields) => fields.iter().all(|f| is_orderable(f.data_type())),
-        DataType::Dictionary(_, value) => is_orderable(value),
-        _ => true,
-    }
-}
-
-fn is_string(data_type: &DataType) -> bool {
-    matches!(
-        data_type,
-        DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View
-    )
-}
-
-fn is_binary(data_type: &DataType) -> bool {
-    matches!(
-        data_type,
-        DataType::Binary | DataType::LargeBinary | DataType::BinaryView
-    )
-}
-
-/// Of two physical layouts of the same Spark string or binary type, the one that can hold the
-/// values of both.
-fn wider_physical_type(left: &DataType, right: &DataType) -> DataType {
-    use DataType::*;
-    match (left, right) {
-        (LargeUtf8, _) | (_, LargeUtf8) => LargeUtf8,
-        (LargeBinary, _) | (_, LargeBinary) => LargeBinary,
-        (Utf8View, _) | (_, Utf8View) => Utf8View,
-        (BinaryView, _) | (_, BinaryView) => BinaryView,
-        _ => left.clone(),
-    }
-}
-
-/// The precision of Spark's `DecimalType.forType` for an integral type.
-fn integral_digits(data_type: &DataType) -> Option<i16> {
-    match data_type {
-        DataType::Int8 => Some(3),
-        DataType::Int16 => Some(5),
-        DataType::Int32 => Some(10),
-        DataType::Int64 => Some(20),
-        _ => None,
-    }
-}
-
-/// Spark's `numericPrecedence`, which leaves out decimals.
-fn numeric_precedence(data_type: &DataType) -> Option<u8> {
-    match data_type {
-        DataType::Int8 => Some(0),
-        DataType::Int16 => Some(1),
-        DataType::Int32 => Some(2),
-        DataType::Int64 => Some(3),
-        DataType::Float32 => Some(4),
-        DataType::Float64 => Some(5),
-        _ => None,
-    }
-}
-
-fn finer_unit(left: TimeUnit, right: TimeUnit) -> TimeUnit {
-    let rank = |unit: TimeUnit| match unit {
-        TimeUnit::Second => 0,
-        TimeUnit::Millisecond => 1,
-        TimeUnit::Microsecond => 2,
-        TimeUnit::Nanosecond => 3,
-    };
-    if rank(left) >= rank(right) {
-        left
-    } else {
-        right
-    }
-}
-
-/// The name Spark's `toSQLType` gives the Spark type that an Arrow type maps to, for error
-/// messages. Arrow types without a Spark counterpart use their Arrow name.
-fn spark_sql_type(data_type: &DataType) -> String {
-    use DataType::*;
-    match data_type {
-        Null => "VOID".to_string(),
-        Boolean => "BOOLEAN".to_string(),
-        Int8 => "TINYINT".to_string(),
-        Int16 => "SMALLINT".to_string(),
-        Int32 => "INT".to_string(),
-        Int64 => "BIGINT".to_string(),
-        Float32 => "FLOAT".to_string(),
-        Float64 => "DOUBLE".to_string(),
-        Decimal128(p, s) => format!("DECIMAL({p},{s})"),
-        Utf8 | LargeUtf8 | Utf8View => "STRING".to_string(),
-        Binary | LargeBinary | BinaryView => "BINARY".to_string(),
-        Date32 => "DATE".to_string(),
-        Timestamp(_, Some(_)) => "TIMESTAMP".to_string(),
-        Timestamp(_, None) => "TIMESTAMP_NTZ".to_string(),
-        List(field) | LargeList(field) | FixedSizeList(field, _) => {
-            format!("ARRAY<{}>", spark_sql_type(field.data_type()))
-        }
-        Struct(fields) => format!(
-            "STRUCT<{}>",
-            fields
-                .iter()
-                .map(|f| format!(
-                    "{}: {}{}",
-                    f.name(),
-                    spark_sql_type(f.data_type()),
-                    if f.is_nullable() { "" } else { " NOT NULL" }
-                ))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ),
-        Map(entries, _) => match entries.data_type() {
-            Struct(kv) if kv.len() == 2 => format!(
-                "MAP<{}, {}>",
-                spark_sql_type(kv[0].data_type()),
-                spark_sql_type(kv[1].data_type())
-            ),
-            other => format!("MAP<{other}>"),
-        },
-        other => other.to_string(),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -731,6 +468,7 @@ mod tests {
         StructArray,
     };
     use arrow::buffer::OffsetBuffer;
+    use arrow::datatypes::{Fields, TimeUnit};
     use arrow::datatypes::{Float64Type, Int32Type};
 
     /// Values on which Spark's ordering and IEEE 754 total order disagree, with neighbors and a
