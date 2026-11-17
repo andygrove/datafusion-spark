@@ -4,7 +4,7 @@
 
 use crate::function::float_normalize::normalize_array;
 use crate::function::type_coercion::{
-    is_orderable, spark_sql_type, tightest_common_type,
+    is_orderable, spark_sql_type, struct_field_types_match, tightest_common_type,
 };
 use arrow::array::{
     Array, ArrayRef, AsArray, Int64Array, OffsetSizeTrait, make_comparator,
@@ -208,50 +208,6 @@ fn null_type_err<T>(name: &str) -> Result<T> {
         "[DATATYPE_MISMATCH.NULL_TYPE] Null typed values cannot be used as arguments of \
          `{name}`. SQLSTATE: 42K09"
     )
-}
-
-/// With ANSI mode off, Spark cannot implicitly cast between structs whose field types
-/// differ, so `array_position` rejects them although their tightest common type exists.
-/// With ANSI mode on, Spark widens the field types.
-fn struct_field_types_match(left: &DataType, right: &DataType) -> bool {
-    use DataType::*;
-    match (left, right) {
-        (
-            List(l) | LargeList(l) | FixedSizeList(l, _),
-            List(r) | LargeList(r) | FixedSizeList(r, _),
-        ) => struct_field_types_match(l.data_type(), r.data_type()),
-        // The entries are a struct of the key and the value, which are checked on their own.
-        (Map(l, _), Map(r, _)) => match (l.data_type(), r.data_type()) {
-            (Struct(l), Struct(r)) => l
-                .iter()
-                .zip(r.iter())
-                .all(|(a, b)| struct_field_types_match(a.data_type(), b.data_type())),
-            _ => true,
-        },
-        (Struct(_), Struct(_)) => same_type(left, right),
-        _ => true,
-    }
-}
-
-/// Whether two types are equal when the nullability of nested fields is ignored, like
-/// Spark's `DataTypeUtils.sameType`.
-fn same_type(left: &DataType, right: &DataType) -> bool {
-    use DataType::*;
-    match (left, right) {
-        (List(l), List(r)) | (LargeList(l), LargeList(r)) | (Map(l, _), Map(r, _)) => {
-            same_type(l.data_type(), r.data_type())
-        }
-        (FixedSizeList(l, ln), FixedSizeList(r, rn)) => {
-            ln == rn && same_type(l.data_type(), r.data_type())
-        }
-        (Struct(l), Struct(r)) => {
-            l.len() == r.len()
-                && l.iter().zip(r.iter()).all(|(a, b)| {
-                    a.name() == b.name() && same_type(a.data_type(), b.data_type())
-                })
-        }
-        _ => left == right,
-    }
 }
 
 #[cfg(test)]

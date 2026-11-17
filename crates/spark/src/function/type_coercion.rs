@@ -12,7 +12,7 @@
 
 use std::sync::Arc;
 
-use arrow::datatypes::{DataType, Field, Fields, IntervalUnit, TimeUnit};
+use arrow::datatypes::{DataType, Field, Fields, IntervalUnit};
 
 /// Spark's `findTightestCommonType`. `ansi_mode` picks between `AnsiTypeCoercion` and
 /// `TypeCoercion`, which differ only in that ANSI widens an integer and a FLOAT to DOUBLE.
@@ -39,7 +39,7 @@ pub(crate) fn tightest_common_type(
     match (left, right) {
         (Null, other) | (other, Null) => Some(other.clone()),
         // Spark has one string type and one binary type.
-        (l, r) if is_string(l) && is_string(r) => Some(wider_physical_type(l, r)),
+        (l, r) if l.is_string() && r.is_string() => Some(wider_physical_type(l, r)),
         (l, r) if is_binary(l) && is_binary(r) => Some(wider_physical_type(l, r)),
         // The decimal must hold every value of the integral type.
         (int, Decimal128(p, s)) | (Decimal128(p, s), int) => {
@@ -51,7 +51,8 @@ pub(crate) fn tightest_common_type(
         }
         // TIMESTAMP_NTZ and TIMESTAMP widen to TIMESTAMP.
         (Timestamp(lu, ltz), Timestamp(ru, rtz)) => Some(Timestamp(
-            finer_unit(*lu, *ru),
+            // Arrow orders the units from Second to Nanosecond.
+            (*lu).max(*ru),
             ltz.clone().or_else(|| rtz.clone()),
         )),
         _ => complex_type(left, right, &|l, r| tightest_common_type(l, r, ansi_mode)),
@@ -63,7 +64,7 @@ pub(crate) fn tightest_common_type(
 /// side. Struct fields must have the same names in the same order. Spark compares them
 /// ignoring case, but DataFusion cannot cast between structs whose field names differ only
 /// in case, so this requires an exact match.
-pub(crate) fn complex_type(
+fn complex_type(
     left: &DataType,
     right: &DataType,
     find_type: &dyn Fn(&DataType, &DataType) -> Option<DataType>,
@@ -112,10 +113,7 @@ pub(crate) fn complex_type(
             let (Struct(lkv), Struct(rkv)) = (lf.data_type(), rf.data_type()) else {
                 return None;
             };
-            let [lk, lv] = lkv.iter().collect::<Vec<_>>()[..] else {
-                return None;
-            };
-            let [rk, rv] = rkv.iter().collect::<Vec<_>>()[..] else {
+            let ([lk, lv], [rk, rv]) = (&lkv[..], &rkv[..]) else {
                 return None;
             };
             let key = find_type(lk.data_type(), rk.data_type())?;
@@ -148,6 +146,51 @@ pub(crate) fn is_orderable(data_type: &DataType) -> bool {
         DataType::Struct(fields) => fields.iter().all(|f| is_orderable(f.data_type())),
         DataType::Dictionary(_, value) => is_orderable(value),
         _ => true,
+    }
+}
+
+/// Whether the structs in two types, at any depth, have the same field types. With ANSI mode
+/// off, Spark's implicit cast cannot change the field types of a struct, so a function that
+/// casts its arguments to their tightest common type rejects such structs, as
+/// `array_position` does. With ANSI mode on, Spark widens the field types.
+pub(crate) fn struct_field_types_match(left: &DataType, right: &DataType) -> bool {
+    use DataType::*;
+    match (left, right) {
+        (
+            List(l) | LargeList(l) | FixedSizeList(l, _),
+            List(r) | LargeList(r) | FixedSizeList(r, _),
+        ) => struct_field_types_match(l.data_type(), r.data_type()),
+        // The entries are a struct of the key and the value, which are checked on their own.
+        (Map(l, _), Map(r, _)) => match (l.data_type(), r.data_type()) {
+            (Struct(l), Struct(r)) => l
+                .iter()
+                .zip(r.iter())
+                .all(|(a, b)| struct_field_types_match(a.data_type(), b.data_type())),
+            _ => true,
+        },
+        (Struct(_), Struct(_)) => same_type(left, right),
+        _ => true,
+    }
+}
+
+/// Whether two types are equal when the nullability of nested fields is ignored, like
+/// Spark's `DataTypeUtils.sameType`.
+fn same_type(left: &DataType, right: &DataType) -> bool {
+    use DataType::*;
+    match (left, right) {
+        (List(l), List(r)) | (LargeList(l), LargeList(r)) | (Map(l, _), Map(r, _)) => {
+            same_type(l.data_type(), r.data_type())
+        }
+        (FixedSizeList(l, ln), FixedSizeList(r, rn)) => {
+            ln == rn && same_type(l.data_type(), r.data_type())
+        }
+        (Struct(l), Struct(r)) => {
+            l.len() == r.len()
+                && l.iter().zip(r.iter()).all(|(a, b)| {
+                    a.name() == b.name() && same_type(a.data_type(), b.data_type())
+                })
+        }
+        _ => left == right,
     }
 }
 
@@ -188,10 +231,10 @@ pub(crate) fn spark_sql_type(data_type: &DataType) -> String {
                 .join(", ")
         ),
         Map(entries, _) => match entries.data_type() {
-            Struct(kv) if kv.len() == 2 => format!(
+            Struct(kv) if let [k, v] = &kv[..] => format!(
                 "MAP<{}, {}>",
-                spark_sql_type(kv[0].data_type()),
-                spark_sql_type(kv[1].data_type())
+                spark_sql_type(k.data_type()),
+                spark_sql_type(v.data_type())
             ),
             other => format!("MAP<{other}>"),
         },
@@ -199,13 +242,8 @@ pub(crate) fn spark_sql_type(data_type: &DataType) -> String {
     }
 }
 
-fn is_string(data_type: &DataType) -> bool {
-    matches!(
-        data_type,
-        DataType::Utf8 | DataType::LargeUtf8 | DataType::Utf8View
-    )
-}
-
+/// Unlike [`DataType::is_binary`], this leaves out `FixedSizeBinary`, which
+/// [`wider_physical_type`] cannot widen.
 fn is_binary(data_type: &DataType) -> bool {
     matches!(
         data_type,
@@ -247,20 +285,6 @@ fn numeric_precedence(data_type: &DataType) -> Option<u8> {
         DataType::Float32 => Some(4),
         DataType::Float64 => Some(5),
         _ => None,
-    }
-}
-
-fn finer_unit(left: TimeUnit, right: TimeUnit) -> TimeUnit {
-    let rank = |unit: TimeUnit| match unit {
-        TimeUnit::Second => 0,
-        TimeUnit::Millisecond => 1,
-        TimeUnit::Microsecond => 2,
-        TimeUnit::Nanosecond => 3,
-    };
-    if rank(left) >= rank(right) {
-        left
-    } else {
-        right
     }
 }
 
@@ -338,6 +362,24 @@ mod tests {
         let wide = Struct(Fields::from(vec![Field::new("a", Int64, true)]));
         assert_eq!(tightest_common_type(&a, &wide, false), Some(wide));
         assert_eq!(tightest_common_type(&a, &b, false), None);
+    }
+
+    #[test]
+    fn struct_field_types_must_match_at_any_depth() {
+        let int = Struct(Fields::from(vec![Field::new("a", Int32, false)]));
+        let nullable_int = Struct(Fields::from(vec![Field::new("a", Int32, true)]));
+        let long = Struct(Fields::from(vec![Field::new("a", Int64, false)]));
+        assert!(struct_field_types_match(&int, &nullable_int));
+        assert!(!struct_field_types_match(&int, &long));
+        assert!(!struct_field_types_match(
+            &list(int.clone()),
+            &list(long.clone())
+        ));
+        assert!(!struct_field_types_match(
+            &map(Int32, int),
+            &map(Int64, long)
+        ));
+        assert!(struct_field_types_match(&list(Int32), &list(Int64)));
     }
 
     #[test]
