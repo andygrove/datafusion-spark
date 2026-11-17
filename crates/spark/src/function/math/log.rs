@@ -40,6 +40,8 @@ use crate::function::error_utils::unsupported_data_type_exec_err;
 
 /// Spark's `ImplicitCastInputTypes` with `DoubleType`: numeric and string
 /// arguments are cast to DOUBLE.
+/// A stopgap until input types are declared and coerced in one place
+/// (<https://github.com/apache/datafusion-spark/issues/346>).
 fn float64_coercion() -> Coercion {
     Coercion::new_implicit(
         TypeSignatureClass::Native(logical_float64()),
