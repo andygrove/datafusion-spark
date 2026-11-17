@@ -7,6 +7,9 @@
 use arrow::datatypes::DataType;
 use datafusion_common::{DataFusionError, exec_datafusion_err, internal_datafusion_err};
 
+/// Spark's `ARITHMETIC_OVERFLOW` error message
+pub const ARITHMETIC_OVERFLOW_ERROR: &str = r#"[ARITHMETIC_OVERFLOW] overflow. If necessary set "spark.sql.ansi.enabled" to "false" to bypass this error. SQLSTATE: 22003"#;
+
 pub fn invalid_arg_count_exec_err(
     function_name: &str,
     required_range: (i32, i32),

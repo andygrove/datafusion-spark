@@ -2,7 +2,7 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
-//! Float normalization shared by the array functions that compare elements.
+//! Float normalization shared by the functions that compare values.
 //!
 //! Spark compares floating point values with `-0.0 == 0.0` and `NaN == NaN`, while arrow
 //! compares them by their bits or by the IEEE total order. Rewriting `-0.0` to `0.0` and
@@ -19,7 +19,7 @@ use datafusion_expr::ColumnarValue;
 use std::sync::Arc;
 
 /// Normalizes the floats in a [`ColumnarValue`], see [`normalize_array`].
-pub(super) fn normalize_floats(value: &ColumnarValue) -> Result<ColumnarValue> {
+pub(crate) fn normalize_floats(value: &ColumnarValue) -> Result<ColumnarValue> {
     if !contains_float(&value.data_type()) {
         return Ok(value.clone());
     }

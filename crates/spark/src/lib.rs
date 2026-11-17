@@ -134,7 +134,8 @@
 //!
 //! The [`planner::SparkFunctionPlanner`] provides Spark-compatible expression
 //! planning, such as mapping SQL `EXTRACT` expressions to Spark's `date_part`
-//! function. To use it, register it with your session context:
+//! function and SQL `/` to Spark's `DOUBLE` division. To use it, register it
+//! with your session context:
 //!
 //! ```ignore
 //! use std::sync::Arc;
@@ -147,6 +148,12 @@
 //! // Now EXTRACT expressions will use Spark semantics
 //! let df = ctx.sql("SELECT EXTRACT(YEAR FROM timestamp_col) FROM my_table").await?;
 //! ```
+//!
+//! Spark divides a non-`DECIMAL` pair as `DOUBLE`, so `SELECT 1 / 2` returns
+//! `0.5` rather than `0`, and a zero divisor returns `NULL` rather than raising
+//! unless ANSI mode is enabled. Planning `/` happens while parsing SQL, so it
+//! needs the `sql` feature, and an expression built with the `DataFrame` API
+//! (`col("a") / col("b")`) still uses DataFusion's `/` operator.
 //!
 //! [`Expr`]: datafusion_expr::Expr
 //!
@@ -161,8 +168,11 @@
 //! [Getting started](#getting-started), then use the extension trait - see
 //! [`SessionStateBuilderSpark::with_spark_features`] for an example.
 
+mod eval_mode;
 pub mod function;
 pub mod planner;
+
+pub use eval_mode::EvalMode;
 
 #[cfg(feature = "core")]
 mod session_state;

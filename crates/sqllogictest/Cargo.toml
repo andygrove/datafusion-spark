@@ -18,7 +18,7 @@ workspace = true
 
 [dev-dependencies]
 datafusion = { workspace = true, default-features = true }
-datafusion-spark = { path = "../spark", features = ["core"] }
+datafusion-spark = { path = "../spark", features = ["core", "sql"] }
 datafusion-sqllogictest = { git = "https://github.com/apache/datafusion", branch = "branch-56" }
 indicatif = "0.18"
 sqllogictest = "0.29.1"

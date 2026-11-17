@@ -274,8 +274,8 @@ SELECT array_position(array(CAST(1.0 AS DOUBLE)), CAST(1 AS DECIMAL(5,1)));
 query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
 SELECT array_position(array(1), '1');
 
-query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
-SELECT array_position(array('1'), 1);
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_position` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<STRING>", "INT"\]\. SQLSTATE: 42K09
+SELECT array_position(array('1'), CAST(1 AS INT));
 
 query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
 SELECT array_position(array(1), CAST(NULL AS STRING));
@@ -331,6 +331,17 @@ SELECT array_position(array(named_struct('m', map(1, 2))), named_struct('m', map
 
 query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\]
 SELECT array_position(array(array(map(1, 2))), array(map(1, 2)));
+
+# Map keys and values are widened, and the common map type is then rejected
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_position` does not support ordering on type "MAP<BIGINT, BIGINT>"\. SQLSTATE: 42K09
+SELECT array_position(array(map(CAST(1 AS INT), CAST(1 AS INT))), map(1L, 1L));
+
+# Spark cannot order intervals
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_position` does not support ordering on type "INTERVAL"\. SQLSTATE: 42K09
+SELECT array_position(array(make_interval(1)), make_interval(2));
+
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_position` does not support ordering on type "ARRAY<INTERVAL>"\. SQLSTATE: 42K09
+SELECT array_position(array(array(make_interval(1))), array(make_interval(2)));
 
 # Signed zero: -0.0 equals 0.0
 query I

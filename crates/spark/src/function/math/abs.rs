@@ -16,7 +16,7 @@ use datafusion_functions::{
 use datafusion_macros::user_doc;
 use std::sync::Arc;
 
-const ARITHMETIC_OVERFLOW_ERROR: &str = r#"[ARITHMETIC_OVERFLOW] overflow. If necessary set "spark.sql.ansi.enabled" to "false" to bypass this error. SQLSTATE: 22003"#;
+use crate::function::error_utils::ARITHMETIC_OVERFLOW_ERROR;
 
 fn arithmetic_overflow_error() -> ArrowError {
     ArrowError::ComputeError(ARITHMETIC_OVERFLOW_ERROR.to_string())
