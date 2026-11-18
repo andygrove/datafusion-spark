@@ -2,62 +2,76 @@
 # SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 # SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+# `trunc` has no `invoke_with_args` yet, so the records that call it are marked
+# `skipif evaluate` until https://github.com/apache/datafusion-spark/issues/311 is fixed.
+
 # YEAR - truncate to first date of year
+skipif evaluate
 query D
 SELECT trunc('2009-02-12'::date, 'YEAR'::string);
 ----
 2009-01-01
 
+skipif evaluate
 query D
 SELECT trunc('2009-02-12'::date, 'YYYY'::string);
 ----
 2009-01-01
 
+skipif evaluate
 query D
 SELECT trunc('2009-02-12'::date, 'YY'::string);
 ----
 2009-01-01
 
 # QUARTER - truncate to first date of quarter
+skipif evaluate
 query D
 SELECT trunc('2009-02-12'::date, 'QUARTER'::string);
 ----
 2009-01-01
 
 # MONTH - truncate to first date of month
+skipif evaluate
 query D
 SELECT trunc('2009-02-12'::date, 'MONTH'::string);
 ----
 2009-02-01
 
+skipif evaluate
 query D
 SELECT trunc('2009-02-12'::date, 'MM'::string);
 ----
 2009-02-01
 
+skipif evaluate
 query D
 SELECT trunc('2009-02-12'::date, 'MON'::string);
 ----
 2009-02-01
 
 # xfail spark: Spark returns NULL for an unsupported or NULL trunc/date_trunc format (https://github.com/apache/datafusion-spark/issues/40)
+skipif evaluate
 query D
 SELECT trunc('2009-02-12'::date, 'MONTHS'::string);
 ----
 2009-02-01
 
 # WEEK - truncate to Monday of the week
+skipif evaluate
 query D
 SELECT trunc('2009-02-12'::date, 'WEEK'::string);
 ----
 2009-02-09
 
 # string input
+skipif evaluate
 query D
 SELECT trunc('2009-02-12'::string, 'YEAR'::string);
 ----
 2009-01-01
 
+skipif evaluate
 query D
 SELECT trunc(column1, 'YEAR'::string)
 FROM VALUES
@@ -72,16 +86,19 @@ FROM VALUES
 NULL
 
 # Null handling
+skipif evaluate
 query D
 SELECT trunc(NULL::date, 'YEAR'::string);
 ----
 NULL
 
 # xfail spark: Spark returns NULL for an unsupported or NULL trunc/date_trunc format (https://github.com/apache/datafusion-spark/issues/40)
+skipif evaluate
 query error DataFusion error: Optimizer rule 'simplify_expressions' failed\ncaused by\nError during planning: Second argument of `TRUNC` must be non-null scalar Utf8
 SELECT trunc('2009-02-12'::date, NULL::string);
 
 # incorrect format
 # xfail spark: Spark returns NULL for an unsupported or NULL trunc/date_trunc format (https://github.com/apache/datafusion-spark/issues/40)
+skipif evaluate
 query error DataFusion error: Optimizer rule 'simplify_expressions' failed\ncaused by\nError during planning: The format argument of `TRUNC` must represent a year, month, day, week, or quarter.
 SELECT trunc('2009-02-12'::date, 'test'::string);
