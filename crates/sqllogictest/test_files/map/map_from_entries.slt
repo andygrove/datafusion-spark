@@ -166,7 +166,7 @@ AS tab(data);
 
 # LAST_WIN policy: duplicates are allowed; later occurrences overwrite earlier ones.
 statement ok
-set datafusion.spark.map_key_dedup_policy = 'LAST_WIN';
+set spark.map_key_dedup_policy = 'LAST_WIN';
 
 query ?
 SELECT map_from_entries(array(
@@ -201,7 +201,7 @@ AS tab(data);
 {1: y}
 
 statement ok
-set datafusion.spark.map_key_dedup_policy = 'EXCEPTION';
+set spark.map_key_dedup_policy = 'EXCEPTION';
 
 # Sliced input: OFFSET makes the function see a list array whose first offset is
 # non-zero, so the child array still contains the skipped row's entries.

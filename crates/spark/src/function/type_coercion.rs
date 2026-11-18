@@ -23,7 +23,16 @@ pub(crate) fn tightest_common_type(
     ansi_mode: bool,
 ) -> Option<DataType> {
     use DataType::*;
-    if left == right {
+    // Spark has no dictionary types. A dictionary-encoded argument, such as a
+    // Parquet string column, has the type of its values.
+    if let Dictionary(_, value) = left {
+        return tightest_common_type(value, right, ansi_mode);
+    }
+    if let Dictionary(_, value) = right {
+        return tightest_common_type(left, value, ansi_mode);
+    }
+    // Nested types are widened field by field below, which also unwraps nested dictionaries.
+    if left == right && !left.is_nested() {
         return Some(left.clone());
     }
     if let (Some(l), Some(r)) = (numeric_precedence(left), numeric_precedence(right)) {
@@ -160,7 +169,11 @@ fn complex_type(
             let ([lk, lv], [rk, rv]) = (&lkv[..], &rkv[..]) else {
                 return None;
             };
-            let key = find_type(lk.data_type(), rk.data_type())?;
+            // Spark rejects a key type that the cast can make NULL (`Cast.forceNullable`).
+            let key = find_type(lk.data_type(), rk.data_type()).filter(|key| {
+                !force_nullable(lk.data_type(), key)
+                    && !force_nullable(rk.data_type(), key)
+            })?;
             let value = find_type(lv.data_type(), rv.data_type())?;
             let entries = Struct(Fields::from(vec![
                 Field::new(lk.name(), key, false),
@@ -172,6 +185,15 @@ fn complex_type(
             ))
         }
         _ => None,
+    }
+}
+
+/// Spark's `Cast.forceNullable`, for the casts that these rules produce. Of those, Spark
+/// marks only DATE to TIMESTAMP_NTZ as one that can return NULL.
+fn force_nullable(from: &DataType, to: &DataType) -> bool {
+    match from {
+        DataType::Dictionary(_, value) => force_nullable(value, to),
+        _ => matches!((from, to), (DataType::Date32, DataType::Timestamp(_, None))),
     }
 }
 
@@ -200,6 +222,7 @@ pub(crate) fn is_orderable(data_type: &DataType) -> bool {
 pub(crate) fn struct_field_types_match(left: &DataType, right: &DataType) -> bool {
     use DataType::*;
     match (left, right) {
+        (Dictionary(_, l), r) | (r, Dictionary(_, l)) => struct_field_types_match(l, r),
         (
             List(l) | LargeList(l) | FixedSizeList(l, _),
             List(r) | LargeList(r) | FixedSizeList(r, _),
@@ -222,6 +245,7 @@ pub(crate) fn struct_field_types_match(left: &DataType, right: &DataType) -> boo
 fn same_type(left: &DataType, right: &DataType) -> bool {
     use DataType::*;
     match (left, right) {
+        (Dictionary(_, l), r) | (r, Dictionary(_, l)) => same_type(l, r),
         (List(l), List(r)) | (LargeList(l), LargeList(r)) | (Map(l, _), Map(r, _)) => {
             same_type(l.data_type(), r.data_type())
         }
@@ -258,6 +282,10 @@ pub(crate) fn spark_sql_type(data_type: &DataType) -> String {
         Timestamp(_, Some(_)) => "TIMESTAMP".to_string(),
         Timestamp(_, None) => "TIMESTAMP_NTZ".to_string(),
         Interval(IntervalUnit::MonthDayNano) => "INTERVAL".to_string(),
+        Interval(IntervalUnit::YearMonth) => "INTERVAL YEAR TO MONTH".to_string(),
+        Duration(_) => "INTERVAL DAY TO SECOND".to_string(),
+        // Arrow has no TIME precision. Spark's `make_time` returns TIME(6).
+        Time64(_) => "TIME(6)".to_string(),
         List(field) | LargeList(field) | FixedSizeList(field, _) => {
             format!("ARRAY<{}>", spark_sql_type(field.data_type()))
         }
@@ -267,7 +295,7 @@ pub(crate) fn spark_sql_type(data_type: &DataType) -> String {
                 .iter()
                 .map(|f| format!(
                     "{}: {}{}",
-                    f.name(),
+                    quote_if_needed(f.name()),
                     spark_sql_type(f.data_type()),
                     if f.is_nullable() { "" } else { " NOT NULL" }
                 ))
@@ -282,7 +310,22 @@ pub(crate) fn spark_sql_type(data_type: &DataType) -> String {
             ),
             other => format!("MAP<{other}>"),
         },
+        Dictionary(_, value) => spark_sql_type(value),
         other => other.to_string(),
+    }
+}
+
+/// Spark's `QuotingUtils.quoteIfNeeded`, which `StructField.sql` uses for field names.
+fn quote_if_needed(name: &str) -> String {
+    let mut chars = name.chars();
+    let plain = chars
+        .next()
+        .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_');
+    if plain {
+        name.to_string()
+    } else {
+        format!("`{}`", name.replace('`', "``"))
     }
 }
 
@@ -409,6 +452,37 @@ mod tests {
     }
 
     #[test]
+    fn map_keys_do_not_widen_from_date_to_timestamp_ntz() {
+        let ntz = Timestamp(arrow::datatypes::TimeUnit::Microsecond, None);
+        assert_eq!(
+            tightest_common_type(&map(Date32, Int32), &map(ntz.clone(), Int32), false),
+            None
+        );
+        assert_eq!(
+            tightest_common_type(&map(ntz.clone(), Int32), &map(Date32, Int32), true),
+            None
+        );
+        assert_eq!(
+            tightest_common_type(&map(Int32, Date32), &map(Int32, ntz.clone()), false),
+            Some(map(Int32, ntz.clone()))
+        );
+        let date_dictionary = Dictionary(Box::new(Int32), Box::new(Date32));
+        assert_eq!(
+            tightest_common_type(
+                &map(date_dictionary, Int32),
+                &map(ntz.clone(), Int32),
+                false
+            ),
+            None
+        );
+        let tz = Timestamp(arrow::datatypes::TimeUnit::Microsecond, Some("UTC".into()));
+        assert_eq!(
+            tightest_common_type(&map(Date32, Int32), &map(tz.clone(), Int32), false),
+            Some(map(tz, Int32))
+        );
+    }
+
+    #[test]
     fn struct_field_types_must_match_at_any_depth() {
         let int = Struct(Fields::from(vec![Field::new("a", Int32, false)]));
         let nullable_int = Struct(Fields::from(vec![Field::new("a", Int32, true)]));
@@ -424,6 +498,74 @@ mod tests {
             &map(Int64, long)
         ));
         assert!(struct_field_types_match(&list(Int32), &list(Int64)));
+    }
+
+    #[test]
+    fn dictionaries_have_the_type_of_their_values() {
+        let dictionary = |value: DataType| Dictionary(Box::new(Int32), Box::new(value));
+        assert_eq!(
+            tightest_common_type(&dictionary(Utf8), &Utf8, false),
+            Some(Utf8)
+        );
+        assert_eq!(
+            tightest_common_type(&Int64, &dictionary(Int32), false),
+            Some(Int64)
+        );
+        assert_eq!(tightest_common_type(&dictionary(Utf8), &Int32, false), None);
+        let field = |data_type: DataType| {
+            Struct(Fields::from(vec![Field::new("a", data_type, true)]))
+        };
+        assert!(struct_field_types_match(
+            &field(dictionary(Utf8)),
+            &field(Utf8)
+        ));
+        assert_eq!(spark_sql_type(&dictionary(Utf8)), "STRING");
+        // Two dictionaries are unwrapped too, so the function sees the values' type.
+        assert_eq!(
+            tightest_common_type(&dictionary(Float64), &dictionary(Float64), false),
+            Some(Float64)
+        );
+        // So are dictionaries inside two equal nested types.
+        assert_eq!(
+            tightest_common_type(
+                &list(dictionary(Float64)),
+                &list(dictionary(Float64)),
+                false
+            ),
+            Some(list(Float64))
+        );
+        assert_eq!(
+            tightest_common_type(
+                &field(dictionary(Float64)),
+                &field(dictionary(Float64)),
+                false
+            ),
+            Some(field(Float64))
+        );
+    }
+
+    #[test]
+    fn spark_names_for_intervals_times_and_struct_fields() {
+        use arrow::datatypes::TimeUnit;
+        assert_eq!(
+            spark_sql_type(&Interval(IntervalUnit::YearMonth)),
+            "INTERVAL YEAR TO MONTH"
+        );
+        assert_eq!(
+            spark_sql_type(&Duration(TimeUnit::Microsecond)),
+            "INTERVAL DAY TO SECOND"
+        );
+        assert_eq!(spark_sql_type(&Time64(TimeUnit::Nanosecond)), "TIME(6)");
+        let fields = Struct(Fields::from(vec![
+            Field::new("a_1", Int32, true),
+            Field::new("a b", Int32, true),
+            Field::new("1a", Int32, true),
+            Field::new("a`b", Int32, false),
+        ]));
+        assert_eq!(
+            spark_sql_type(&fields),
+            "STRUCT<a_1: INT, `a b`: INT, `1a`: INT, `a``b`: INT NOT NULL>"
+        );
     }
 
     #[test]

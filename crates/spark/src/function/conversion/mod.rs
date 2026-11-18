@@ -4,7 +4,7 @@
 
 //! Spark type conversion functions, including Spark-compatible `cast` semantics.
 
-mod cast;
+pub mod cast;
 
 use datafusion_expr::ScalarUDF;
 use datafusion_functions::make_udf_function_with_config;

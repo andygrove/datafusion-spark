@@ -26,6 +26,7 @@ pub mod predicate;
 pub mod string;
 pub mod r#struct;
 pub mod table;
+pub(crate) mod timezone_utils;
 pub(crate) mod type_coercion;
 pub mod url;
 pub mod utils;
