@@ -197,32 +197,38 @@ SELECT date_part('MINUTES'::string, '2000-01-01 12:30:45'::timestamp);
 30
 
 # SECOND
+# xfail spark: date_part('SECOND', ts) returns INT, Spark returns DECIMAL(8,6) with the fraction (https://github.com/apache/datafusion-spark/issues/38)
 query I
 SELECT date_part('SECOND'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 45
 
+# xfail spark: date_part('SECOND', ts) returns INT, Spark returns DECIMAL(8,6) with the fraction (https://github.com/apache/datafusion-spark/issues/38)
 query I
 SELECT date_part('S'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 45
 
+# xfail spark: date_part('SECOND', ts) returns INT, Spark returns DECIMAL(8,6) with the fraction (https://github.com/apache/datafusion-spark/issues/38)
 query I
 SELECT date_part('SEC'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 45
 
+# xfail spark: date_part('SECOND', ts) returns INT, Spark returns DECIMAL(8,6) with the fraction (https://github.com/apache/datafusion-spark/issues/38)
 query I
 SELECT date_part('SECONDS'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 45
 
+# xfail spark: date_part('SECOND', ts) returns INT, Spark returns DECIMAL(8,6) with the fraction (https://github.com/apache/datafusion-spark/issues/38)
 query I
 SELECT date_part('SECS'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 45
 
 # Known difference: Spark returns DECIMAL(8, 6) including the fraction (45.999000)
+# xfail spark: date_part('SECOND', ts) returns INT, Spark returns DECIMAL(8,6) with the fraction (https://github.com/apache/datafusion-spark/issues/38)
 query I
 SELECT date_part('SECOND'::string, '2000-01-01 12:30:45.999'::timestamp);
 ----
@@ -234,6 +240,7 @@ SELECT date_part('year'::string, NULL::timestamp);
 ----
 NULL
 
+# xfail spark: date_part with a NULL field returns a NULL INT, Spark returns a NULL DOUBLE (https://github.com/apache/datafusion-spark/issues/363)
 query I
 SELECT date_part(NULL::string, '2000-01-01'::date);
 ----

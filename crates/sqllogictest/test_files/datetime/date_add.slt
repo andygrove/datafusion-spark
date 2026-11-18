@@ -32,11 +32,13 @@ SELECT date_add('2016-07-30'::date, 0::int);
 ----
 2016-07-30
 
+# xfail spark: test: CAST of a DATE to INT is NULL in Spark, the test should use unix_date to get the day count
 query I
 SELECT date_add('2016-07-30'::date, 2147483647::int)::int;
 ----
 -2147466637
 
+# xfail spark: test: CAST of a DATE to INT is NULL in Spark, the test should use unix_date to get the day count
 query I
 SELECT date_add('1969-01-01'::date, 2147483647::int)::int;
 ----
@@ -70,9 +72,11 @@ SELECT date_add(NULL::date, NULL::int);
 NULL
 
 # Spark implicitly casts a string to DATE (https://github.com/apache/datafusion-spark/issues/41)
+# xfail spark: Spark implicitly casts a string argument to DATE/TIMESTAMP, invalid strings give NULL (https://github.com/apache/datafusion-spark/issues/41)
 statement error Failed to coerce arguments to satisfy a call to 'date_add' function
 SELECT date_add('2024-01-01', 1::INT);
 
 # An integer literal is BIGINT here and INT in Spark, where this works (https://github.com/apache/datafusion-spark/issues/97)
+# xfail spark: An integer literal is BIGINT here and INT in Spark (https://github.com/apache/datafusion-spark/issues/97)
 statement error Failed to coerce arguments to satisfy a call to 'date_add' function
 SELECT date_add(DATE '2024-01-01', 1);

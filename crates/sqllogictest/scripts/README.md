@@ -60,6 +60,32 @@ differences, and with status 2 if it stopped early because Spark failed.
 | results differ only in floating-point digits        | The values differ by a relative error below 1e-12                        |
 | same rows in a different order                      | Usually a query with no `ORDER BY`                                       |
 | the runner failed                                   | A bug in this runner, not Spark behavior                                 |
+| marked xfail, but Spark agrees                      | The record has an `# xfail spark:` comment and now passes                |
+
+## Known differences
+
+A comment directly above a record (and above any `skipif` or `onlyif` lines)
+marks a difference from Spark that is already known:
+
+```text
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
+query R
+SELECT round(arrow_cast(2.5, 'Decimal32(9, 1)'), 0::int);
+----
+3.0
+```
+
+The reason links an issue, or says what differs and why: a bug in
+datafusion-spark, a difference that comes from how the test is written, or a
+limitation of this runner. A marked record that differs from Spark in any way
+is counted as an expected failure and is not reported, and it does not make
+the runner exit with status 1. A marked record that passes is reported as
+`marked xfail, but Spark agrees`, so the comment is removed once the
+difference is fixed. A marked record that is skipped stays skipped. `--verbose`
+lists the expected failures with their reasons.
+
+The marker is a comment because the Rust sqllogictest parser rejects
+directives it does not know. DataFusion's runner ignores it.
 
 A record that expects an error passes when Spark raises any error. The runner
 does not compare the error message, so `pass` does not mean that Spark fails for

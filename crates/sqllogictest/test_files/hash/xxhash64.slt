@@ -6,16 +6,19 @@
 # Reference: https://spark.apache.org/docs/latest/api/sql/index.html#xxhash64
 
 # Basic integer tests (Int32 - hashed as 4 bytes)
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query I
 SELECT xxhash64(1);
 ----
 -7001672635703045582
 
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query I
 SELECT xxhash64(0);
 ----
 -5252525462095825812
 
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query I
 SELECT xxhash64(-1);
 ----
@@ -76,6 +79,7 @@ SELECT xxhash64(NULL);
 42
 
 # Multiple column hashing
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query I
 SELECT xxhash64(1, 2);
 ----
@@ -86,6 +90,7 @@ SELECT xxhash64('a', 'b', 'c');
 ----
 -8775012835737190202
 
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query I
 SELECT xxhash64(1, 'hello');
 ----
@@ -103,6 +108,7 @@ SELECT xxhash64(arrow_cast(0, 'Int64'));
 -5252525462095825812
 
 # Float tests - note: -0.0 and 0.0 hash to the same value in Spark
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query I
 SELECT xxhash64(1.0);
 ----
@@ -119,6 +125,7 @@ SELECT xxhash64(-0.0);
 -5252525462095825812
 
 # Float edge cases
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query I
 SELECT xxhash64(-1.0);
 ----
@@ -153,6 +160,7 @@ SELECT xxhash64(arrow_cast('2023-01-15', 'Date32'));
 290591839883576215
 
 # Struct hashing
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query I
 SELECT xxhash64(named_struct('a', 1, 'b', 2));
 ----
@@ -173,6 +181,7 @@ CREATE TABLE xxhash_test AS SELECT * FROM (VALUES
     (3, 'c')
 ) AS t(id, name);
 
+# xfail spark: VALUES integers are BIGINT in DataFusion and INT in Spark, so they hash differently (https://github.com/apache/datafusion-spark/issues/97)
 query II
 SELECT id, xxhash64(id, name) FROM xxhash_test ORDER BY id;
 ----
@@ -193,6 +202,7 @@ FROM (SELECT nullif(s, s) AS s FROM (SELECT named_struct('a', 1, 'b', 'x') AS s)
 true 42 42
 
 # A NULL struct in a later argument leaves the incoming hash unchanged
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query II
 SELECT xxhash64(7, nullif(s, s)), xxhash64(7)
 FROM (SELECT named_struct('a', 1, 'b', 'x') AS s);

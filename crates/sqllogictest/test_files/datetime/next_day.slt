@@ -44,6 +44,7 @@ SELECT next_day(1::int, 'Sun'::string);
 query error Function 'next_day' expects 2 arguments but received 3
 SELECT next_day('2015-07-27'::DATE, 'Sat'::string, 'Sun'::string);
 
+# xfail spark: next_day casts a string to DATE with Arrow's cast, Spark's cast gives NULL (https://github.com/apache/datafusion-spark/issues/353)
 query error Cannot cast string 'invalid_date' to value of Date32 type
 SELECT next_day('invalid_date'::string, 'Mon'::string);
 
@@ -68,6 +69,7 @@ SELECT next_day('2020-01-01'::DATE, 'invalid_day'::string);
 ----
 NULL
 
+# xfail spark: test: DataFusion's ::DATE cast errors on an invalid date, Spark's non-ANSI CAST returns NULL
 query error Cast error: Cannot cast string '2015-13-32' to value of Date32 type
 SELECT next_day('2015-13-32'::DATE, 'Sun'::string);
 

@@ -113,6 +113,7 @@ NULL
 ## Type coercion tests
 
 # Test integer to float coercion
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query R
 SELECT if(true, 10, 20.5);
 ----
@@ -129,6 +130,7 @@ SELECT if(true, 10.5, 20);
 ----
 10.5
 
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query R
 SELECT if(false, 10.5, 20);
 ----

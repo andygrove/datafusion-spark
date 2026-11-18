@@ -168,6 +168,7 @@ AS tab(data);
 statement ok
 set spark.map_key_dedup_policy = 'LAST_WIN';
 
+# xfail spark: runner: SET spark.map_key_dedup_policy is not mapped to spark.sql.mapKeyDedupPolicy, so Spark keeps EXCEPTION
 query ?
 SELECT map_from_entries(array(
     struct(true, 'a'),
@@ -179,11 +180,13 @@ SELECT map_from_entries(array(
 ----
 {true: d, false: NULL}
 
+# xfail spark: runner: SET spark.map_key_dedup_policy is not mapped to spark.sql.mapKeyDedupPolicy, so Spark keeps EXCEPTION
 query ?
 SELECT map_from_entries(array(struct(1, 'a'), struct(2, 'b'), struct(1, 'c')));
 ----
 {1: c, 2: b}
 
+# xfail spark: runner: SET spark.map_key_dedup_policy is not mapped to spark.sql.mapKeyDedupPolicy, so Spark keeps EXCEPTION
 query ?
 SELECT map_from_entries(array(struct('k', 1), struct('k', 2), struct('k', 3)));
 ----

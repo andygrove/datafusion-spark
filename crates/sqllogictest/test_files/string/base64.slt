@@ -148,6 +148,7 @@ SELECT unbase64('YQ='::string);
 query error Failed to decode value using base64: Input byte array has incorrect ending byte
 SELECT unbase64('YQ==YQ=='::string);
 
+# xfail spark: unbase64 rejects an INT argument that Spark casts to a string (https://github.com/apache/datafusion-spark/issues/41)
 query error Error during planning: Function 'unbase64' requires Binary, but received Int32 \(DataType: Int32\)
 SELECT unbase64(12::integer);
 

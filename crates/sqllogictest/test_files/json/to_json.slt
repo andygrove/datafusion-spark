@@ -267,11 +267,13 @@ SELECT to_json(named_struct('t', arrow_cast('2024-01-01T01:02:03.123456Z', 'Time
 {"t":"2024-01-01T01:02:03.123Z"}
 
 # TIMESTAMP_NTZ (a wall-clock time): no offset
+# xfail spark: runner: DataFusion's TIMESTAMP literal is TIMESTAMP_NTZ, Spark's is TIMESTAMP (LTZ); the runner does not translate it
 query T
 SELECT to_json(named_struct('t', TIMESTAMP '2024-01-01 01:02:03.123456'));
 ----
 {"t":"2024-01-01T01:02:03.123"}
 
+# xfail spark: runner: DataFusion's TIMESTAMP literal is TIMESTAMP_NTZ, Spark's is TIMESTAMP (LTZ); the runner does not translate it
 query T
 SELECT to_json(named_struct('t', TIMESTAMP '2024-01-01 01:02:03'));
 ----
@@ -286,6 +288,7 @@ SELECT to_json(named_struct('t', arrow_cast('2024-01-01T01:02:03.123456Z', 'Time
 {"t":"2024-01-01T03:02:03.123+02:00"}
 
 # the session time zone does not apply to TIMESTAMP_NTZ
+# xfail spark: runner: DataFusion's TIMESTAMP literal is TIMESTAMP_NTZ, Spark's is TIMESTAMP (LTZ); the runner does not translate it
 query T
 SELECT to_json(named_struct('t', TIMESTAMP '2024-01-01 01:02:03.123456'));
 ----
@@ -341,6 +344,7 @@ query error to_json.* but received 2
 SELECT to_json(named_struct('a', 1::INT), named_struct('b', 2::INT));
 
 # types without a Spark JSON representation are rejected at planning time
+# xfail spark: intended: Arrow intervals do not record Spark's start and end fields, so to_json rejects them
 query error Error during planning: to_json: field i has type Interval\(MonthDayNano\), which has no Spark JSON representation
 SELECT to_json(named_struct('i', INTERVAL '1' DAY));
 

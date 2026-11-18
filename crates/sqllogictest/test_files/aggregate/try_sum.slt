@@ -17,6 +17,7 @@ SELECT try_sum(x) AS sum_x FROM VALUES (CAST(9223372036854775807 AS BIGINT)), (1
 ----
 NULL
 
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query R
 SELECT try_sum(x) AS sum_x FROM VALUES (1.5), (2.5), (3.0) AS tab(x);
 ----
@@ -104,6 +105,7 @@ SELECT try_sum(col) AS sum_x FROM VALUES (CAST('Infinity' AS FLOAT)), (CAST(1.0 
 ----
 Infinity
 
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query R
 SELECT try_sum(col) AS sum_x FROM VALUES (-0.0), (0.0) AS tab(col);
 ----
@@ -121,6 +123,7 @@ SELECT try_sum(col) AS sum_x FROM VALUES (CAST(-5.5 AS DECIMAL(10,2))), (CAST(5.
 0.00
 
 # Compare double 0.0 vs decimal 0.00
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query RR
 SELECT 0.0 AS double_zero, CAST(0.0 AS DECIMAL(10,2)) AS decimal_zero;
 ----

@@ -40,6 +40,7 @@ SELECT trunc('2009-02-12'::date, 'MON'::string);
 ----
 2009-02-01
 
+# xfail spark: Spark returns NULL for an unsupported or NULL trunc/date_trunc format (https://github.com/apache/datafusion-spark/issues/40)
 query D
 SELECT trunc('2009-02-12'::date, 'MONTHS'::string);
 ----
@@ -76,9 +77,11 @@ SELECT trunc(NULL::date, 'YEAR'::string);
 ----
 NULL
 
+# xfail spark: Spark returns NULL for an unsupported or NULL trunc/date_trunc format (https://github.com/apache/datafusion-spark/issues/40)
 query error DataFusion error: Optimizer rule 'simplify_expressions' failed\ncaused by\nError during planning: Second argument of `TRUNC` must be non-null scalar Utf8
 SELECT trunc('2009-02-12'::date, NULL::string);
 
 # incorrect format
+# xfail spark: Spark returns NULL for an unsupported or NULL trunc/date_trunc format (https://github.com/apache/datafusion-spark/issues/40)
 query error DataFusion error: Optimizer rule 'simplify_expressions' failed\ncaused by\nError during planning: The format argument of `TRUNC` must represent a year, month, day, week, or quarter.
 SELECT trunc('2009-02-12'::date, 'test'::string);

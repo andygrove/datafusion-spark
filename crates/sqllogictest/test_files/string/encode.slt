@@ -151,6 +151,7 @@ SELECT encode(a, 'bogus'::string) FROM VALUES (CAST(NULL AS STRING)) t(a);
 NULL
 
 # Empty input batch with invalid charset returns no rows without error
+# xfail spark: intended: Spark raises only because it constant-folds encode('test', 'bogus'); an empty table gives no rows
 query ?
 SELECT encode(a, 'bogus'::string) FROM (SELECT 'test'::string AS a WHERE false);
 ----

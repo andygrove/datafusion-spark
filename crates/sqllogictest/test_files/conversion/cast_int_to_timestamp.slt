@@ -109,6 +109,7 @@ SELECT spark_cast(-86400::bigint, 'timestamp');
 1969-12-31T00:00:00Z
 
 # Test unsupported source type - should error
+# xfail spark: spark_cast does not implement this cast yet (https://github.com/apache/datafusion-spark/issues/88)
 statement error
 SELECT spark_cast('2024-01-01', 'timestamp');
 

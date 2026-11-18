@@ -106,6 +106,7 @@ SELECT weekday(arrow_cast('2024-01-07 03:00:00', 'Timestamp(Nanosecond, Some("UT
 6
 
 # Error: wrong argument type (string without cast)
+# xfail spark: Spark implicitly casts a string argument to DATE/TIMESTAMP, invalid strings give NULL (https://github.com/apache/datafusion-spark/issues/41)
 statement error Function 'weekday' requires Date, but received String
 SELECT weekday('not-a-date');
 

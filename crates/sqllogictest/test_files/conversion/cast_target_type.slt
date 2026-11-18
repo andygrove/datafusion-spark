@@ -78,6 +78,7 @@ SELECT spark_cast(1, column1) FROM (VALUES ('int'));
 
 # Casts that are not implemented yet return an error instead of a result that
 # differs from Spark's
+# xfail spark: spark_cast does not implement this cast yet (https://github.com/apache/datafusion-spark/issues/88)
 statement error Spark-compatible cast from STRING to INT in Legacy mode is not implemented yet
 SELECT spark_cast('1', 'int');
 
@@ -85,5 +86,6 @@ SELECT spark_cast('1', 'int');
 statement error Spark-compatible cast from DATE to BINARY is not supported
 SELECT spark_cast(arrow_cast(1, 'Date32'), 'binary');
 
+# xfail spark: spark_cast does not implement this cast yet (https://github.com/apache/datafusion-spark/issues/88)
 statement error Spark-compatible cast from BIGINT to INT in Legacy mode is not implemented yet
 SELECT spark_cast(2147483648, 'int');
