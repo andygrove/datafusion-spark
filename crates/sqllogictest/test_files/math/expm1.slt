@@ -22,3 +22,20 @@ query R
 SELECT expm1(0.0::double);
 ----
 0
+
+# Spark returns fdlibm's result. For each of these, macOS's math library
+# returns a result that differs in the last bit.
+query R
+SELECT expm1(a) FROM (VALUES (-2.5::DOUBLE), (0.9::DOUBLE), (1.7::DOUBLE)) AS t(a);
+----
+-0.9179150013761013
+1.4596031111569499
+4.473947391727199
+
+query R
+SELECT expm1(a) FROM (VALUES (-0.5::DOUBLE), (1e-10::DOUBLE), (710.0::DOUBLE), (-800.0::DOUBLE)) AS t(a);
+----
+-0.3934693402873666
+0.000000000100000000005
+Infinity
+-1

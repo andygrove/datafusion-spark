@@ -1610,6 +1610,7 @@ dependencies = [
  "datafusion-macros",
  "datafusion-physical-expr-common",
  "datafusion-session",
+ "libm",
  "log",
  "num-traits",
  "percent-encoding",
