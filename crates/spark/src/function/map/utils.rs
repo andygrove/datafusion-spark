@@ -111,8 +111,6 @@ pub fn map_type_from_key_value_types(
 ///    and is driven by `last_value_wins`:
 ///    - `false` (Spark's default `EXCEPTION`): raise `[DUPLICATED_MAP_KEY]` on any duplicate.
 ///    - `true` (`LAST_WIN`): keep the last occurrence of each duplicate key.
-///
-///    Callers wire this from `datafusion.spark.map_key_dedup_policy`.
 pub fn map_from_keys_values_offsets_nulls(
     flat_keys: &ArrayRef,
     flat_values: &ArrayRef,
@@ -222,7 +220,7 @@ fn map_deduplicate_keys(
                         "[DUPLICATED_MAP_KEY] Duplicate map key {key} was found, \
                          please check the input data. To allow duplicate keys with \
                          last-value-wins semantics, set \
-                         `datafusion.spark.map_key_dedup_policy` to `LAST_WIN`."
+                         `spark.map_key_dedup_policy` to `LAST_WIN`."
                     );
                 }
                 keys_mask_builder.append_value(true);

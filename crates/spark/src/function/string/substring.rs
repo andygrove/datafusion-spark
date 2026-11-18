@@ -360,7 +360,7 @@ impl<O: OffsetSizeTrait> SubstringBuilder for GenericBinaryBuilder<O> {
         GenericBinaryBuilder::append_null(self);
     }
     fn append_empty(&mut self) {
-        GenericBinaryBuilder::append_value(self, &[]);
+        GenericBinaryBuilder::append_value(self, []);
     }
 }
 
