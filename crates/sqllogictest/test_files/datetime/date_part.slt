@@ -2,49 +2,61 @@
 # SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 # SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+# `date_part` has no `invoke_with_args` yet, so the records that call it are marked
+# `skipif evaluate` until https://github.com/apache/datafusion-spark/issues/308 is fixed.
+
 # YEAR
+skipif evaluate
 query I
 SELECT date_part('YEAR'::string, '2000-01-01'::date);
 ----
 2000
 
+skipif evaluate
 query I
 SELECT date_part('YEARS'::string, '2000-01-01'::date);
 ----
 2000
 
+skipif evaluate
 query I
 SELECT date_part('Y'::string, '2000-01-01'::date);
 ----
 2000
 
+skipif evaluate
 query I
 SELECT date_part('YR'::string, '2000-01-01'::date);
 ----
 2000
 
+skipif evaluate
 query I
 SELECT date_part('YRS'::string, '2000-01-01'::date);
 ----
 2000
 
 # YEAROFWEEK
+skipif evaluate
 query I
 SELECT date_part('YEAROFWEEK'::string, '2000-01-01'::date);
 ----
 1999
 
 # QUARTER
+skipif evaluate
 query I
 SELECT date_part('QUARTER'::string, '2000-01-01'::date);
 ----
 1
 
+skipif evaluate
 query I
 SELECT date_part('QTR'::string, '2000-01-01'::date);
 ----
 1
 
+skipif evaluate
 query error
 SELECT date_part('QUARTERS'::string, '2000-01-01'::date);
 ----
@@ -54,86 +66,102 @@ Error during planning: Cannot extract `QUARTERS` from Date32. SQLSTATE: 42601
 
 
 # MONTH
+skipif evaluate
 query I
 SELECT date_part('MONTH'::string, '2000-01-01'::date);
 ----
 1
 
+skipif evaluate
 query I
 SELECT date_part('MON'::string, '2000-01-01'::date);
 ----
 1
 
+skipif evaluate
 query I
 SELECT date_part('MONS'::string, '2000-01-01'::date);
 ----
 1
 
+skipif evaluate
 query I
 SELECT date_part('MONTHS'::string, '2000-01-01'::date);
 ----
 1
 
 # WEEK
+skipif evaluate
 query I
 SELECT date_part('WEEK'::string, '2000-01-01'::date);
 ----
 52
 
+skipif evaluate
 query I
 SELECT date_part('WEEKS'::string, '2000-01-01'::date);
 ----
 52
 
+skipif evaluate
 query I
 SELECT date_part('W'::string, '2000-01-01'::date);
 ----
 52
 
 # DAYS
+skipif evaluate
 query I
 SELECT date_part('DAY'::string, '2000-01-01'::date);
 ----
 1
 
+skipif evaluate
 query I
 SELECT date_part('D'::string, '2000-01-01'::date);
 ----
 1
 
+skipif evaluate
 query I
 SELECT date_part('DAYS'::string, '2000-01-01'::date);
 ----
 1
 
 # DAYOFWEEK
+skipif evaluate
 query I
 SELECT date_part('DAYOFWEEK'::string, '2000-01-01'::date);
 ----
 7
 
+skipif evaluate
 query I
 SELECT date_part('DOW'::string, '2000-01-01'::date);
 ----
 7
 
 # DAYOFWEEK_ISO
+skipif evaluate
 query I
 SELECT date_part('DAYOFWEEK_ISO'::string, '2000-01-01'::date);
 ----
 6
 
+skipif evaluate
 query I
 SELECT date_part('DOW_ISO'::string, '2000-01-01'::date);
 ----
 6
 
 # DOY
+skipif evaluate
 query I
 SELECT date_part('DOY'::string, '2000-01-01'::date);
 ----
 1
 
+skipif evaluate
 query error
 SELECT date_part('DAYOFYEAR'::string, '2000-01-01'::date);
 ----
@@ -143,101 +171,120 @@ Error during planning: Cannot extract `DAYOFYEAR` from Date32. SQLSTATE: 42601
 
 
 # HOUR
+skipif evaluate
 query I
 SELECT date_part('HOUR'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 12
 
+skipif evaluate
 query I
 SELECT date_part('H'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 12
 
+skipif evaluate
 query I
 SELECT date_part('HOURS'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 12
 
+skipif evaluate
 query I
 SELECT date_part('HR'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 12
 
+skipif evaluate
 query I
 SELECT date_part('HRS'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 12
 
 # MINUTE
+skipif evaluate
 query I
 SELECT date_part('MINUTE'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 30
 
+skipif evaluate
 query I
 SELECT date_part('M'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 30
 
+skipif evaluate
 query I
 SELECT date_part('MIN'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 30
 
+skipif evaluate
 query I
 SELECT date_part('MINS'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 30
 
+skipif evaluate
 query I
 SELECT date_part('MINUTES'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 30
 
 # SECOND
+skipif evaluate
 query I
 SELECT date_part('SECOND'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 45
 
+skipif evaluate
 query I
 SELECT date_part('S'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 45
 
+skipif evaluate
 query I
 SELECT date_part('SEC'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 45
 
+skipif evaluate
 query I
 SELECT date_part('SECONDS'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 45
 
+skipif evaluate
 query I
 SELECT date_part('SECS'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 45
 
 # Known difference: Spark returns DECIMAL(8, 6) including the fraction (45.999000)
+skipif evaluate
 query I
 SELECT date_part('SECOND'::string, '2000-01-01 12:30:45.999'::timestamp);
 ----
 45
 
 # NULL input
+skipif evaluate
 query I
 SELECT date_part('year'::string, NULL::timestamp);
 ----
 NULL
 
+skipif evaluate
 query I
 SELECT date_part(NULL::string, '2000-01-01'::date);
 ----
 NULL
 
 # Invalid part
+skipif evaluate
 query error
 SELECT date_part('test'::string, '2000-01-01'::date);
 ----
@@ -246,6 +293,7 @@ caused by
 Error during planning: Cannot extract `test` from Date32. SQLSTATE: 42601
 
 
+skipif evaluate
 query I
 SELECT date_part('year', column1)
 FROM VALUES
@@ -259,6 +307,7 @@ FROM VALUES
 2000
 NULL
 
+skipif evaluate
 query I
 SELECT date_part('minutes', column1)
 FROM VALUES
@@ -273,11 +322,13 @@ FROM VALUES
 NULL
 
 # alias datepart
+skipif evaluate
 query I
 SELECT datepart('YEAR'::string, '2000-01-01'::date);
 ----
 2000
 
+skipif evaluate
 query I
 SELECT datepart('year', column1)
 FROM VALUES
