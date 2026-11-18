@@ -20,7 +20,7 @@ workspace = true
 datafusion = { workspace = true, default-features = true }
 datafusion-spark = { path = "../spark", features = ["core", "sql"] }
 datafusion-sqllogictest = { git = "https://github.com/apache/datafusion", branch = "branch-56" }
-indicatif = "0.18"
+async-trait = "0.1"
 sqllogictest = "0.29.1"
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 

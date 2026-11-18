@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+use crate::config::map_last_value_wins;
 use crate::function::map::utils::{
     get_element_type, get_list_offsets, get_list_values,
     map_from_keys_values_offsets_nulls, map_type_from_key_value_types,
@@ -9,7 +10,6 @@ use crate::function::map::utils::{
 use arrow::array::{Array, ArrayRef, NullArray};
 use arrow::compute::kernels::cast;
 use arrow::datatypes::{DataType, Field, FieldRef};
-use datafusion_common::config::MapKeyDedupPolicy;
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, internal_err};
 use datafusion_expr::{
@@ -69,8 +69,7 @@ impl ScalarUDFImpl for MapFromArrays {
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
-        let last_value_wins =
-            args.config_options.spark.map_key_dedup_policy == MapKeyDedupPolicy::LastWin;
+        let last_value_wins = map_last_value_wins(&args.config_options);
         make_scalar_function(
             move |args: &[ArrayRef]| map_from_arrays_inner(args, last_value_wins),
             vec![],
