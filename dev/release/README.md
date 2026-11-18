@@ -88,7 +88,7 @@ cargo semver-checks -p datafusion-spark --baseline-version <previous release>
 ```
 
 crates.io does not accept crates with git dependencies. During development `main` may depend on a
-DataFusion git branch (for example `branch = "branch-56"`); before a release these must be changed to
+DataFusion git branch or tag (for example `tag = "56.0.0-rc2"`); before a release these must be changed to
 the matching DataFusion release published on crates.io.
 
 ## Prerequisites
