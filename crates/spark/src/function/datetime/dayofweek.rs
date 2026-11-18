@@ -4,9 +4,9 @@
 
 use std::sync::Arc;
 
-use arrow::array::{Array, ArrayRef, AsArray, Date32Array, Int32Array};
+use arrow::array::{Array, ArrayRef, AsArray, Int32Array};
 use arrow::compute::cast;
-use arrow::datatypes::{DataType, Date32Type, Field, FieldRef, Int32Type};
+use arrow::datatypes::{DataType, Date32Type, Date64Type, Field, FieldRef};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue, exec_err, internal_err};
 use datafusion_expr::{
@@ -17,52 +17,69 @@ use datafusion_macros::user_doc;
 
 use super::date_part_name::date_signature;
 
+const MILLISECONDS_PER_DAY: i64 = 86_400_000;
+
 /// Spark `DayOfWeek`: Sunday = 1, Monday = 2, ..., Saturday = 7.
 ///
 /// Spark computes `LocalDate.ofEpochDay(days).getDayOfWeek.plus(1).getValue`,
 /// which is defined for every `Int`. Epoch day 0 (1970-01-01) is a Thursday, so
-/// `+ 4` moves Sunday to 0 before the shift to 1-based. Widening to `i64` first
-/// keeps `i32::MAX` from overflowing.
+/// `+ 4` moves Sunday to 0 before the shift to 1-based. The day is an `i64` so
+/// that a `Date64` outside the `Date32` range still has a day of the week.
 #[inline]
-pub(super) fn day_of_week(days: i32) -> i32 {
-    ((i64::from(days) + 4).rem_euclid(7) + 1) as i32
+pub(super) fn day_of_week(days: i64) -> i32 {
+    ((days.rem_euclid(7) + 4) % 7 + 1) as i32
 }
 
 /// Spark `WeekDay`: Monday = 0, Tuesday = 1, ..., Sunday = 6.
 ///
 /// Spark computes `LocalDate.ofEpochDay(days).getDayOfWeek.ordinal()`.
 #[inline]
-pub(super) fn week_day(days: i32) -> i32 {
-    (i64::from(days) + 3).rem_euclid(7) as i32
+pub(super) fn week_day(days: i64) -> i32 {
+    ((days.rem_euclid(7) + 3) % 7) as i32
 }
 
-/// Applies `kernel` to every valid date.
+/// Applies `kernel` to the epoch day of every date in a `Date32` or `Date64`
+/// array, or returns `None` for any other type.
 ///
-/// `unary` evaluates every slot and vectorizes, `unary_opt` visits only valid
-/// slots but costs more per element, so switch on null density.
-#[inline]
-fn map_dates<F: Fn(i32) -> i32 + Copy>(dates: &Date32Array, kernel: F) -> Int32Array {
-    if dates.null_count() * 2 <= dates.len() {
-        dates.unary::<_, Int32Type>(kernel)
-    } else {
-        dates.unary_opt::<_, Int32Type>(|d| Some(kernel(d)))
+/// `unary` also evaluates the slots under NULLs, which is safe because the
+/// kernels are total, and lets the loop vectorize.
+fn map_dates<F: Fn(i64) -> i32 + Copy>(
+    array: &dyn Array,
+    kernel: F,
+) -> Option<Int32Array> {
+    match array.data_type() {
+        DataType::Date32 => Some(
+            array
+                .as_primitive::<Date32Type>()
+                .unary(|days| kernel(i64::from(days))),
+        ),
+        // Date64 holds milliseconds since the epoch. Arrow's cast to Date32
+        // would turn days outside the i32 range into NULL, and it divides
+        // toward zero, which moves a time before the epoch to the next day.
+        DataType::Date64 => Some(
+            array
+                .as_primitive::<Date64Type>()
+                .unary(|ms| kernel(ms.div_euclid(MILLISECONDS_PER_DAY))),
+        ),
+        _ => None,
     }
 }
 
-/// Maps each epoch day in `arg` (a `Date32` scalar or array, possibly
-/// dictionary encoded) to an `Int32` with `kernel`. NULL dates give NULL.
+/// Maps each epoch day in `arg` (a `Date32` or `Date64` scalar or array,
+/// possibly dictionary encoded) to an `Int32` with `kernel`. NULL dates give
+/// NULL.
 ///
 /// The value is computed straight from the epoch day rather than through a
 /// calendar date, so it is defined for the whole `i32` domain as in Spark.
-pub(super) fn epoch_day_field<F: Fn(i32) -> i32 + Copy>(
+pub(super) fn epoch_day_field<F: Fn(i64) -> i32 + Copy>(
     name: &str,
     arg: ColumnarValue,
     kernel: F,
 ) -> Result<ColumnarValue> {
     match arg {
-        ColumnarValue::Scalar(ScalarValue::Date32(days)) => {
-            Ok(ColumnarValue::Scalar(ScalarValue::Int32(days.map(kernel))))
-        }
+        ColumnarValue::Scalar(ScalarValue::Date32(days)) => Ok(ColumnarValue::Scalar(
+            ScalarValue::Int32(days.map(|days| kernel(i64::from(days)))),
+        )),
         ColumnarValue::Scalar(scalar) if scalar.is_null() => {
             Ok(ColumnarValue::Scalar(ScalarValue::Int32(None)))
         }
@@ -79,35 +96,25 @@ pub(super) fn epoch_day_field<F: Fn(i32) -> i32 + Copy>(
     }
 }
 
-fn epoch_day_array<F: Fn(i32) -> i32 + Copy>(
+fn epoch_day_array<F: Fn(i64) -> i32 + Copy>(
     name: &str,
     array: &ArrayRef,
     kernel: F,
 ) -> Result<ArrayRef> {
-    // The date signature also admits Date64, which holds milliseconds since the
-    // epoch. Arrow's cast turns it into epoch days.
-    if array.data_type() == &DataType::Date64 {
-        return epoch_day_array(name, &cast(array, &DataType::Date32)?, kernel);
-    }
     // A dictionary-encoded date column: map the dictionary values, rewrap the
     // keys, then unpack to a plain Int32 array, so the work is proportional to
     // the cardinality rather than the row count.
     if let DataType::Dictionary(_, _) = array.data_type() {
         let dict = array.as_any_dictionary();
-        let values = match dict.values().data_type() {
-            DataType::Date64 => cast(dict.values(), &DataType::Date32)?,
-            _ => Arc::clone(dict.values()),
-        };
-        let Some(values) = values.as_primitive_opt::<Date32Type>() else {
+        let Some(mapped) = map_dates(dict.values().as_ref(), kernel) else {
             return exec_err!("`{name}` expects a date, got {}", array.data_type());
         };
-        let mapped = Arc::new(map_dates(values, kernel)) as ArrayRef;
-        return Ok(cast(&dict.with_values(mapped), &DataType::Int32)?);
+        return Ok(cast(&dict.with_values(Arc::new(mapped)), &DataType::Int32)?);
     }
-    let Some(dates) = array.as_primitive_opt::<Date32Type>() else {
+    let Some(mapped) = map_dates(array.as_ref(), kernel) else {
         return exec_err!("`{name}` expects a date, got {}", array.data_type());
     };
-    Ok(Arc::new(map_dates(dates, kernel)))
+    Ok(Arc::new(mapped))
 }
 
 /// Spark-compatible `dayofweek` expression.
@@ -191,7 +198,8 @@ impl ScalarUDFImpl for SparkDayOfWeek {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::array::{Date64Array, DictionaryArray};
+    use arrow::array::{Date32Array, Date64Array, DictionaryArray};
+    use arrow::datatypes::Int32Type;
     use datafusion_common::config::ConfigOptions;
 
     fn invoke(arg: ColumnarValue, rows: usize) -> Result<ColumnarValue> {
@@ -245,7 +253,7 @@ mod tests {
         assert_eq!(weekdays, [6, 0, 1, 2, 3, 4, 5, 6]);
     }
 
-    /// Nulls pass through in place, at both null densities `map_dates` handles.
+    /// Nulls pass through in place, whether they are sparse or dense.
     #[test]
     fn nulls_are_preserved() {
         let sparse: ArrayRef =
@@ -272,7 +280,10 @@ mod tests {
         // dayofweek(date_from_unix_date(2147483647)) = 6 (+5881580-07-11)
         // weekday of the same two dates = 1 and 4
         assert_eq!(invoke_array(array).values(), &[3, 6]);
-        assert_eq!([week_day(i32::MIN), week_day(i32::MAX)], [1, 4]);
+        assert_eq!(
+            [week_day(i32::MIN.into()), week_day(i32::MAX.into())],
+            [1, 4]
+        );
     }
 
     /// The two numberings agree across a full 400-year Gregorian cycle.
@@ -313,6 +324,36 @@ mod tests {
             out.iter().collect::<Vec<_>>(),
             [Some(5), Some(4), None, None]
         );
+    }
+
+    /// A Date64 is floored to whole days, so the last millisecond before the
+    /// epoch is on 1969-12-31 (a Wednesday), and days outside the Date32 range
+    /// still give a weekday rather than NULL.
+    #[test]
+    fn date64_outside_the_date32_range() {
+        let ms = |days: i64| days * MILLISECONDS_PER_DAY;
+        let first_after = i64::from(i32::MAX) + 1;
+        let last_before = i64::from(i32::MIN) - 1;
+        let values = vec![-1, ms(first_after), ms(last_before), i64::MAX, i64::MIN];
+        let expected: Vec<i32> = [-1, first_after, last_before]
+            .into_iter()
+            .chain([i64::MAX, i64::MIN].map(|ms| ms.div_euclid(MILLISECONDS_PER_DAY)))
+            .map(day_of_week)
+            .collect();
+        // One day after i32::MAX (a Friday) and one day before i32::MIN (a
+        // Tuesday).
+        assert_eq!(expected[..3], [4, 7, 2]);
+
+        let plain = invoke_array(Arc::new(Date64Array::from(values.clone())));
+        assert_eq!(plain.null_count(), 0);
+        assert_eq!(plain.values(), expected.as_slice());
+
+        let keys = Int32Array::from((0..values.len() as i32).collect::<Vec<_>>());
+        let dict =
+            DictionaryArray::<Int32Type>::new(keys, Arc::new(Date64Array::from(values)));
+        let out = invoke_array(Arc::new(dict));
+        assert_eq!(out.null_count(), 0);
+        assert_eq!(out.values(), expected.as_slice());
     }
 
     #[test]

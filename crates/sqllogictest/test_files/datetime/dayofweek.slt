@@ -51,6 +51,13 @@ SELECT dayofweek(date_from_unix_date(-2147483648)), dayofweek(date_from_unix_dat
 ----
 3 6
 
+# The same two dates as a column, so the function sees an array
+query I
+SELECT dayofweek(d) FROM (VALUES (date_from_unix_date(-2147483648)), (date_from_unix_date(2147483647))) AS t(d);
+----
+3
+6
+
 # NULL
 query I
 SELECT dayofweek(NULL::DATE);
@@ -117,6 +124,34 @@ SELECT dayofweek(d) FROM (VALUES (arrow_cast('2024-01-07'::DATE, 'Date64')), (ar
 ----
 1
 NULL
+
+# A Date64 outside the Date32 range still has a day of the week, rather than
+# NULL: one day after and one day before the Date32 range, then the last
+# millisecond before the epoch, which is on 1969-12-31. DataFusion only, since
+# Spark has no Date64.
+skipif spark
+query I
+SELECT dayofweek(d) FROM (VALUES
+  (arrow_cast(185542587187200000, 'Date64')),
+  (arrow_cast(-185542587273600000, 'Date64')),
+  (arrow_cast(-1, 'Date64'))
+) AS t(d);
+----
+7
+2
+4
+
+skipif spark
+query I
+SELECT dayofweek(d) FROM (VALUES
+  (arrow_cast(arrow_cast(185542587187200000, 'Date64'), 'Dictionary(Int32, Date64)')),
+  (arrow_cast(arrow_cast(-185542587273600000, 'Date64'), 'Dictionary(Int32, Date64)')),
+  (arrow_cast(arrow_cast(-1, 'Date64'), 'Dictionary(Int32, Date64)'))
+) AS t(d);
+----
+7
+2
+4
 
 # With ANSI mode on, Spark raises CAST_INVALID_INPUT for a malformed string
 statement ok
