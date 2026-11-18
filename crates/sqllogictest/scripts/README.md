@@ -13,8 +13,11 @@ the expected result in the file.
 
 The expected results in those files come from DataFusion, and nothing else
 checks them against Spark. A difference means that DataFusion and Spark
-disagree, or that the test expects the wrong value. Running Spark is manual;
-only the runner's unit tests run in CI.
+disagree, or that the test expects the wrong value. CI runs the runner on
+every pull request that changes an `.slt` file or the runner, and fails if it
+reports a difference that has no `# xfail spark:` comment (see
+[Known differences](#known-differences)) or a comment on a record that now
+passes.
 
 ## Setup
 
