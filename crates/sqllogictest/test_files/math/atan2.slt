@@ -23,7 +23,7 @@ SELECT atan2(0, 1);
 query R
 SELECT atan2(1, 1);
 ----
-0.785398163397448
+0.7853981633974483
 
 query R
 SELECT atan2(1, -1);
@@ -38,13 +38,13 @@ SELECT atan2(-1, -1);
 query R
 SELECT atan2(-1, 1);
 ----
--0.785398163397448
+-0.7853981633974483
 
 # on the axes
 query R
 SELECT atan2(1, 0);
 ----
-1.570796326794897
+1.5707963267948966
 
 # negative x-axis: atan2 range extends to pi (atan only reaches +/- pi/2)
 query R
@@ -94,12 +94,12 @@ NULL
 query R
 SELECT atan2('Infinity'::double, 'Infinity'::double);
 ----
-0.785398163397448
+0.7853981633974483
 
 query R
 SELECT atan2('-Infinity'::double, 'Infinity'::double);
 ----
--0.785398163397448
+-0.7853981633974483
 
 query R
 SELECT atan2('Infinity'::double, '-Infinity'::double);
@@ -115,12 +115,12 @@ SELECT atan2('-Infinity'::double, '-Infinity'::double);
 query R
 SELECT atan2('Infinity'::double, 1.0::double);
 ----
-1.570796326794897
+1.5707963267948966
 
 query R
 SELECT atan2('-Infinity'::double, 1.0::double);
 ----
--1.570796326794897
+-1.5707963267948966
 
 query R
 SELECT atan2(1.0::double, 'Infinity'::double);
@@ -163,6 +163,6 @@ query R
 SELECT atan2(a, b) FROM (VALUES (0.0::double, 1.0::double), (1.0::double, 1.0::double), (NULL::double, 1.0::double), (-0.0::double, -1.0::double)) AS t(a, b);
 ----
 0
-0.785398163397448
+0.7853981633974483
 NULL
 3.141592653589793

@@ -138,7 +138,7 @@ SELECT map_from_arrays(arrow_cast(array('a', 'b', 'c'), 'FixedSizeList(3, Utf8)'
 
 # LAST_WIN policy: duplicates are allowed; later occurrences overwrite earlier ones.
 statement ok
-set datafusion.spark.map_key_dedup_policy = 'LAST_WIN';
+set spark.map_key_dedup_policy = 'LAST_WIN';
 
 query ?
 SELECT map_from_arrays(array(1, 2, 1), array('a', 'b', 'c'));
@@ -171,7 +171,7 @@ AS tab(a, b);
 NULL
 
 statement ok
-set datafusion.spark.map_key_dedup_policy = 'EXCEPTION';
+set spark.map_key_dedup_policy = 'EXCEPTION';
 
 # Sliced input: OFFSET makes the function see list arrays whose first offset is
 # non-zero, so the child arrays still contain the skipped row's elements.

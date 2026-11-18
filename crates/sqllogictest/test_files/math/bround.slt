@@ -10,8 +10,11 @@
 
 ## Original Query: SELECT bround(2.5, 0);
 ## PySpark 3.5.5 Result: {'bround(2.5, 0)': Decimal('2'), 'typeof(bround(2.5, 0))': 'decimal(2,0)', 'typeof(2.5)': 'decimal(2,1)', 'typeof(0)': 'int'}
-# The scale is a constant expression, which is a literal only after constant folding,
-# so the decimal result type is computed from it only when folding runs.
+# The scale is a constant expression, not a literal. The planner computes the decimal
+# result type from literal arguments only, so without constant folding the result keeps
+# the input scale. This is a limitation of planning in DataFusion, not of
+# `invoke_with_args`: a caller that builds the physical expression, such as Comet, passes
+# the result type itself.
 skipif evaluate
 query RT
 SELECT bround(2.5::decimal(2,1), 0::int), arrow_typeof(bround(2.5::decimal(2,1), 0::int));
@@ -148,8 +151,11 @@ SELECT bround(column1, 1) FROM VALUES (0.25::decimal(3,2)), (0.35::decimal(3,2))
 NULL
 
 # A constant scale that is not a bare literal
-# The scale is a constant expression, which is a literal only after constant folding,
-# so the decimal result type is computed from it only when folding runs.
+# The scale is a constant expression, not a literal. The planner computes the decimal
+# result type from literal arguments only, so without constant folding the result keeps
+# the input scale. This is a limitation of planning in DataFusion, not of
+# `invoke_with_args`: a caller that builds the physical expression, such as Comet, passes
+# the result type itself.
 skipif evaluate
 query RRR
 SELECT bround(2.25::decimal(3,2), 1::bigint) AS a, bround(2.25::decimal(3,2), 1 + 0) AS b, bround(2.25::decimal(3,2), CAST(1 AS INT)) AS c;
@@ -157,8 +163,11 @@ SELECT bround(2.25::decimal(3,2), 1::bigint) AS a, bround(2.25::decimal(3,2), 1 
 2.2 2.2 2.2
 
 # The result type needs the scale, so it relies on the optimizer folding it first
-# The scale is a constant expression, which is a literal only after constant folding,
-# so the decimal result type is computed from it only when folding runs.
+# The scale is a constant expression, not a literal. The planner computes the decimal
+# result type from literal arguments only, so without constant folding the result keeps
+# the input scale. This is a limitation of planning in DataFusion, not of
+# `invoke_with_args`: a caller that builds the physical expression, such as Comet, passes
+# the result type itself.
 skipif evaluate
 query TTTT
 SELECT arrow_typeof(bround(2.25::decimal(3,2), 1::bigint)) AS a, arrow_typeof(bround(2.25::decimal(3,2), 1 + 0)) AS b,
@@ -198,8 +207,11 @@ SELECT bround(arrow_cast(arrow_cast(25, 'Int32'), 'Dictionary(Int32, Int32)'), -
 20 Int32
 
 # A cast scale on a decimal column, used in a filter
-# The scale is a constant expression, which is a literal only after constant folding,
-# so the decimal result type is computed from it only when folding runs.
+# The scale is a constant expression, not a literal. The planner computes the decimal
+# result type from literal arguments only, so without constant folding the result keeps
+# the input scale. This is a limitation of planning in DataFusion, not of
+# `invoke_with_args`: a caller that builds the physical expression, such as Comet, passes
+# the result type itself.
 skipif evaluate
 query R
 SELECT r FROM (SELECT bround(column1, 1::bigint) AS r FROM VALUES (2.25::decimal(3,2)), (2.35::decimal(3,2))) WHERE r > 2.3;

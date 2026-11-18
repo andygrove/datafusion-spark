@@ -19,8 +19,7 @@
 //!
 //! A record that cannot run in `evaluate` mode yet uses `skipif evaluate`, with a comment
 //! that links the issue. Prefer it over `onlyif simplify`, because the PySpark runner
-//! skips every `onlyif` record that is not for `spark`. Whole files that cannot run in
-//! `evaluate` mode yet are listed in [`EVALUATE_KNOWN_FAILURES`].
+//! skips every `onlyif` record that is not for `spark`.
 //!
 //! Usage: `cargo test -p datafusion-spark-sqllogictest -- [FILTER]... [--mode=MODE]
 //! [--complete]`, where each `FILTER` is a substring of the test file path and `MODE` is
@@ -29,6 +28,8 @@
 //! `--complete` rewrites the expected output of each matching file with the results of
 //! running it, in `simplify` mode unless `--mode` says otherwise. Review the diff before
 //! committing it, since it records whatever the functions return.
+
+mod engine;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -48,8 +49,8 @@ use datafusion::optimizer::simplify_expressions::SimplifyExpressions;
 use datafusion::optimizer::{Optimizer, OptimizerConfig, OptimizerRule};
 use datafusion::prelude::{SessionConfig, SessionContext};
 use datafusion_spark::SessionStateBuilderSpark;
-use datafusion_sqllogictest::{DataFusion, df_value_validator, value_normalizer};
-use indicatif::ProgressBar;
+use datafusion_sqllogictest::{df_value_validator, value_normalizer};
+use engine::SparkDataFusion;
 use sqllogictest::strict_column_validator;
 
 fn collect_slt_files(dir: &Path, files: &mut Vec<PathBuf>) -> std::io::Result<()> {
@@ -84,20 +85,6 @@ impl Mode {
         }
     }
 }
-
-/// Files that fail in [`Mode::Evaluate`] because a function has no working
-/// `invoke_with_args` yet, with the issue that tracks it. A failure in one of these
-/// files is reported but does not fail the run. A pass fails the run, so the entry is
-/// removed once the issue is fixed.
-const EVALUATE_KNOWN_FAILURES: [(&str, &str); 7] = [
-    ("conditional/if.slt", "#305"),
-    ("datetime/date_diff.slt", "#307"),
-    ("datetime/date_part.slt", "#308"),
-    ("datetime/date_trunc.slt", "#309"),
-    ("datetime/trunc.slt", "#311"),
-    ("datetime/add_months.slt", "#312"),
-    ("string/base64.slt", "#313"),
-];
 
 /// DataFusion functions whose `invoke_with_args` always errors because they are meant
 /// to be rewritten by `simplify` (for example `arrow_cast` becomes `CAST`). The tests
@@ -191,20 +178,9 @@ fn new_context(mode: Mode) -> SessionContext {
 
 /// Runs the file at `path`, or with `complete`, rewrites its expected output with the
 /// results of this run.
-async fn run_file(
-    path: PathBuf,
-    relative_path: PathBuf,
-    mode: Mode,
-    complete: bool,
-) -> Result<(), String> {
-    // The DataFusion engine formats floats the way Spark does for paths under `spark/`
-    let engine_path = Path::new("spark").join(&relative_path);
+async fn run_file(path: PathBuf, mode: Mode, complete: bool) -> Result<(), String> {
     let mut runner = sqllogictest::Runner::new(|| async {
-        Ok(DataFusion::new(
-            new_context(mode),
-            engine_path.clone(),
-            ProgressBar::hidden(),
-        ))
+        Ok(SparkDataFusion::new(new_context(mode)))
     });
     runner.add_label(mode.label());
     if complete {
@@ -267,8 +243,7 @@ async fn main() -> ExitCode {
             continue;
         }
         for &mode in &modes {
-            let task =
-                tokio::spawn(run_file(path.clone(), relative.clone(), mode, complete));
+            let task = tokio::spawn(run_file(path.clone(), mode, complete));
             handles.push((relative.clone(), mode, task));
         }
     }
@@ -277,29 +252,12 @@ async fn main() -> ExitCode {
     let mut failed = 0;
     for (relative, mode, handle) in handles {
         let name = format!("[{}] {}", mode.label(), relative.display());
-        let known_failure = EVALUATE_KNOWN_FAILURES
-            .iter()
-            .find(|(file, _)| mode == Mode::Evaluate && Path::new(file) == relative)
-            .map(|(_, issue)| *issue);
         // A panic in one file (for example a function indexing past the end of an
         // array) is reported as that file failing, so the other results still print.
-        match (
-            handle.await.map_err(|e| e.to_string()).and_then(|r| r),
-            known_failure,
-        ) {
-            (Ok(()), _) if complete => println!("COMPLETED {name}"),
-            (Ok(()), None) => println!("PASS {name}"),
-            (Err(_), Some(issue)) => {
-                println!("XFAIL {name} (known failure, see {issue})")
-            }
-            (Ok(()), Some(issue)) => {
-                failed += 1;
-                println!(
-                    "FAIL {name}\nexpected to fail ({issue}) but passed, \
-                     remove it from EVALUATE_KNOWN_FAILURES\n"
-                );
-            }
-            (Err(e), None) => {
+        match handle.await.map_err(|e| e.to_string()).and_then(|r| r) {
+            Ok(()) if complete => println!("COMPLETED {name}"),
+            Ok(()) => println!("PASS {name}"),
+            Err(e) => {
                 failed += 1;
                 println!("FAIL {name}\n{e}\n");
             }

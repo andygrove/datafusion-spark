@@ -127,12 +127,13 @@ These records are skipped and counted, with the reason, in the summary:
 
 ## Values
 
-Spark's results are printed the way DataFusion's sqllogictest engine prints
-them, so they can be compared as text. For example, a `DOUBLE` keeps 15 decimal
-places, a `DECIMAL` keeps its scale and an empty string is `(empty)`. A Spark
-`TIMESTAMP` is printed in the session time zone. An expected timestamp with an
-offset, such as `2024-07-15T00:00:00Z`, is converted to that time zone before
-the comparison.
+Spark's results are printed the way the sqllogictest engine in
+[`tests/engine`](../tests/engine/mod.rs) prints them, so they can be compared
+as text. For example, a `DOUBLE` is printed at full precision, with the
+shortest digits that round-trip and no exponent, a `DECIMAL` keeps its scale
+and an empty string is `(empty)`. A Spark `TIMESTAMP` is printed in the session
+time zone. An expected timestamp with an offset, such as
+`2024-07-15T00:00:00Z`, is converted to that time zone before the comparison.
 
 ## Tests
 

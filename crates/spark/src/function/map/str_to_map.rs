@@ -19,8 +19,8 @@ use datafusion_expr::{
     TypeSignature, Volatility,
 };
 
+use crate::config::map_last_value_wins;
 use crate::function::map::utils::map_type_from_key_value_types;
-use datafusion_common::config::MapKeyDedupPolicy;
 
 const DEFAULT_PAIR_DELIM: &str = ",";
 const DEFAULT_KV_DELIM: &str = ":";
@@ -37,7 +37,7 @@ const DEFAULT_KV_DELIM: &str = ":";
 ///
 /// # Duplicate Key Handling
 /// Mirrors Spark's [`spark.sql.mapKeyDedupPolicy`](https://github.com/apache/spark/blob/v4.0.0/sql/catalyst/src/main/scala/org/apache/spark/sql/internal/SQLConf.scala#L4502-L4511),
-/// wired through DataFusion's `datafusion.spark.map_key_dedup_policy`:
+/// wired through DataFusion Spark's `spark.map_key_dedup_policy`:
 /// - `EXCEPTION` (default): error on duplicate keys.
 /// - `LAST_WIN`: keep the last occurrence of each duplicate key.
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -89,8 +89,7 @@ impl ScalarUDFImpl for SparkStrToMap {
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
-        let last_value_wins =
-            args.config_options.spark.map_key_dedup_policy == MapKeyDedupPolicy::LastWin;
+        let last_value_wins = map_last_value_wins(&args.config_options);
         let arrays: Vec<ArrayRef> = ColumnarValue::values_to_arrays(&args.args)?;
         let result = str_to_map_inner(&arrays, last_value_wins)?;
         Ok(ColumnarValue::Array(result))
@@ -275,7 +274,7 @@ fn str_to_map_impl<'a, V: StringArrayType<'a> + Copy>(
                         "[DUPLICATED_MAP_KEY] Duplicate map key '{key}' was found, \
                          please check the input data. To allow duplicate keys with \
                          last-value-wins semantics, set \
-                         `datafusion.spark.map_key_dedup_policy` to `LAST_WIN`."
+                         `spark.map_key_dedup_policy` to `LAST_WIN`."
                     );
                 }
 

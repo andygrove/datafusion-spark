@@ -22,6 +22,9 @@ all-features = true
 [features]
 default = []
 core = ["datafusion"]
+# `sql` enables the Spark planner, including Spark's `/` semantics for SQL
+# expressions: without it `SELECT 1 / 2` returns `0`.
+sql = ["datafusion-expr/sql", "datafusion-functions-nested/sql"]
 
 # Note: add additional linter rules in lib.rs.
 # Rust does not support workspace + new linter rules in subcrates yet
