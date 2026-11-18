@@ -84,7 +84,7 @@ SELECT spark_cast('1', 'int');
 
 # Spark has no cast from DATE to BINARY
 statement error Spark-compatible cast from DATE to BINARY is not supported
-SELECT spark_cast(arrow_cast(1, 'Date32'), 'binary');
+SELECT spark_cast(date_from_unix_date(1), 'binary');
 
 # xfail spark: spark_cast does not implement this cast yet (https://github.com/apache/datafusion-spark/issues/88)
 statement error Spark-compatible cast from BIGINT to INT in Legacy mode is not implemented yet

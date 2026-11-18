@@ -396,77 +396,77 @@ SELECT pmod((-10)::BIGINT, 3::BIGINT) as pmod_int64_2;
 # Spark evaluates `(r + n) % n` with Java arithmetic: `byte` and `short` are
 # promoted to `int` and never overflow, while `int` and `long` wrap around.
 query I
-SELECT pmod(arrow_cast(-1, 'Int32'), arrow_cast(-2147483648, 'Int32'));
+SELECT pmod((-1)::INT, (-2147483648)::INT);
 ----
 2147483647
 
 query I
-SELECT pmod(arrow_cast(-2, 'Int32'), arrow_cast(-2147483648, 'Int32'));
+SELECT pmod((-2)::INT, (-2147483648)::INT);
 ----
 2147483646
 
 query I
-SELECT pmod(arrow_cast(2147483647, 'Int32'), arrow_cast(-2147483648, 'Int32'));
+SELECT pmod(2147483647::INT, (-2147483648)::INT);
 ----
 2147483647
 
 query I
-SELECT pmod(arrow_cast(-2147483648, 'Int32'), arrow_cast(-1, 'Int32'));
+SELECT pmod((-2147483648)::INT, (-1)::INT);
 ----
 0
 
 query I
-SELECT pmod(arrow_cast(-2147483648, 'Int32'), arrow_cast(3, 'Int32'));
+SELECT pmod((-2147483648)::INT, 3::INT);
 ----
 1
 
 query I
-SELECT pmod(arrow_cast(-1, 'Int64'), arrow_cast(-9223372036854775808, 'Int64'));
+SELECT pmod((-1)::BIGINT, (-9223372036854775808)::BIGINT);
 ----
 9223372036854775807
 
 query I
-SELECT pmod(arrow_cast(-9223372036854775808, 'Int64'), arrow_cast(-1, 'Int64'));
+SELECT pmod((-9223372036854775808)::BIGINT, (-1)::BIGINT);
 ----
 0
 
 query I
-SELECT pmod(arrow_cast(2, 'Int64'), arrow_cast(9223372036854775807, 'Int64'));
+SELECT pmod(2::BIGINT, 9223372036854775807::BIGINT);
 ----
 2
 
 query I
-SELECT pmod(arrow_cast(-1, 'Int8'), arrow_cast(-128, 'Int8'));
+SELECT pmod((-1)::TINYINT, (-128)::TINYINT);
 ----
 -1
 
 query I
-SELECT pmod(arrow_cast(-128, 'Int8'), arrow_cast(-1, 'Int8'));
+SELECT pmod((-128)::TINYINT, (-1)::TINYINT);
 ----
 0
 
 query I
-SELECT pmod(arrow_cast(-1, 'Int16'), arrow_cast(-32768, 'Int16'));
+SELECT pmod((-1)::SMALLINT, (-32768)::SMALLINT);
 ----
 -1
 
 query I
-SELECT pmod(arrow_cast(-32768, 'Int16'), arrow_cast(-1, 'Int16'));
+SELECT pmod((-32768)::SMALLINT, (-1)::SMALLINT);
 ----
 0
 
 query I
-SELECT pmod(arrow_cast(128, 'Int16'), arrow_cast(-32768, 'Int16'));
+SELECT pmod(128::SMALLINT, (-32768)::SMALLINT);
 ----
 128
 
 # The same boundary cases on array inputs
 query II
-SELECT a, pmod(a, arrow_cast(-2147483648, 'Int32')) FROM (VALUES
-  (arrow_cast(-1, 'Int32')),
-  (arrow_cast(-2, 'Int32')),
-  (arrow_cast(2147483647, 'Int32')),
-  (arrow_cast(NULL, 'Int32'))
+SELECT a, pmod(a, (-2147483648)::INT) FROM (VALUES
+  ((-1)::INT),
+  ((-2)::INT),
+  (2147483647::INT),
+  (NULL::INT)
 ) AS t(a);
 ----
 -1 2147483647
@@ -480,31 +480,31 @@ statement ok
 set datafusion.execution.enable_ansi_mode = true;
 
 query I
-SELECT pmod(arrow_cast(-1, 'Int32'), arrow_cast(-2147483648, 'Int32'));
+SELECT pmod((-1)::INT, (-2147483648)::INT);
 ----
 2147483647
 
 query I
-SELECT pmod(arrow_cast(-1, 'Int64'), arrow_cast(-9223372036854775808, 'Int64'));
+SELECT pmod((-1)::BIGINT, (-9223372036854775808)::BIGINT);
 ----
 9223372036854775807
 
 query I
-SELECT pmod(arrow_cast(-1, 'Int8'), arrow_cast(-128, 'Int8'));
+SELECT pmod((-1)::TINYINT, (-128)::TINYINT);
 ----
 -1
 
 query I
-SELECT pmod(arrow_cast(-1, 'Int16'), arrow_cast(-32768, 'Int16'));
+SELECT pmod((-1)::SMALLINT, (-32768)::SMALLINT);
 ----
 -1
 
 query II
-SELECT a, pmod(a, arrow_cast(-2147483648, 'Int32')) FROM (VALUES
-  (arrow_cast(-1, 'Int32')),
-  (arrow_cast(-2, 'Int32')),
-  (arrow_cast(2147483647, 'Int32')),
-  (arrow_cast(NULL, 'Int32'))
+SELECT a, pmod(a, (-2147483648)::INT) FROM (VALUES
+  ((-1)::INT),
+  ((-2)::INT),
+  (2147483647::INT),
+  (NULL::INT)
 ) AS t(a);
 ----
 -1 2147483647

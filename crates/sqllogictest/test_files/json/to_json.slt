@@ -134,7 +134,7 @@ SELECT to_json(named_struct('b', X'0001FF'));
 {"b":"AAH/"}
 
 query T
-SELECT to_json(named_struct('b', arrow_cast('abc', 'Binary')));
+SELECT to_json(named_struct('b', 'abc'::BINARY));
 ----
 {"b":"YWJj"}
 
@@ -149,7 +149,7 @@ SELECT to_json(named_struct('b', arrow_cast('abc', 'BinaryView')));
 {"b":"YWJj"}
 
 query T
-SELECT to_json(named_struct('l', [arrow_cast('abc', 'Binary'), arrow_cast(NULL, 'Binary')]));
+SELECT to_json(named_struct('l', ['abc'::BINARY, NULL::BINARY]));
 ----
 {"l":["YWJj",null]}
 

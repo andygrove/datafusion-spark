@@ -92,12 +92,12 @@ NULL
 # arithmetic, rather than panicking. Cast the Date32 result to Int32 to assert
 # the epoch day directly (these dates are past the printable range).
 query I
-SELECT next_day(95026236::DATE, 'Mon'::string)::INT;
+SELECT unix_date(next_day(date_from_unix_date(95026236), 'Mon'::string));
 ----
 95026243
 
 query I
-SELECT next_day(95026230::DATE, 'Tue'::string)::INT;
+SELECT unix_date(next_day(date_from_unix_date(95026230), 'Tue'::string));
 ----
 95026237
 
@@ -229,7 +229,7 @@ query error \[ILLEGAL_DAY_OF_WEEK\] Illegal input for day of week: invalid_day\.
 SELECT next_day('2024-01-01', arrow_cast('invalid_day', 'LargeUtf8'));
 
 query error \[ILLEGAL_DAY_OF_WEEK\] Illegal input for day of week: invalid_day\. SQLSTATE: 22009
-SELECT next_day('2024-01-01', arrow_cast('invalid_day', 'Utf8View'));
+SELECT next_day('2024-01-01', 'invalid_day'::STRING);
 
 # Unicode day names folding via Unicode case folding (Spark DateTimeUtils.toUpperCase(Locale.ROOT))
 query D

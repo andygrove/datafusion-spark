@@ -1849,23 +1849,23 @@ String: 1577926871123456789
 ## Date32 with time formats
 # xfail spark: Spark errors for %t of a DATE, which it passes as Integer days (https://github.com/apache/datafusion-spark/issues/95)
 query T
-SELECT format_string('Year: %tY', 19716::DATE);
+SELECT format_string('Year: %tY', date_from_unix_date(19716));
 ----
 Year: 2023
 
 # xfail spark: Spark errors for %t of a DATE, which it passes as Integer days (https://github.com/apache/datafusion-spark/issues/95)
 query T
-SELECT format_string('Month: %tB', 19716::DATE);
+SELECT format_string('Month: %tB', date_from_unix_date(19716));
 ----
 Month: December
 
 query T
-SELECT format_string('String: %s', 19716::DATE);
+SELECT format_string('String: %s', date_from_unix_date(19716));
 ----
 String: 19716
 
 query T
-SELECT format_string('String: %S', 19716::DATE);
+SELECT format_string('String: %S', date_from_unix_date(19716));
 ----
 String: 19716
 

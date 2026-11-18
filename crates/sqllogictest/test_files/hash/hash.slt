@@ -9,98 +9,98 @@
 # Int32
 
 query I
-SELECT hash(arrow_cast(1, 'Int32'));
+SELECT hash(1::INT);
 ----
 -559580957
 
 query I
-SELECT hash(arrow_cast(0, 'Int32'));
+SELECT hash(0::INT);
 ----
 933211791
 
 query I
-SELECT hash(arrow_cast(-1, 'Int32'));
+SELECT hash((-1)::INT);
 ----
 -1604776387
 
 query I
-SELECT hash(arrow_cast(2147483647, 'Int32'));
+SELECT hash(2147483647::INT);
 ----
 133916647
 
 query I
-SELECT hash(arrow_cast(-2147483648, 'Int32'));
+SELECT hash((-2147483648)::INT);
 ----
 723455942
 
 # Int64
 
 query I
-SELECT hash(arrow_cast(1, 'Int64'));
+SELECT hash(1::BIGINT);
 ----
 -1712319331
 
 query I
-SELECT hash(arrow_cast(0, 'Int64'));
+SELECT hash(0::BIGINT);
 ----
 -1670924195
 
 query I
-SELECT hash(arrow_cast(-1, 'Int64'));
+SELECT hash((-1)::BIGINT);
 ----
 -939490007
 
 query I
-SELECT hash(arrow_cast(9223372036854775807, 'Int64'));
+SELECT hash(9223372036854775807::BIGINT);
 ----
 -1604625029
 
 query I
-SELECT hash(arrow_cast(-9223372036854775808, 'Int64'));
+SELECT hash((-9223372036854775808)::BIGINT);
 ----
 -853646085
 
 # Float64: -0.0 hashes like 0.0
 
 query I
-SELECT hash(arrow_cast(1.0, 'Float64'));
+SELECT hash(1.0::DOUBLE);
 ----
 -460888942
 
 query I
-SELECT hash(arrow_cast(0.0, 'Float64'));
+SELECT hash(0.0::DOUBLE);
 ----
 -1670924195
 
 query I
-SELECT hash(arrow_cast(-0.0, 'Float64'));
+SELECT hash((-0.0)::DOUBLE);
 ----
 -1670924195
 
 query I
-SELECT hash(arrow_cast(-1.0, 'Float64'));
+SELECT hash((-1.0)::DOUBLE);
 ----
 332927831
 
 # Float32: -0.0 hashes like 0.0
 
 query I
-SELECT hash(arrow_cast(1.0, 'Float32'));
+SELECT hash(1.0::FLOAT);
 ----
 -466301895
 
 query I
-SELECT hash(arrow_cast(0.0, 'Float32'));
+SELECT hash(0.0::FLOAT);
 ----
 933211791
 
 query I
-SELECT hash(arrow_cast(-0.0, 'Float32'));
+SELECT hash((-0.0)::FLOAT);
 ----
 933211791
 
 query I
-SELECT hash(arrow_cast(-1.0, 'Float32'));
+SELECT hash((-1.0)::FLOAT);
 ----
 -603084565
 
@@ -163,7 +163,7 @@ SELECT hash(NULL);
 42
 
 query I
-SELECT hash(arrow_cast(NULL, 'Int32'));
+SELECT hash(NULL::INT);
 ----
 42
 
@@ -306,12 +306,12 @@ SELECT hash([CAST(1 AS INT), NULL, CAST(3 AS INT)]);
 1066699649
 
 query I
-SELECT hash(arrow_cast([], 'List(Int32)'));
+SELECT hash([]::ARRAY<INT>);
 ----
 42
 
 query I
-SELECT hash(arrow_cast(NULL, 'List(Int32)'));
+SELECT hash(NULL::ARRAY<INT>);
 ----
 42
 
@@ -458,7 +458,7 @@ SELECT hash(arrow_cast('hello', 'LargeUtf8'));
 -1008564952
 
 query I
-SELECT hash(arrow_cast('hello', 'Utf8View'));
+SELECT hash('hello'::STRING);
 ----
 -1008564952
 
@@ -584,7 +584,7 @@ SELECT hash(column2) FROM hash_t;
 
 # Column inputs with NULL rows, which take the null-aware loops
 query I
-SELECT hash(column1) FROM (VALUES ([CAST(1 AS INT), CAST(2 AS INT)]), (NULL), ([NULL, CAST(3 AS INT)]), (arrow_cast([], 'List(Int32)')));
+SELECT hash(column1) FROM (VALUES ([CAST(1 AS INT), CAST(2 AS INT)]), (NULL), ([NULL, CAST(3 AS INT)]), ([]::ARRAY<INT>));
 ----
 -222940379
 42
@@ -592,7 +592,7 @@ SELECT hash(column1) FROM (VALUES ([CAST(1 AS INT), CAST(2 AS INT)]), (NULL), ([
 42
 
 query I
-SELECT hash(column1) FROM (VALUES ([[CAST(1 AS INT), CAST(2 AS INT)], [CAST(3 AS INT)]]), ([arrow_cast(NULL, 'List(Int32)')]), (NULL));
+SELECT hash(column1) FROM (VALUES ([[CAST(1 AS INT), CAST(2 AS INT)], [CAST(3 AS INT)]]), ([NULL::ARRAY<INT>]), (NULL));
 ----
 -912918097
 42
