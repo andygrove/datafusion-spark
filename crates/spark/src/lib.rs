@@ -170,13 +170,15 @@
 
 /// Spark configuration extensions and map-key deduplication policy.
 pub mod config;
+mod error;
+mod eval_mode;
 pub mod function;
 pub mod planner;
 
 pub use config::{MapKeyDedupPolicy, SparkOptions};
-mod eval_mode;
-
+pub use error::SparkError;
 pub use eval_mode::EvalMode;
+pub use function::datetime::timezone::SparkTimeZone;
 
 #[cfg(feature = "core")]
 mod session_state;
