@@ -24,7 +24,11 @@
 //!
 //! Usage: `cargo test -p datafusion-spark-sqllogictest -- [FILTER]... [--mode=MODE]`, where
 //! each `FILTER` is a substring of the test file path and `MODE` is `simplify` or
-//! `evaluate` (both by default).
+//! `evaluate` (both by default). Pass `--complete` to rewrite the expected results in the
+//! matching files with the actual results instead of checking them. It runs only in
+//! `simplify` mode, so each file is rewritten once.
+
+mod engine;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -44,8 +48,8 @@ use datafusion::optimizer::simplify_expressions::SimplifyExpressions;
 use datafusion::optimizer::{Optimizer, OptimizerConfig, OptimizerRule};
 use datafusion::prelude::{SessionConfig, SessionContext};
 use datafusion_spark::SessionStateBuilderSpark;
-use datafusion_sqllogictest::{DataFusion, df_value_validator, value_normalizer};
-use indicatif::ProgressBar;
+use datafusion_sqllogictest::{df_value_validator, value_normalizer};
+use engine::SparkDataFusion;
 use sqllogictest::strict_column_validator;
 
 fn collect_slt_files(dir: &Path, files: &mut Vec<PathBuf>) -> std::io::Result<()> {
@@ -185,21 +189,23 @@ fn new_context(mode: Mode) -> SessionContext {
     SessionContext::new_with_state(builder.build())
 }
 
-async fn run_file(
-    path: PathBuf,
-    relative_path: PathBuf,
-    mode: Mode,
-) -> Result<(), String> {
-    // The DataFusion engine formats floats the way Spark does for paths under `spark/`
-    let engine_path = Path::new("spark").join(&relative_path);
+async fn run_file(path: PathBuf, mode: Mode, complete: bool) -> Result<(), String> {
     let mut runner = sqllogictest::Runner::new(|| async {
-        Ok(DataFusion::new(
-            new_context(mode),
-            engine_path.clone(),
-            ProgressBar::hidden(),
-        ))
+        Ok(SparkDataFusion::new(new_context(mode)))
     });
     runner.add_label(mode.label());
+    if complete {
+        return runner
+            .update_test_file(
+                &path,
+                " ",
+                df_value_validator,
+                value_normalizer,
+                strict_column_validator,
+            )
+            .await
+            .map_err(|e| e.to_string());
+    }
     runner.with_column_validator(strict_column_validator);
     runner.with_normalizer(value_normalizer);
     runner.with_validator(df_value_validator);
@@ -212,7 +218,9 @@ async fn run_file(
 #[tokio::main]
 async fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    let complete = args.iter().any(|arg| arg == "--complete");
     let modes: Vec<Mode> = match args.iter().find_map(|arg| arg.strip_prefix("--mode=")) {
+        None if complete => vec![Mode::Simplify],
         None => Mode::ALL.to_vec(),
         Some(name) => match Mode::ALL.into_iter().find(|m| m.label() == name) {
             Some(mode) => vec![mode],
@@ -243,7 +251,7 @@ async fn main() -> ExitCode {
             continue;
         }
         for &mode in &modes {
-            let task = tokio::spawn(run_file(path.clone(), relative.clone(), mode));
+            let task = tokio::spawn(run_file(path.clone(), mode, complete));
             handles.push((relative.clone(), mode, task));
         }
     }
