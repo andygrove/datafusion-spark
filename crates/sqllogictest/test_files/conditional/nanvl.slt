@@ -51,7 +51,7 @@ SELECT nanvl(CAST('-Infinity' AS DOUBLE), 0.0::double);
 ## (or raises under ANSI), so 1.0 / nanvl(-0.0, 1.0) is NULL on Spark,
 ## not -Infinity like DataFusion's own division.
 query B
-SELECT CAST(nanvl(-0.0::double, 1.0::double) AS VARCHAR) LIKE '-%';
+SELECT CAST(nanvl('-0.0'::double, 1.0::double) AS VARCHAR) LIKE '-%';
 ----
 true
 
@@ -135,6 +135,8 @@ SELECT nanvl(c2, 1.0::double) FROM (VALUES (0.0::double), (1.0::double), (1.0::d
 statement ok
 SET datafusion.execution.enable_ansi_mode = true;
 
+# Only `simplify` makes expr2 lazy, so this is skipped in evaluate mode (https://github.com/apache/datafusion-spark/issues/376).
+skipif evaluate
 query R
 SELECT nanvl(c2, 1 / 0) FROM (VALUES (0), (1), (1), (0)) t(c2) ORDER BY 1;
 ----
@@ -168,6 +170,8 @@ SELECT nanvl(c2, 99.0::float) FROM (VALUES (CAST('NaN' AS FLOAT)), (1.0::float),
 statement error Divide by zero
 SELECT nanvl(c2, 1 / 0) FROM (VALUES (CAST('NaN' AS DOUBLE)), (1.0::double)) t(c2);
 
+# Only `simplify` makes expr2 lazy, so this is skipped in evaluate mode (https://github.com/apache/datafusion-spark/issues/376).
+skipif evaluate
 query R
 SELECT nanvl(1 - 0, 1 / 0) FROM (VALUES (0), (1), (1), (0)) t(c2);
 ----
@@ -185,6 +189,8 @@ statement error does not support the input type Boolean
 SELECT nanvl(true, 1);
 
 ## A valid numeric string is implicitly cast to DOUBLE.
+# Only `simplify` casts a string argument, so this is skipped in evaluate mode (https://github.com/apache/datafusion-spark/issues/376).
+skipif evaluate
 query R
 SELECT nanvl('123.5', 1.0::double);
 ----
@@ -192,6 +198,8 @@ SELECT nanvl('123.5', 1.0::double);
 
 ## An invalid numeric string in legacy mode (ANSI off) returns NULL from the
 ## cast, not a planning error.
+# Only `simplify` casts a string argument, so this is skipped in evaluate mode (https://github.com/apache/datafusion-spark/issues/376).
+skipif evaluate
 query R
 SELECT nanvl('abc', 1.0::double);
 ----
@@ -201,6 +209,8 @@ NULL
 statement ok
 SET datafusion.execution.enable_ansi_mode = true;
 
+# Only `simplify` casts a string argument, so this is skipped in evaluate mode (https://github.com/apache/datafusion-spark/issues/376).
+skipif evaluate
 statement error Cannot cast
 SELECT nanvl('abc', 1.0::double);
 
@@ -210,6 +220,8 @@ SELECT nanvl('abc', 1.0::double);
 ## SELECT d, nanvl(d, s) FROM VALUES (1.0D,'abc'), (CAST('NaN' AS DOUBLE),'2')
 ## t(d,s) gives (1.0, 1.0), (NaN, 2.0) - 'abc' is never parsed because its
 ## row's expr1 is not NaN.
+# Only `simplify` casts a string argument, so this is skipped in evaluate mode (https://github.com/apache/datafusion-spark/issues/376).
+skipif evaluate
 query RR
 SELECT d, nanvl(d, s) FROM (VALUES (1.0::double, 'abc'), (CAST('NaN' AS DOUBLE), '2')) t(d, s);
 ----
@@ -220,6 +232,8 @@ NaN 2
 ## work: the string cast in simplify() has to run before the volatility
 ## check skips the CASE rewrite, or invoke_with_args receives a raw Utf8
 ## array instead of the cast Float64 it expects.
+# Only `simplify` casts a string argument, so this is skipped in evaluate mode (https://github.com/apache/datafusion-spark/issues/376).
+skipif evaluate
 query T
 SELECT arrow_typeof(nanvl(random(), s)) FROM (VALUES ('1')) t(s);
 ----
