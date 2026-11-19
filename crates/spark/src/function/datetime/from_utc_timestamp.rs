@@ -6,7 +6,7 @@ use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use super::timezone::SparkTimeZone;
+use super::timezone::TimeZoneRules;
 use arrow::array::{
     Array, ArrayRef, AsArray, BooleanArray, PrimitiveBuilder, StringArrayType,
     new_empty_array,
@@ -221,8 +221,8 @@ where
     Ok(Arc::new(builder.finish()))
 }
 
-fn parse_timezone(timezone: &str) -> Result<SparkTimeZone> {
-    SparkTimeZone::parse(timezone).map_err(|e| {
+fn parse_timezone(timezone: &str) -> Result<TimeZoneRules> {
+    TimeZoneRules::parse(timezone).map_err(|e| {
         exec_datafusion_err!("`from_utc_timestamp`: invalid timezone '{timezone}': {e}")
     })
 }

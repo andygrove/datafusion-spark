@@ -9,16 +9,19 @@
 # unnest expands. `n` must be an integer literal, so it is written without a cast.
 
 # Values fill n rows of ceil(k / n) columns in order, padded with NULLs
+# xfail spark: intended: stack returns a list of structs for unnest, Spark's generator returns rows
 query ?
 SELECT stack(1, 1, 2, 3);
 ----
 [{col0: 1, col1: 2, col2: 3}]
 
+# xfail spark: intended: stack returns a list of structs for unnest, Spark's generator returns rows
 query ?
 SELECT stack(2, 1, 2, 3);
 ----
 [{col0: 1, col1: 2}, {col0: 3, col1: NULL}]
 
+# xfail spark: intended: stack returns a list of structs for unnest, Spark's generator returns rows
 query ?
 SELECT stack(4, 1, 2, 3);
 ----
@@ -48,6 +51,7 @@ SELECT stack(2, NULL, NULL), arrow_typeof(stack(2, NULL, NULL));
 [{col0: NULL}, {col0: NULL}] List(Struct("col0": Null))
 
 # A NULL before an array, and a column of NULL type
+# xfail spark: stack accepts a NULL-typed column, Spark only converts NULL literals and rejects VOID (https://github.com/apache/datafusion-spark/issues/361)
 query ??
 SELECT stack(2, NULL, a), stack(2, a, b) FROM (VALUES (1, NULL), (NULL, NULL)) AS t(a, b);
 ----
@@ -55,6 +59,7 @@ SELECT stack(2, NULL, a), stack(2, a, b) FROM (VALUES (1, NULL), (NULL, NULL)) A
 [{col0: NULL}, {col0: NULL}] [{col0: NULL}, {col0: NULL}]
 
 # NULLs in a boolean column
+# xfail spark: intended: stack returns a list of structs for unnest, Spark's generator returns rows
 query ?
 SELECT stack(2, b, NOT b) FROM (VALUES (true), (NULL)) AS t(b);
 ----
@@ -68,6 +73,7 @@ SELECT stack(2, [1, NULL], NULL), stack(2, named_struct('a', NULL::INT), NULL);
 [{col0: [1, NULL]}, {col0: NULL}] [{col0: {a: NULL}}, {col0: NULL}]
 
 # Array inputs, also with one row per input row
+# xfail spark: intended: stack returns a list of structs for unnest, Spark's generator returns rows
 query ??
 SELECT stack(2, a, b, c), stack(1, a, 'x') FROM (VALUES (1, 2, 3), (4, 5, 6)) AS t(a, b, c);
 ----
@@ -75,6 +81,7 @@ SELECT stack(2, a, b, c), stack(1, a, 'x') FROM (VALUES (1, 2, 3), (4, 5, 6)) AS
 [{col0: 4, col1: 5}, {col0: 6, col1: NULL}] [{col0: 4, col1: x}]
 
 # Array, scalar, NULL and padding values in the same columns
+# xfail spark: intended: stack returns a list of structs for unnest, Spark's generator returns rows
 query ?
 SELECT stack(3, i, 'a', s, -1, NULL, 'b', i) FROM (VALUES (1, 's1'), (NULL, 's2'), (3, NULL)) AS t(i, s);
 ----
@@ -167,6 +174,7 @@ SELECT stack(n, a, b, c) FROM (VALUES (2, 1, 2, 3)) AS t(n, a, b, c);
 
 # Spark accepts any foldable n, such as 3 - 1 or 2::INT. DataFusion only sees the
 # value of a literal when it plans the return type, before expressions are folded.
+# xfail spark: intended: stack needs n as a literal at planning time, Spark accepts any foldable n such as 3 - 1
 query error The first parameter of `stack` must be an integer literal, however "Int64\(3\) - Int64\(1\)" is not one\.
 SELECT stack(3 - 1, 1, '2', NULL, NULL);
 

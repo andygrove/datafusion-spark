@@ -1,0 +1,278 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+# Tests for Spark-compatible json_array_length
+# Reference: https://spark.apache.org/docs/latest/api/sql/index.html#json_array_length
+# Expected values come from Spark's sql-tests/results/json-functions.sql.out or
+# were verified against Spark 4.2.0.
+
+query I
+SELECT json_array_length(NULL);
+----
+NULL
+
+query I
+SELECT json_array_length('');
+----
+NULL
+
+query I
+SELECT json_array_length('  ');
+----
+NULL
+
+query I
+SELECT json_array_length('[]');
+----
+0
+
+query I
+SELECT json_array_length('[1,2,3]');
+----
+3
+
+query I
+SELECT json_array_length('[[1,2],[5,6,7]]');
+----
+2
+
+query I
+SELECT json_array_length('[{"a":123},{"b":"hello"}]');
+----
+2
+
+query I
+SELECT json_array_length('[1,2,3,[33,44],{"key":[2,3,4]}]');
+----
+5
+
+query I
+SELECT json_array_length(' [1, null, "a"] ');
+----
+3
+
+# Brackets inside strings are not array delimiters
+query I
+SELECT json_array_length('["]","["]');
+----
+2
+
+# Valid JSON that is not an array
+query I
+SELECT json_array_length('{"key":"not a json array"}');
+----
+NULL
+
+query I
+SELECT json_array_length('null');
+----
+NULL
+
+query I
+SELECT json_array_length('2');
+----
+NULL
+
+query I
+SELECT json_array_length('"a"');
+----
+NULL
+
+query I
+SELECT json_array_length('true');
+----
+NULL
+
+# Multi-byte UTF-8 inside elements
+query I
+SELECT json_array_length('["é","é"]');
+----
+2
+
+# Invalid or truncated JSON
+query I
+SELECT json_array_length('[1,2,3,4,5');
+----
+NULL
+
+query I
+SELECT json_array_length('[1,2');
+----
+NULL
+
+query I
+SELECT json_array_length('[');
+----
+NULL
+
+query I
+SELECT json_array_length('[1,,2]');
+----
+NULL
+
+query I
+SELECT json_array_length('[1 2]');
+----
+NULL
+
+query I
+SELECT json_array_length('[1,]');
+----
+NULL
+
+# Nested elements are skipped but still parsed, so errors inside them give NULL
+query I
+SELECT json_array_length('[1,{"a":}]');
+----
+NULL
+
+query I
+SELECT json_array_length('[[1,2]');
+----
+NULL
+
+# Leading zeros, NaN and comments are not enabled in Spark's Jackson factory
+query I
+SELECT json_array_length('[01]');
+----
+NULL
+
+query I
+SELECT json_array_length('[NaN]');
+----
+NULL
+
+query I
+SELECT json_array_length('[1 /* c */]');
+----
+NULL
+
+# Anything after the closing bracket of the array is ignored
+query I
+SELECT json_array_length('[1,2] trailing');
+----
+2
+
+query I
+SELECT json_array_length('[1,2]]');
+----
+2
+
+query I
+SELECT json_array_length('[1,2] [3]');
+----
+2
+
+# Jackson's nesting limit is 1000 levels
+query I
+SELECT json_array_length(repeat('[', 1000) || repeat(']', 1000));
+----
+1
+
+# Known gaps: Spark parses with Jackson configured to accept single-quoted
+# strings and unescaped control characters, which return NULL here. Jackson
+# also limits nesting to 1000 levels and number literals to 1000 digits, beyond
+# which Spark returns NULL; there are no such limits here.
+# https://github.com/apache/datafusion-spark/issues/242
+
+## Spark 4.2.0 result: 2
+#query I
+#SELECT json_array_length('[''a'',''b'']');
+#----
+#2
+
+## Spark 4.2.0 result: 1 (the string contains an unescaped tab)
+#query I
+#SELECT json_array_length('["a' || chr(9) || 'b"]');
+#----
+#1
+
+## Spark 4.2.0 result: NULL (1001 levels of nesting)
+#query I
+#SELECT json_array_length(repeat('[', 1001) || repeat(']', 1001));
+#----
+#NULL
+
+## Spark 4.2.0 result: NULL (a 1001-digit number)
+#query I
+#SELECT json_array_length('[' || repeat('1', 1001) || ']');
+#----
+#NULL
+
+# Only string arguments are accepted
+statement error Function 'json_array_length' requires String, but received Int64
+SELECT json_array_length(2);
+
+statement error 'json_array_length' does not support zero arguments
+SELECT json_array_length();
+
+statement error Function 'json_array_length' requires String, but received Boolean
+SELECT json_array_length(true);
+
+statement error Function 'json_array_length' requires String, but received Binary
+SELECT json_array_length(arrow_cast('[1,2]', 'Binary'));
+
+# ANSI mode does not change the result
+statement ok
+SET datafusion.execution.enable_ansi_mode = true;
+
+query I
+SELECT json_array_length('[1,2,3]');
+----
+3
+
+query I
+SELECT json_array_length('[1,2');
+----
+NULL
+
+statement ok
+SET datafusion.execution.enable_ansi_mode = false;
+
+query I
+SELECT json_array_length('[1,2,3]');
+----
+3
+
+query I
+SELECT json_array_length('[1,2');
+----
+NULL
+
+# Column input, including NULLs and other string types
+statement ok
+CREATE TABLE json_array_length_t AS VALUES ('[1,2,3]'), (NULL), ('{}'), ('[]'), ('[1,');
+
+query I
+SELECT json_array_length(column1) FROM json_array_length_t;
+----
+3
+NULL
+NULL
+0
+NULL
+
+# The result type is Int32, as in Spark
+query T
+SELECT arrow_typeof(json_array_length(column1)) FROM json_array_length_t LIMIT 1;
+----
+Int32
+
+query I
+SELECT json_array_length(arrow_cast(column1, 'LargeUtf8')) FROM json_array_length_t;
+----
+3
+NULL
+NULL
+0
+NULL
+
+query I
+SELECT json_array_length(arrow_cast(column1, 'Utf8View')) FROM json_array_length_t;
+----
+3
+NULL
+NULL
+0
+NULL

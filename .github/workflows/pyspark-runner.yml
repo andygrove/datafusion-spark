@@ -9,10 +9,12 @@ on:
     branches: [main]
     paths:
       - "crates/sqllogictest/scripts/**"
+      - "crates/sqllogictest/test_files/**"
       - ".github/workflows/pyspark-runner.yml"
   pull_request:
     paths:
       - "crates/sqllogictest/scripts/**"
+      - "crates/sqllogictest/test_files/**"
       - ".github/workflows/pyspark-runner.yml"
 
 permissions:
@@ -28,3 +30,22 @@ jobs:
         with:
           python-version: "3.12"
       - run: python3 -m unittest discover -s crates/sqllogictest/scripts
+
+  spark:
+    name: Run the sqllogictests on Spark
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: crates/sqllogictest/scripts/requirements.txt
+      - run: pip install -r crates/sqllogictest/scripts/requirements.txt
+      # Exits with status 1 if any record differs from Spark without an
+      # `# xfail spark:` comment, or has one but now passes.
+      - run: python crates/sqllogictest/scripts/pyspark_slt_runner.py

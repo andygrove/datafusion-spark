@@ -31,6 +31,14 @@ datafusion = "56"
 datafusion-spark = { version = "56", features = ["core"] }
 ```
 
+The `core` feature provides the session helper and registers the Spark functions. Add `sql` as
+well to enable the Spark planner rewrites, which is what gives operators such as `/` their Spark
+semantics (both sides cast to `DOUBLE`, and a zero divisor returns `NULL`):
+
+```toml
+datafusion-spark = { version = "56", features = ["core", "sql"] }
+```
+
 Call `with_spark_features` **after** `with_default_features`, since Spark functions replace DataFusion
 functions with the same name:
 

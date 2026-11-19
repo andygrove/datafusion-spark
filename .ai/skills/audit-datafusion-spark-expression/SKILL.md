@@ -249,6 +249,11 @@ Note that `Signature::exact` is narrow. A Spark function accepting any string
 type needs all of `Utf8`, `LargeUtf8`, and `Utf8View` handled, and a function
 accepting any integral type needs the full width range.
 
+If Spark's expression is `ImplicitCastInputTypes`, or needs one type for several
+arguments, suggest the shared helpers in "Input types, casts and ANSI mode" in
+`CONTRIBUTING.md`. Few functions use them yet, so report a hand-written
+signature as a defect only when it accepts or rejects the wrong types.
+
 **Return nullability.** Compare `return_field_from_args` (or `return_type`)
 against Spark's `nullable`. A function that reports non-nullable while Spark
 can return NULL produces wrong plans, not merely wrong values: downstream
@@ -358,12 +363,12 @@ grep -rn "TODO" crates/spark/src/function/<category>/$ARGUMENTS.rs \
 ```
 
 Wiring ANSI up is usually mechanical rather than a semantics decision. The flag
-is already threaded through `ScalarFunctionArgs`, so the implementation reads
-it directly:
+is already threaded through `ScalarFunctionArgs`. Prefer an `EvalMode` over a
+`bool` (see `CONTRIBUTING.md`), as `parse_url` and `try_parse_url` do:
 
 ```rust
 let ScalarFunctionArgs { args, config_options, .. } = args;
-let ansi_mode = config_options.execution.enable_ansi_mode;
+let eval_mode = EvalMode::from_config(&config_options);
 ```
 
 `crates/spark/src/function/math/abs.rs` and

@@ -1,0 +1,333 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+# Tests for Spark-compatible array_insert
+# Reference: https://spark.apache.org/docs/latest/api/sql/index.html#array_insert
+# Expected values come from the Spark docs and Comet's Spark-verified tests.
+
+# Audited against Spark 4.2.0 on 2026-11-15.
+# Expected values verified with pyspark==4.2.0.
+# The PySpark runner skips most queries here (Spark has no make_array or
+# arrow_typeof), so they were checked with equivalent Spark SQL using array().
+
+# Examples from the Spark documentation
+query ?
+SELECT array_insert(make_array(1, 2, 3, 4), 5, 5);
+----
+[1, 2, 3, 4, 5]
+
+query ?
+SELECT array_insert(make_array(5, 4, 3, 2), -1, 1);
+----
+[5, 4, 3, 2, 1]
+
+query ?
+SELECT array_insert(make_array(5, 3, 2, 1), -4, 4);
+----
+[5, 4, 3, 2, 1]
+
+# Positive positions
+query ?
+SELECT array_insert(make_array(1, 2, 3), 2, 10);
+----
+[1, 10, 2, 3]
+
+query ?
+SELECT array_insert(make_array(4, 5), 1, 20);
+----
+[20, 4, 5]
+
+# Directly after the last element: no padding
+query ?
+SELECT array_insert(make_array(1, 2, 3), 4, 10);
+----
+[1, 2, 3, 10]
+
+# Insert into an array holding only a NULL
+query ?
+SELECT array_insert(make_array(NULL::INT), 1, 30);
+----
+[30, NULL]
+
+# Beyond the end pads with NULLs
+query ?
+SELECT array_insert(make_array(1, 2, 3), 5, 100);
+----
+[1, 2, 3, NULL, 100]
+
+query ?
+SELECT array_insert(make_array(1, 2, 3), 6, 100);
+----
+[1, 2, 3, NULL, NULL, 100]
+
+# Negative positions
+query ?
+SELECT array_insert(make_array(1, 2, 3), -2, 10);
+----
+[1, 2, 10, 3]
+
+query ?
+SELECT array_insert(make_array(4, 5), -1, 20);
+----
+[4, 5, 20]
+
+# Negative position before the start: item first, then NULL padding
+query ?
+SELECT array_insert(make_array(1), -3, 100);
+----
+[100, NULL, 1]
+
+query ?
+SELECT array_insert(make_array(1), -5, 9);
+----
+[9, NULL, NULL, NULL, 1]
+
+# Exactly -(len + 1) inserts first with no padding; one further pads one NULL
+query ?
+SELECT array_insert(make_array(1, 2, 3), -4, 10);
+----
+[10, 1, 2, 3]
+
+query ?
+SELECT array_insert(make_array(1, 2, 3), -5, 10);
+----
+[10, NULL, 1, 2, 3]
+
+# A NULL item is inserted as a NULL element
+query ?
+SELECT array_insert(make_array(0, NULL, 0), 1, NULL);
+----
+[NULL, 0, NULL, 0]
+
+# NULL array or NULL position gives NULL
+query ?
+SELECT array_insert(arrow_cast(NULL, 'List(Int32)'), 1, 5);
+----
+NULL
+
+query ?
+SELECT array_insert(make_array(1, 2), NULL::INT, 5);
+----
+NULL
+
+# Table data, with per-row positions and items
+statement ok
+CREATE TABLE array_insert_t AS VALUES
+  (make_array(1, 2, 3), 2, 10),
+  (make_array(4, 5), -1, 20),
+  (NULL, 1, 30),
+  (make_array(7), NULL, 40),
+  (make_array(0, NULL, 0), 1, NULL),
+  (make_array(1), -3, 100),
+  (make_array(1, 2, 3), 6, 100);
+
+query ?
+SELECT array_insert(column1, column2, column3) FROM array_insert_t;
+----
+[1, 10, 2, 3]
+[4, 5, 20]
+NULL
+NULL
+[NULL, 0, NULL, 0]
+[100, NULL, 1]
+[1, 2, 3, NULL, NULL, 100]
+
+# Index 0 is invalid for a column position too
+statement error INVALID_INDEX_OF_ZERO
+SELECT array_insert(column1, 0, column3) FROM array_insert_t WHERE column1 IS NOT NULL;
+
+# Index 0 is invalid
+statement error ^.*\[INVALID_INDEX_OF_ZERO\] The index 0 is invalid\. An index shall be either < 0 or > 0 \(the first element has index 1\)\. SQLSTATE: 22003$
+SELECT array_insert(make_array(1, 2), 0, 5);
+
+# Struct fields are paired by position, so reordered fields have no common type,
+# as in Spark 4.2.0 in both ANSI modes
+statement error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_insert(make_array(named_struct('a', 1::INT, 'b', 2::INT)), 1, named_struct('b', 3::INT, 'a', 4::INT));
+
+# Struct field types are not widened, as in Spark with ANSI mode off. With ANSI
+# mode on, Spark widens them.
+statement error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_insert(make_array(named_struct('a', 1::INT)), 1, named_struct('a', 2::BIGINT));
+
+# Exceeding the maximum array length
+query error \[COLLECTION_SIZE_LIMIT_EXCEEDED\.FUNCTION\] Can't create array with 2147483647 elements which exceeding the array size limit 2147483632, unsuccessful try to create arrays in the function `array_insert`\. SQLSTATE: 54000
+SELECT array_insert(make_array(1, 2), 2147483647, 5);
+
+# ... also for a position from a column
+statement ok
+CREATE TABLE array_insert_big AS VALUES (make_array(1, 2), 2147483647, 5);
+
+query error \[COLLECTION_SIZE_LIMIT_EXCEEDED\.FUNCTION\] Can't create array with 2147483647 elements which exceeding the array size limit 2147483632, unsuccessful try to create arrays in the function `array_insert`\. SQLSTATE: 54000
+SELECT array_insert(column1, column2, column3) FROM array_insert_big;
+
+# The index must be an integer
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The second parameter of `array_insert` requires the "INT" type, however it has the type "STRING"\.
+SELECT array_insert(make_array(1, 2), 'a', 5);
+
+# SMALLINT and TINYINT positions are accepted
+query ?
+SELECT array_insert(make_array(1::INT), 2::SMALLINT, 5::INT);
+----
+[1, 5]
+
+query ?
+SELECT array_insert(make_array(1::INT), (-3)::TINYINT, 5::INT);
+----
+[5, NULL, 1]
+
+# Spark accepts only an INT position. A BIGINT position is accepted here (bare
+# integer literals are BIGINT in DataFusion), but a value outside the INT range
+# fails the cast instead of wrapping. Spark rejects any BIGINT position with
+# DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE.
+query error Can't cast value 3000000000 to type Int32
+SELECT array_insert(make_array(1), 3000000000, 5);
+
+# The first argument must be an array
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_insert` should have been "ARRAY" followed by a value with same element type, but it's \["INT", "INT"\]\.
+SELECT array_insert(1::INT, 1, 5::INT);
+
+# The item must share a type with the elements
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_insert` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<INT>", "STRING"\]\.
+SELECT array_insert(make_array(1::INT), 1, 'x');
+
+# Maps whose key or value types differ in kind
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_insert` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<MAP<INT, STRING>>", "MAP<INT, INT>"\]\.
+SELECT array_insert(make_array(map([1::INT], ['a'])), 1, map([1::INT], [2::INT]));
+
+# Maps whose key and value types widen
+query ?
+SELECT array_insert(make_array(map([1::INT], [2::INT])), 1, map([1::BIGINT], [3::BIGINT]));
+----
+[{1: 3}, {1: 2}]
+
+# Decimal elements
+query ?
+SELECT array_insert(make_array(1.5::DECIMAL(5,1)), 3, 2.5::DECIMAL(5,1));
+----
+[1.5, NULL, 2.5]
+
+query T
+SELECT arrow_typeof(array_insert(make_array(1.5::DECIMAL(5,1)), 1, 2.5::DECIMAL(5,1)));
+----
+List(Decimal128(5, 1))
+
+# An integer item widens to a decimal element type that holds every INT value
+query ?
+SELECT array_insert(make_array(2.5::DECIMAL(11,1)), 1, 7::INT);
+----
+[7.0, 2.5]
+
+# ... and an integer element type to such a decimal item
+query ?
+SELECT array_insert(make_array(1::BIGINT), 1, 2.5::DECIMAL(21,1));
+----
+[2.5, 1.0]
+
+# Spark has no tightest common type for a decimal and a floating point type,
+# two different decimal types, or an integer and a narrower decimal
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_insert` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<DECIMAL\(2,1\)>", "DOUBLE"\]\.
+SELECT array_insert(make_array(1.5::DECIMAL(2,1)), 1, 2.5::DOUBLE);
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_insert` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<DOUBLE>", "DECIMAL\(5,1\)"\]\.
+SELECT array_insert(make_array(1.5::DOUBLE), 1, 2.5::DECIMAL(5,1));
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_insert` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<DECIMAL\(5,1\)>", "DECIMAL\(5,2\)"\]\.
+SELECT array_insert(make_array(1.5::DECIMAL(5,1)), 1, 2.25::DECIMAL(5,2));
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_insert` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<BIGINT>", "DECIMAL\(5,1\)"\]\.
+SELECT array_insert(make_array(1::BIGINT), 1, 2.5::DECIMAL(5,1));
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_insert` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<DECIMAL\(5,1\)>", "INT"\]\.
+SELECT array_insert(make_array(2.5::DECIMAL(5,1)), 1, 7::INT);
+
+# DATE elements with a TIMESTAMP item widen to TIMESTAMP. DataFusion's
+# TIMESTAMP literal has no time zone, like Spark's TIMESTAMP_NTZ.
+query ?
+SELECT array_insert(make_array(DATE '2024-01-01'), 3, TIMESTAMP '2024-01-02 03:04:05');
+----
+[2024-01-01T00:00:00, NULL, 2024-01-02T03:04:05]
+
+# String elements
+query ?
+SELECT array_insert(make_array('a', 'c'), 2, 'b');
+----
+[a, b, c]
+
+# NULL padding with string elements
+query ?
+SELECT array_insert(make_array('a', 'b'), 5, 'c');
+----
+[a, b, NULL, NULL, c]
+
+query ?
+SELECT array_insert(make_array('a'), -3, 'z');
+----
+[z, NULL, a]
+
+# Utf8View elements (parquet's default for strings) with a Utf8 item
+query ?
+SELECT array_insert(arrow_cast(make_array('a', 'b'), 'List(Utf8View)'), 1, 'x');
+----
+[x, a, b]
+
+query T
+SELECT arrow_typeof(array_insert(arrow_cast(make_array('a', 'b'), 'List(Utf8View)'), 1, 'x'));
+----
+List(Utf8View)
+
+statement ok
+CREATE TABLE array_insert_view AS
+  SELECT arrow_cast(make_array('a', 'b'), 'List(Utf8View)') AS arr;
+
+query ?
+SELECT array_insert(arr, -1, 'x') FROM array_insert_view;
+----
+[a, b, x]
+
+# LargeUtf8 elements with a Utf8 item
+query ?
+SELECT array_insert(arrow_cast(make_array('a', 'b'), 'List(LargeUtf8)'), 2, 'x');
+----
+[a, x, b]
+
+# NULL padding with nested elements
+query ?
+SELECT array_insert(make_array(make_array(1)), 3, make_array(2));
+----
+[[1], NULL, [2]]
+
+query ?
+SELECT array_insert(make_array(make_array(1)), -3, make_array(2));
+----
+[[2], NULL, [1]]
+
+# The item widens to the common numeric type
+query ?
+SELECT array_insert(make_array(arrow_cast(1, 'Int32')), 1, arrow_cast(3000000000, 'Int64'));
+----
+[3000000000, 1]
+
+# LargeList and FixedSizeList inputs
+query ?
+SELECT array_insert(arrow_cast(make_array(1, 2), 'LargeList(Int64)'), 2, 9);
+----
+[1, 9, 2]
+
+query ?
+SELECT array_insert(arrow_cast(make_array(1, 2), 'FixedSizeList(2, Int64)'), 3, 9);
+----
+[1, 2, 9]
+
+# Empty array
+query ?
+SELECT array_insert(arrow_cast(make_array(), 'List(Int64)'), 1, 7);
+----
+[7]
+
+# Result type keeps the list type
+query T
+SELECT arrow_typeof(array_insert(arrow_cast(make_array(1, 2), 'LargeList(Int64)'), 1, 0));
+----
+LargeList(Int64)

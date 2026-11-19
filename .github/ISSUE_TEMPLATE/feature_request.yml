@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+name: Feature request
+description: Suggest an improvement other than a new Spark function
+type: Feature
+labels: enhancement
+body:
+  - type: textarea
+    attributes:
+      label: Is your feature request related to a problem or challenge?
+      description: >
+        What are you trying to do? Explaining why helps the maintainers
+        understand the request, as well as what is requested.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Describe the solution you'd like
+  - type: textarea
+    attributes:
+      label: Describe alternatives you've considered
+  - type: textarea
+    attributes:
+      label: Additional context

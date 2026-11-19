@@ -2121,6 +2121,7 @@ dependencies = [
  "num-traits",
  "percent-encoding",
  "rand 0.9.5",
+ "serde",
  "serde_json",
  "sha1 0.11.0",
  "sha2",
@@ -2175,10 +2176,10 @@ dependencies = [
 name = "datafusion-spark-sqllogictest"
 version = "56.0.0"
 dependencies = [
+ "async-trait",
  "datafusion",
  "datafusion-spark 56.0.0",
  "datafusion-sqllogictest",
- "indicatif",
  "sqllogictest",
  "tokio",
 ]
