@@ -481,15 +481,10 @@ where
         } else {
             BooleanBuffer::collect_bool(len, |row| gt(current[row], c))
         }
+    } else if greatest {
+        BooleanBuffer::collect_bool(len, |row| gt(candidate[row], current[row]))
     } else {
-        // Slicing first tells the compiler both slices have `len` values, so it drops the
-        // bounds check on every row.
-        let candidate = &candidate[..len];
-        if greatest {
-            BooleanBuffer::collect_bool(len, |row| gt(candidate[row], current[row]))
-        } else {
-            BooleanBuffer::collect_bool(len, |row| gt(current[row], candidate[row]))
-        }
+        BooleanBuffer::collect_bool(len, |row| gt(current[row], candidate[row]))
     }
 }
 
