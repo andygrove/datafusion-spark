@@ -72,3 +72,52 @@ query I
 select crc32(arrow_cast(null, 'Dictionary(Int32, Utf8)'))
 ----
 NULL
+
+query I
+SELECT crc32(arrow_cast('Spark', 'Dictionary(Int32, Utf8)'));
+----
+1557323817
+
+query I
+SELECT crc32(v) FROM (VALUES ('Spark'), (NULL), ('Spark')) AS t(v);
+----
+1557323817
+NULL
+1557323817
+
+# Spark's `Crc32.inputTypes` is BINARY. Only a STRING argument is cast to it.
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `crc32` requires the "BINARY" type, however it has the type "INT"\. SQLSTATE: 42K09
+SELECT crc32(1::INT);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `crc32` requires the "BINARY" type, however it has the type "BIGINT"\. SQLSTATE: 42K09
+SELECT crc32(1);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `crc32` requires the "BINARY" type, however it has the type "DOUBLE"\. SQLSTATE: 42K09
+SELECT crc32(1.5::DOUBLE);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `crc32` requires the "BINARY" type, however it has the type "BOOLEAN"\. SQLSTATE: 42K09
+SELECT crc32(true);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `crc32` requires the "BINARY" type, however it has the type "DATE"\. SQLSTATE: 42K09
+SELECT crc32(DATE '2024-01-01');
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `crc32` requires the "BINARY" type, however it has the type "ARRAY<STRING>"\. SQLSTATE: 42K09
+SELECT crc32(array('a'));
+
+query error \[WRONG_NUM_ARGS\.WITHOUT_SUGGESTION\] The `crc32` requires 1 parameters but the actual number is 2\.
+SELECT crc32('a', 'b');
+
+# With ANSI mode on, a STRING argument is still cast to BINARY, and an INT is still rejected.
+statement ok
+set datafusion.execution.enable_ansi_mode = true;
+
+query I
+SELECT crc32('Spark');
+----
+1557323817
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `crc32` requires the "BINARY" type, however it has the type "INT"\. SQLSTATE: 42K09
+SELECT crc32(1::INT);
+
+statement ok
+set datafusion.execution.enable_ansi_mode = false;

@@ -69,6 +69,31 @@ SELECT expm1(0::INT);
 SELECT expm1(a) FROM (VALUES (0::INT), (1::INT)) AS t(a);
 ```
 
+## Simplify and evaluate modes
+
+`cargo test -p datafusion-spark-sqllogictest` runs every file twice:
+
+- `simplify` uses the default optimizer, so a call whose arguments are all literals,
+  such as `SELECT expm1(0::INT)`, is constant-folded while planning. This calls the
+  function's `simplify` (if it has one) and evaluates it on a one-row batch.
+- `evaluate` replaces the `simplify_expressions` optimizer rule, so a call that reaches
+  the physical plan runs through `invoke_with_args` during execution, as it does in
+  engines such as Comet that build physical expressions directly. DataFusion functions
+  that only work as a rewrite, such as `arrow_cast`, are still rewritten.
+
+`evaluate` mode only changes the optimizer. SQL planning still runs first and can
+evaluate or simplify some expressions before the optimizer sees them, for example the
+arguments of a table function. A call in a projection or filter over rows, such as
+`SELECT expm1(a) FROM (VALUES (0::INT), (1::INT)) AS t(a)`, is the reliable way to test
+`invoke_with_args` directly.
+
+Every function must work in both modes: `invoke_with_args` is required, and `simplify`
+is an optional optimization. Pass `--mode=simplify` or `--mode=evaluate` to run one mode,
+for example `cargo test -p datafusion-spark-sqllogictest -- math/expm1 --mode=evaluate`.
+
+A record that cannot run in `evaluate` mode yet is marked `skipif evaluate`, with a
+comment that links the issue. Remove the marks when the issue is fixed.
+
 ## Checking the expected results against Spark
 
 The expected results in these files come from DataFusion. To compare them with

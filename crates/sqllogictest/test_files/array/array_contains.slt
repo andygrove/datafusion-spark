@@ -40,12 +40,14 @@ SELECT array_contains(array(1, NULL, 3), 3);
 true
 
 # Null array -> null
+# xfail spark: Spark rejects an untyped NULL argument (NULL_TYPE), datafusion-spark returns NULL (https://github.com/apache/datafusion-spark/issues/367)
 query B
 SELECT array_contains(NULL, 1);
 ----
 NULL
 
 # Null element -> null
+# xfail spark: Spark rejects an untyped NULL argument (NULL_TYPE), datafusion-spark returns NULL (https://github.com/apache/datafusion-spark/issues/367)
 query B
 SELECT array_contains(array(1, 2, 3), NULL);
 ----

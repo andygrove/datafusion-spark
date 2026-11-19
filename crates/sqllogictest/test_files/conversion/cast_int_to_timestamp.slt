@@ -109,12 +109,17 @@ SELECT spark_cast(-86400::bigint, 'timestamp');
 1969-12-31T00:00:00Z
 
 # Test unsupported source type - should error
+# xfail spark: spark_cast does not implement this cast yet (https://github.com/apache/datafusion-spark/issues/88)
 statement error
 SELECT spark_cast('2024-01-01', 'timestamp');
 
 # Test unsupported target type - should error
-statement error
-SELECT spark_cast(100, 'string');
+statement error Unsupported spark_cast target type 'interval': INTERVAL is not supported
+SELECT spark_cast(100, 'interval');
+
+# Spark has no cast from a number to TIMESTAMP_NTZ
+statement error Spark-compatible cast from BIGINT to TIMESTAMP_NTZ is not supported
+SELECT spark_cast(100::bigint, 'timestamp_ntz');
 
 # Test with different session timezones to verify simplify() picks up config
 

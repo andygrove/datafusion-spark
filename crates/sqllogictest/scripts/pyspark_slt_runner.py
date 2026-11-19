@@ -41,6 +41,14 @@ DEFAULT_TEST_DIR = REPO_ROOT / "crates" / "sqllogictest" / "test_files"
 # The label that `skipif` and `onlyif` directives use for this runner.
 LABEL = "spark"
 
+# A comment that marks the next record as a known difference from Spark:
+#
+#     # xfail spark: <reason>
+#
+# The Rust sqllogictest parser rejects directives it does not know, so the
+# marker is a comment, which DataFusion's runner ignores.
+_XFAIL_RE = re.compile(rf"#\s*xfail\s+{LABEL}\s*:\s*(.*\S)\s*$")
+
 # DataFusion runs these files with ANSI mode off and no time zone (UTC), so
 # every file starts from the same Spark settings.
 SPARK_DEFAULTS = {
@@ -109,6 +117,8 @@ class Record:
     sort_mode: str = "nosort"
     expected: list[str] = field(default_factory=list)
     skip_reason: Optional[str] = None
+    # Why Spark is expected to disagree, from an `# xfail spark:` comment.
+    xfail_reason: Optional[str] = None
 
     @property
     def location(self) -> str:
@@ -120,9 +130,15 @@ def parse_slt(path: Path) -> list[Record]:
     lines = path.read_text().split("\n")
     records: list[Record] = []
     conditions: list[tuple[str, str]] = []
+    xfail_reason: Optional[str] = None
     i = 0
     while i < len(lines):
         words = lines[i].split()
+        m = _XFAIL_RE.match(lines[i].strip())
+        if m:
+            xfail_reason = m.group(1)
+            i += 1
+            continue
         if not words or words[0].startswith("#"):
             i += 1
             continue
@@ -133,10 +149,12 @@ def parse_slt(path: Path) -> list[Record]:
         if words[0] not in ("statement", "query"):
             # Directives such as `include` and `halt`, which these files do not use.
             conditions = []
+            xfail_reason = None
             i += 1
             continue
 
-        record = Record(path=path, line=i + 1, kind=words[0])
+        record = Record(path=path, line=i + 1, kind=words[0], xfail_reason=xfail_reason)
+        xfail_reason = None
         args = words[1:]
         if args and args[0] == "error":
             record.expect_error = True
@@ -925,8 +943,12 @@ def _shortest_f32(value: float) -> str:
     return repr(value)
 
 
-def _round_float(value: float, single: bool, digits: int) -> str:
-    """DataFusion's float_to_str: round, drop trailing zeros, no exponent."""
+def _plain_float(value: float, single: bool) -> str:
+    """The test engine's float text: shortest round-trip digits, no exponent.
+
+    This is Rust's `Display` for floats: a whole number has no `.0`, and `-0.0`
+    keeps its sign. NaN ignores its sign.
+    """
     if math.isnan(value):
         return "NaN"
     if math.isinf(value):
@@ -934,11 +956,7 @@ def _round_float(value: float, single: bool, digits: int) -> str:
     text = _shortest_f32(value) if single else repr(value)
     with localcontext() as ctx:
         ctx.prec = 1000
-        # BigDecimal::round rounds half to even.
-        rounded = Decimal(text).quantize(Decimal(1).scaleb(-digits), ROUND_HALF_EVEN)
-        text = format(rounded.normalize(), "f")
-    # BigDecimal has no negative zero.
-    return "0" if text == "-0" else text
+        return format(Decimal(text).normalize(), "f")
 
 
 def _ryu(value: float, single: bool) -> str:
@@ -1074,11 +1092,9 @@ def format_cell(value, tree: tuple, time_zone: str) -> str:
         if value == "":
             return "(empty)"
         return value.rstrip("\n").replace("\x00", "\\0")
-    if kind == "float":
-        return _round_float(value, single=True, digits=12)
-    if kind == "double":
-        # The engine keeps 15 decimal places for the Spark test files.
-        return _round_float(value, single=False, digits=15)
+    if kind in ("float", "double"):
+        # The engine prints floats at full precision.
+        return _plain_float(value, single=kind == "float")
     return format_nested(value, tree, time_zone)
 
 
@@ -1184,6 +1200,9 @@ def numeric_difference(expected: list[str], actual: list[str], sort_mode: str) -
                 return None
             e_float, a_float = float(e), float(a)
             if e_float == a_float:
+                # -0.0 == 0.0 in Python, but a different sign on zero is a real difference.
+                if math.copysign(1, e_float) != math.copysign(1, a_float):
+                    return None
                 continue
             if not math.isclose(e_float, a_float, rel_tol=1e-12, abs_tol=1e-15):
                 return None
@@ -1430,7 +1449,12 @@ DIVERGENT = {
     "close": "results differ only in floating-point digits",
     "order": "same rows in a different order",
     "runner-error": "the runner failed",
+    "xpass": "marked xfail, but Spark agrees",
 }
+
+# Statuses that an `# xfail spark:` comment expects. A runner error is a bug in
+# this runner, so it is never expected.
+EXPECTED_TO_FAIL = set(DIVERGENT) - {"runner-error", "xpass"}
 
 
 # Spark's stack() builds all of its rows at once, so stack(2000000000, 1) runs
@@ -1444,6 +1468,25 @@ _ENGINE_SPECIFIC_RE = re.compile(r"\s*(EXPLAIN|DESCRIBE|DESC|SHOW)\b", re.IGNORE
 
 
 def run_record(runner: SparkRunner, record: Record) -> Outcome:
+    """Run a record, and apply its `# xfail spark:` comment to the outcome.
+
+    A difference that the comment expects becomes `xfail`, and a record that
+    passes in spite of the comment becomes `xpass`, so a stale comment is
+    reported. A skipped record stays skipped.
+    """
+    outcome = _run_record(runner, record)
+    if record.xfail_reason is None:
+        return outcome
+    if outcome.status in EXPECTED_TO_FAIL:
+        outcome.detail = f"{DIVERGENT[outcome.status]} ({record.xfail_reason})"
+        outcome.status = "xfail"
+    elif outcome.status == "pass":
+        outcome.status = "xpass"
+        outcome.detail = record.xfail_reason
+    return outcome
+
+
+def _run_record(runner: SparkRunner, record: Record) -> Outcome:
     if record.skip_reason:
         return Outcome(record, "skip", record.skip_reason)
     setting = parse_setting(record.sql) if record.kind == "statement" else None
@@ -1541,6 +1584,10 @@ def report(outcome: Outcome, spark_version: str) -> str:
         return f"{location}: skipped: {outcome.detail}"
     if outcome.status == "pass":
         return f"{location}: pass"
+    if outcome.status == "xfail":
+        return f"{location}: expected failure: {outcome.detail}"
+    if outcome.status == "xpass":
+        return f"{location}: {DIVERGENT['xpass']}, remove `# xfail {LABEL}: {outcome.detail}`"
     parts = [f"{location}: {DIVERGENT[outcome.status]}", _indent(record.sql.split("\n"))]
     if outcome.spark_sql and outcome.spark_sql != record.sql:
         parts += ["  Spark SQL:", _indent(outcome.spark_sql.split("\n"))]
@@ -1584,7 +1631,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         "-v",
         "--verbose",
         action="store_true",
-        help="also list skipped and passing records",
+        help="also list skipped, passing and expected-to-fail records",
     )
     args = parser.parse_args(argv)
     files = discover(args.paths)
@@ -1600,6 +1647,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     total = sum(statuses.values())
     print(f"Spark {runner.version}: {total} records in {len(files)} file(s)")
     print(f"  {statuses['pass']:6d}  pass")
+    if statuses["xfail"]:
+        print(f"  {statuses['xfail']:6d}  expected failures (marked xfail)")
     for status, description in DIVERGENT.items():
         if statuses[status]:
             print(f"  {statuses[status]:6d}  {description}")

@@ -31,7 +31,10 @@ SELECT date_from_unix_date(1), date_from_unix_date(18993), date_from_unix_date(-
 ----
 1970-01-02 2022-01-01 1900-01-01 0001-01-01 9999-12-31
 
-# Any INT is a valid date, even where it is too large to print
+# Any INT is a valid date, even where it is too large to print. `unix_date` has no
+# `invoke_with_args` yet, so this is skipped in evaluate mode
+# (https://github.com/apache/datafusion-spark/issues/306).
+skipif evaluate
 query BB
 SELECT unix_date(date_from_unix_date(2147483647)) = 2147483647,
   unix_date(date_from_unix_date(-2147483648)) = -2147483648;
@@ -118,6 +121,9 @@ SELECT arrow_typeof(date_from_unix_date(0));
 Date32
 
 # Inverse of unix_date
+# `unix_date` has no `invoke_with_args` yet, so this is skipped in evaluate mode
+# (https://github.com/apache/datafusion-spark/issues/306).
+skipif evaluate
 query B
 SELECT unix_date(date_from_unix_date(12345)) = 12345;
 ----
@@ -144,6 +150,9 @@ NULL
 1970-01-21
 1970-10-28
 
+# `unix_date` has no `invoke_with_args` yet, so this is skipped in evaluate mode
+# (https://github.com/apache/datafusion-spark/issues/306).
+skipif evaluate
 query B
 SELECT unix_date(date_from_unix_date(column1)) = column1
 FROM (VALUES (CAST(-2147483648 AS INT)), (2147483647::INT)) AS t(column1);

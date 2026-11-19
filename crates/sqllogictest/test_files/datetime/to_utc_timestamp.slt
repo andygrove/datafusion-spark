@@ -144,11 +144,13 @@ SELECT to_utc_timestamp('2020-11-04T14:06:40'::timestamp, 'America/New_York'::st
 
 # Near a daylight saving time change the offset is taken from the wrong side of the change.
 # Spark returns 2024-03-10T07:30:00 and 2024-11-03T07:30:00 (https://github.com/apache/datafusion-spark/issues/110).
+# xfail spark: to_utc_timestamp takes the offset from the wrong side of a DST change (https://github.com/apache/datafusion-spark/issues/110)
 query P
 SELECT to_utc_timestamp('2024-03-10T03:30:00'::timestamp, 'America/New_York');
 ----
 2024-03-10T08:30:00
 
+# xfail spark: to_utc_timestamp takes the offset from the wrong side of a DST change (https://github.com/apache/datafusion-spark/issues/110)
 query P
 SELECT to_utc_timestamp('2024-11-03T02:30:00'::timestamp, 'America/New_York');
 ----

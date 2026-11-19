@@ -175,10 +175,13 @@ DROP TABLE float_test;
 statement ok
 DROP TABLE float_special;
 
-# Note: Overflow saturation tests (1e19, -1e19) are not included here because
-# DataFusion's timestamp formatter cannot display i64::MAX/MIN microsecond values.
-# The saturation behavior (matching Spark) is verified in unit tests:
-# test_cast_float_overflow_non_ansi_mode and test_cast_float_negative_overflow_non_ansi_mode
+# An out-of-range value saturates, as in Spark. DataFusion cannot display the
+# saturated timestamps, so cast them to seconds.
+query II
+SELECT spark_cast(spark_cast(1e19, 'timestamp'), 'bigint'),
+       spark_cast(spark_cast(-1e19, 'timestamp'), 'bigint');
+----
+9223372036854 -9223372036855
 
 #############################
 # ANSI Mode Tests
@@ -189,15 +192,15 @@ statement ok
 SET datafusion.execution.enable_ansi_mode = true;
 
 # NaN should error in ANSI mode
-statement error
+statement error \[CAST_INVALID_INPUT\] The value NaN of the type "DOUBLE" cannot be cast to "TIMESTAMP" because it is malformed
 SELECT spark_cast(arrow_cast('NaN', 'Float64'), 'timestamp');
 
 # Infinity should error in ANSI mode
-statement error
+statement error \[CAST_INVALID_INPUT\] The value Infinity of the type "DOUBLE" cannot be cast to "TIMESTAMP"
 SELECT spark_cast(arrow_cast('Infinity', 'Float64'), 'timestamp');
 
 # Very large value should error due to overflow
-statement error
+statement error \[CAST_OVERFLOW\] The value 1.0E25D of the type "DOUBLE" cannot be cast to "BIGINT" due to an overflow
 SELECT spark_cast(1e19, 'timestamp');
 
 # Normal values should still work in ANSI mode

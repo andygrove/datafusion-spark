@@ -1,0 +1,462 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+# Tests for Spark-compatible array_remove.
+# Removes every element equal to the element; NULL elements are kept; the result is NULL if the
+# array or the element is NULL.
+# Expected values verified with pyspark==4.2.0.
+
+# Every matching element is removed. The DataFusion built-in removes only the first, and
+# returns [1, 3, 2] here.
+query ?
+SELECT array_remove(array(1, 2, 3, 2), 2);
+----
+[1, 3]
+
+query ?
+SELECT array_remove(array(1, 2, 3), 4);
+----
+[1, 2, 3]
+
+query ?
+SELECT array_remove(array('a', 'b', 'a'), 'a');
+----
+[b]
+
+# NULL elements in the array are kept
+query ?
+SELECT array_remove(array(1, 2, NULL, 2), 2);
+----
+[1, NULL]
+
+query ?
+SELECT array_remove(array(NULL), 1);
+----
+[NULL]
+
+query ?
+SELECT array_remove(array(), 1);
+----
+[]
+
+query ?
+SELECT array_remove(array(1, 1), 1);
+----
+[]
+
+# A NULL element returns NULL
+query ?
+SELECT array_remove(array(1, 2, 3), CAST(NULL AS INT));
+----
+NULL
+
+query ?
+SELECT array_remove(array(1, NULL, 3), CAST(NULL AS INT));
+----
+NULL
+
+# The tightest common type of the array element and an untyped NULL is the array element type
+query ?
+SELECT array_remove(array(1, 2, 3), NULL);
+----
+NULL
+
+query ?
+SELECT array_remove(CAST(NULL AS ARRAY<INT>), 1);
+----
+NULL
+
+query ?
+SELECT array_remove(CAST(NULL AS ARRAY<INT>), CAST(NULL AS INT));
+----
+NULL
+
+# Unlike array_position, a NULL common element type is accepted, and the result is NULL
+query ?
+SELECT array_remove(array(), NULL);
+----
+NULL
+
+query ?
+SELECT array_remove(array(NULL, NULL), NULL);
+----
+NULL
+
+# An untyped NULL array is not an array
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_remove` should have been "ARRAY" followed by a value with same element type, but it's \["VOID", "BIGINT"\]\. SQLSTATE: 42K09
+SELECT array_remove(NULL, 1);
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_remove(NULL, NULL);
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_remove(1, 1);
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_remove` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<BIGINT>", "ARRAY<BIGINT>"\]\. SQLSTATE: 42K09
+SELECT array_remove(array(1, 2, 3, 2), array(2));
+
+query ?
+SELECT array_remove(array(true, false, true), true);
+----
+[false]
+
+query ?
+SELECT array_remove(array(X'01', X'02'), X'01');
+----
+[02]
+
+query ?
+SELECT array_remove(array(CAST(1.5 AS DECIMAL(3,1)), CAST(2.5 AS DECIMAL(3,1))), CAST(2.5 AS DECIMAL(3,1)));
+----
+[1.5]
+
+query ?
+SELECT array_remove(array(DATE '2020-01-01', DATE '2020-01-02'), DATE '2020-01-01');
+----
+[2020-01-02]
+
+###
+### Floating point equality
+###
+
+# -0.0 equals 0.0, in either direction
+query ?
+SELECT array_remove(array(CAST('-0.0' AS DOUBLE), CAST(0.0 AS DOUBLE), CAST(1.0 AS DOUBLE)), CAST(0.0 AS DOUBLE));
+----
+[1.0]
+
+query ?
+SELECT array_remove(array(CAST('-0.0' AS DOUBLE), CAST(0.0 AS DOUBLE), CAST(1.0 AS DOUBLE)), CAST('-0.0' AS DOUBLE));
+----
+[1.0]
+
+query ?
+SELECT array_remove(array(CAST('-0.0' AS FLOAT), CAST(1.0 AS FLOAT)), CAST(0.0 AS FLOAT));
+----
+[1.0]
+
+# NaN equals NaN
+query ?
+SELECT array_remove(array(CAST('NaN' AS DOUBLE), CAST(1.0 AS DOUBLE), CAST('NaN' AS DOUBLE)), CAST('NaN' AS DOUBLE));
+----
+[1.0]
+
+query ?
+SELECT array_remove(array(CAST('NaN' AS FLOAT), CAST(1.0 AS FLOAT)), CAST('NaN' AS FLOAT));
+----
+[1.0]
+
+# Kept elements keep their sign
+query ?
+SELECT array_remove(array(CAST('-0.0' AS DOUBLE), CAST(1.0 AS DOUBLE)), CAST(1.0 AS DOUBLE));
+----
+[-0.0]
+
+query ?
+SELECT array_remove(array(CAST('-0.0' AS DOUBLE), CAST('NaN' AS DOUBLE)), CAST('NaN' AS DOUBLE));
+----
+[-0.0]
+
+###
+### Nested elements
+###
+
+query ?
+SELECT array_remove(array(array(1, 2), array(3), NULL, array(1, 2)), array(1, 2));
+----
+[[3], NULL]
+
+# NULLs nested inside compared arrays and structs are equal
+query ?
+SELECT array_remove(array(array(1, CAST(NULL AS INT)), array(3)), array(1, CAST(NULL AS INT)));
+----
+[[3]]
+
+query ?
+SELECT array_remove(array(named_struct('a', 1, 'b', CAST(NULL AS DOUBLE)), named_struct('a', 2, 'b', CAST(1.0 AS DOUBLE))), named_struct('a', 1, 'b', CAST(NULL AS DOUBLE)));
+----
+[{a: 2, b: 1.0}]
+
+# Nested floats follow Spark's equality, and kept elements keep their values
+query ?
+SELECT array_remove(array(array(CAST('-0.0' AS DOUBLE)), array(CAST('NaN' AS DOUBLE)), array(CAST(1.0 AS DOUBLE))), array(CAST(0.0 AS DOUBLE)));
+----
+[[NaN], [1.0]]
+
+query ?
+SELECT array_remove(array(array(CAST('-0.0' AS DOUBLE)), array(CAST('NaN' AS DOUBLE)), array(CAST(1.0 AS DOUBLE))), array(CAST('NaN' AS DOUBLE)));
+----
+[[-0.0], [1.0]]
+
+query ?
+SELECT array_remove(array(named_struct('a', 1, 'b', CAST('-0.0' AS DOUBLE)), named_struct('a', 2, 'b', CAST(1.0 AS DOUBLE))), named_struct('a', 1, 'b', CAST(0.0 AS DOUBLE)));
+----
+[{a: 2, b: 1.0}]
+
+# Maps cannot be ordered, so map elements are rejected at any depth
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_remove` does not support ordering on type "MAP<BIGINT, BIGINT>"\. SQLSTATE: 42K09
+SELECT array_remove(array(map(1, 2)), map(1, 2));
+
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\]
+SELECT array_remove(array(named_struct('m', map(1, 2))), named_struct('m', map(1, 2)));
+
+# Intervals cannot be ordered either
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_remove` does not support ordering on type "INTERVAL"\. SQLSTATE: 42K09
+SELECT array_remove(array(make_interval(1)), make_interval(1));
+
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_remove` does not support ordering on type "ARRAY<INTERVAL>"\. SQLSTATE: 42K09
+SELECT array_remove(array(array(make_interval(1))), array(make_interval(1)));
+
+###
+### Type coercion
+###
+
+# The array element and the element are cast to their tightest common type, which is also the
+# result's element type
+query ?T
+SELECT array_remove(array(CAST(1 AS INT), CAST(2 AS INT)), 2L), arrow_typeof(array_remove(array(CAST(1 AS INT), CAST(2 AS INT)), 2L));
+----
+[1] List(Int64, field: 'element')
+
+query ?T
+SELECT array_remove(array(1L, 2L), CAST(2 AS INT)), arrow_typeof(array_remove(array(1L, 2L), CAST(2 AS INT)));
+----
+[1] List(Int64, field: 'element')
+
+query ?T
+SELECT array_remove(array(CAST(1 AS INT), CAST(2 AS INT)), CAST(2 AS TINYINT)), arrow_typeof(array_remove(array(CAST(1 AS INT), CAST(2 AS INT)), CAST(2 AS TINYINT)));
+----
+[1] List(Int32, field: 'element')
+
+query ?T
+SELECT array_remove(array(CAST(1 AS INT), CAST(2 AS INT)), CAST(1.5 AS DOUBLE)), arrow_typeof(array_remove(array(CAST(1 AS INT), CAST(2 AS INT)), CAST(1.5 AS DOUBLE)));
+----
+[1.0, 2.0] List(Float64, field: 'element')
+
+query ?
+SELECT array_remove(array(CAST(1 AS FLOAT), CAST(2 AS FLOAT)), CAST(1.0 AS DOUBLE));
+----
+[2.0]
+
+query ?
+SELECT array_remove(array(array(CAST(1 AS INT))), array(1L));
+----
+[]
+
+# An integral type widens to a decimal only if the decimal holds all its values:
+# INT is DECIMAL(10,0), so DECIMAL(12,2) is wide enough and DECIMAL(2,1) is not.
+query ?T
+SELECT array_remove(array(CAST(1 AS INT), CAST(2 AS INT)), CAST(1 AS DECIMAL(12,2))), arrow_typeof(array_remove(array(CAST(1 AS INT), CAST(2 AS INT)), CAST(1 AS DECIMAL(12,2))));
+----
+[2.00] List(Decimal128(12, 2), field: 'element')
+
+query ?
+SELECT array_remove(array(CAST(1 AS DECIMAL(12,2))), CAST(1 AS INT));
+----
+[]
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_remove(array(CAST(1 AS INT), CAST(2 AS INT)), CAST(1 AS DECIMAL(2,1)));
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_remove(array(CAST(1.5 AS DECIMAL(2,1))), CAST(2 AS INT));
+
+# Decimals and floating point numbers have no tightest common type
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_remove(array(CAST(1 AS DECIMAL(5,2))), CAST(1.0 AS DOUBLE));
+
+# Strings and numbers are not cast to each other
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_remove(array(1, 2), '1');
+
+# DATE and TIMESTAMP become TIMESTAMP
+query ?
+SELECT array_remove(array(DATE '2020-01-01', DATE '2020-01-02'), TIMESTAMP '2020-01-01 00:00:00');
+----
+[2020-01-02T00:00:00]
+
+# Struct fields must have the same names
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_remove(array(named_struct('a', 1)), named_struct('b', 1));
+
+# Struct field types are not widened, as in Spark with ANSI mode off. With ANSI mode on, Spark
+# widens them and returns [] here.
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
+SELECT array_remove(array(named_struct('a', CAST(1 AS INT))), named_struct('a', 1L));
+
+###
+### Column inputs
+###
+
+statement ok
+CREATE TABLE t AS VALUES
+  (array(1, 2, 3, 2), 2),
+  (array(1, NULL, 3), 3),
+  (array(1, 2), 5),
+  (NULL, 1),
+  (array(1, 2), NULL);
+
+query ?
+SELECT array_remove(column1, column2) FROM t;
+----
+[1, 3]
+[1, NULL]
+[1, 2]
+NULL
+NULL
+
+# A literal array with a column element, including a NULL element
+query ?
+SELECT array_remove(array(1, 2, 3), column2) FROM t;
+----
+[1, 3]
+[1, 2]
+[1, 2, 3]
+[2, 3]
+NULL
+
+# A column array with a literal element
+query ?
+SELECT array_remove(column1, 1) FROM t;
+----
+[2, 3, 2]
+[NULL, 3]
+[2]
+NULL
+[2]
+
+query ?
+SELECT array_remove(column1, CAST(NULL AS INT)) FROM t;
+----
+NULL
+NULL
+NULL
+NULL
+NULL
+
+# A batch sliced by OFFSET: the list offsets do not start at 0
+query ?
+SELECT array_remove(column1, column2) FROM (SELECT * FROM t LIMIT 3 OFFSET 1);
+----
+[1, NULL]
+[1, 2]
+NULL
+
+statement ok
+DROP TABLE t;
+
+statement ok
+CREATE TABLE floats AS VALUES
+  (array(CAST(1.0 AS DOUBLE), CAST('NaN' AS DOUBLE)), CAST('NaN' AS DOUBLE)),
+  (array(CAST('-0.0' AS DOUBLE), CAST(1.0 AS DOUBLE)), CAST(0.0 AS DOUBLE)),
+  (array(CAST(0.0 AS DOUBLE), CAST(1.0 AS DOUBLE)), CAST('-0.0' AS DOUBLE)),
+  (array(CAST(1.0 AS DOUBLE), CAST(NULL AS DOUBLE)), CAST(1.0 AS DOUBLE)),
+  (array(CAST(1.0 AS DOUBLE), CAST(2.0 AS DOUBLE)), CAST(NULL AS DOUBLE)),
+  (CAST(NULL AS ARRAY<DOUBLE>), CAST(1.0 AS DOUBLE));
+
+query ?
+SELECT array_remove(column1, column2) FROM floats;
+----
+[1.0]
+[1.0]
+[1.0]
+[NULL]
+NULL
+NULL
+
+query ?
+SELECT array_remove(column1, CAST(0.0 AS DOUBLE)) FROM floats;
+----
+[1.0, NaN]
+[1.0]
+[1.0]
+[1.0, NULL]
+[1.0, 2.0]
+NULL
+
+statement ok
+DROP TABLE floats;
+
+statement ok
+CREATE TABLE strings AS VALUES
+  (array('a', 'b', 'a'), 'a'),
+  (array('a', NULL, 'b'), 'b'),
+  (array('', 'a'), ''),
+  (array('a', 'b'), CAST(NULL AS STRING)),
+  (CAST(NULL AS ARRAY<STRING>), 'a');
+
+query ?
+SELECT array_remove(column1, column2) FROM strings;
+----
+[b]
+[a, NULL]
+[a]
+NULL
+NULL
+
+statement ok
+DROP TABLE strings;
+
+statement ok
+CREATE TABLE nested AS VALUES
+  (array(array(CAST(1.0 AS DOUBLE)), array(CAST('NaN' AS DOUBLE), CAST('-0.0' AS DOUBLE))), array(CAST('NaN' AS DOUBLE), CAST(0.0 AS DOUBLE))),
+  (array(array(CAST(0.0 AS DOUBLE)), array(CAST(1.0 AS DOUBLE))), array(CAST('-0.0' AS DOUBLE))),
+  (array(array(CAST(1.0 AS DOUBLE), CAST(NULL AS DOUBLE))), array(CAST(1.0 AS DOUBLE), CAST(NULL AS DOUBLE))),
+  (array(array(CAST(1.0 AS DOUBLE))), array(CAST(2.0 AS DOUBLE)));
+
+query ?
+SELECT array_remove(column1, column2) FROM nested;
+----
+[[1.0]]
+[[1.0]]
+[]
+[[1.0]]
+
+statement ok
+DROP TABLE nested;
+
+statement ok
+CREATE TABLE structs AS VALUES
+  (array(named_struct('a', CAST(1.0 AS DOUBLE), 'b', 1), named_struct('a', CAST('-0.0' AS DOUBLE), 'b', 2)), named_struct('a', CAST(0.0 AS DOUBLE), 'b', 2)),
+  (array(named_struct('a', CAST('NaN' AS DOUBLE), 'b', 1)), named_struct('a', CAST('NaN' AS DOUBLE), 'b', 1)),
+  (array(named_struct('a', CAST(0.0 AS DOUBLE), 'b', 1)), named_struct('a', CAST(0.0 AS DOUBLE), 'b', 2));
+
+query ?
+SELECT array_remove(column1, column2) FROM structs;
+----
+[{a: 1.0, b: 1}]
+[]
+[{a: 0.0, b: 1}]
+
+statement ok
+DROP TABLE structs;
+
+###
+### LargeList
+###
+
+query ?T
+SELECT array_remove(arrow_cast(array(1, 2, 3, 2), 'LargeList(Int64)'), 2), arrow_typeof(array_remove(arrow_cast(array(1, 2, 3, 2), 'LargeList(Int64)'), 2));
+----
+[1, 3] LargeList(Int64)
+
+query ?
+SELECT array_remove(arrow_cast(array(1, NULL, 3), 'LargeList(Int64)'), 3);
+----
+[1, NULL]
+
+query ?
+SELECT array_remove(arrow_cast(array(1, 2, 3), 'LargeList(Int64)'), CAST(NULL AS BIGINT));
+----
+NULL
+
+query ?
+SELECT array_remove(arrow_cast(array(CAST('-0.0' AS DOUBLE), CAST('NaN' AS DOUBLE), CAST(1.0 AS DOUBLE)), 'LargeList(Float64)'), CAST(0.0 AS DOUBLE));
+----
+[NaN, 1.0]
+
+query ?
+SELECT array_remove(arrow_cast(array(CAST('-0.0' AS DOUBLE), CAST('NaN' AS DOUBLE), CAST(1.0 AS DOUBLE)), 'LargeList(Float64)'), CAST('NaN' AS DOUBLE));
+----
+[-0.0, 1.0]

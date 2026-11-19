@@ -2,26 +2,85 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+use std::fmt::{Display, Formatter};
+use std::hash::{Hash, Hasher};
+use std::sync::Arc;
+
 use arrow::array::timezone::Tz;
 use arrow::datatypes::{ArrowTimestampType, TimeUnit};
-use chrono::{DateTime, Datelike, FixedOffset, NaiveDate, Utc};
+use chrono::{
+    DateTime, Datelike, FixedOffset, LocalResult, NaiveDate, NaiveDateTime, Offset,
+    TimeZone, Utc,
+};
 use datafusion_common::{Result, exec_datafusion_err, internal_datafusion_err};
 use datafusion_functions::datetime::to_local_time::adjust_to_local_time;
 
-/// A timezone resolved using Spark's `getZoneId` spelling rules.
+/// A Spark session time zone (`spark.sql.session.timeZone`).
+///
+/// [`SparkTimeZone::parse`] accepts the IDs Spark's `getZoneId` accepts: IANA
+/// region IDs, Java's short IDs such as `PST`, offsets such as `+05:30` and
+/// `GMT-8`, and Java's `SystemV` zones. Two time zones are equal when their IDs
+/// are, so `PST` and `America/Los_Angeles` are different time zones with the
+/// same rules.
+#[derive(Debug, Clone)]
+pub struct SparkTimeZone {
+    id: Arc<str>,
+    rules: TimeZoneRules,
+}
+
+impl SparkTimeZone {
+    /// Parses a Spark time zone ID.
+    pub fn parse(id: &str) -> Result<Self> {
+        Ok(Self {
+            id: id.into(),
+            rules: TimeZoneRules::parse(id)?,
+        })
+    }
+
+    /// The ID this time zone was parsed from.
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    pub(crate) fn rules(&self) -> TimeZoneRules {
+        self.rules
+    }
+}
+
+impl PartialEq for SparkTimeZone {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Eq for SparkTimeZone {}
+
+impl Hash for SparkTimeZone {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
+}
+
+impl Display for SparkTimeZone {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.id)
+    }
+}
+
+/// The offset rules of a [`SparkTimeZone`].
 ///
 /// Fixed offsets are kept as seconds to preserve Spark's second-resolution offsets.
 /// Region IDs use Arrow's Chrono-backed timezone database.
 /// Java's legacy SystemV zones require their own rules because that database omits them.
 #[derive(Debug, Clone, Copy)]
-pub(super) enum SparkTimeZone {
+pub(crate) enum TimeZoneRules {
     FixedOffset(i32),
     Region(Tz),
     SystemV(i32),
 }
 
-impl SparkTimeZone {
-    pub(super) fn parse(timezone: &str) -> Result<Self> {
+impl TimeZoneRules {
+    pub(crate) fn parse(timezone: &str) -> Result<Self> {
         // These are the exact aliases in java.time.ZoneId.SHORT_IDS. The regional
         // aliases retain their daylight saving rules; EST, HST, and MST are fixed.
         let timezone = match timezone {
@@ -93,7 +152,17 @@ impl SparkTimeZone {
         Ok(Self::Region(timezone.parse()?))
     }
 
-    pub(super) fn adjust_to_local_time<T: ArrowTimestampType>(
+    /// The offset from UTC in seconds when it is the same at every instant.
+    pub(crate) fn fixed_offset_seconds(self) -> Option<i32> {
+        match self {
+            Self::FixedOffset(seconds) => Some(seconds),
+            Self::Region(_) | Self::SystemV(_) => None,
+        }
+    }
+
+    /// Converts `ts`, in UTC, to the local date-time in this time zone, encoded
+    /// as if it were UTC.
+    pub(crate) fn adjust_to_local_time<T: ArrowTimestampType>(
         self,
         ts: i64,
     ) -> Result<i64> {
@@ -105,6 +174,70 @@ impl SparkTimeZone {
             }
         }
     }
+
+    /// Converts `local`, a local date-time in this time zone encoded as if it
+    /// were UTC, to UTC, the way Java's `LocalDateTime.atZone` does. The
+    /// inverse of [`Self::adjust_to_local_time`].
+    ///
+    /// A local time that happens twice, when clocks go back, resolves to the
+    /// earlier offset. A local time in the gap when clocks go forward moves
+    /// forward by the length of the gap.
+    pub(crate) fn local_to_utc<T: ArrowTimestampType>(self, local: i64) -> Result<i64> {
+        let units = units_per_second::<T>();
+        let shift = |offset_seconds: i32| {
+            local
+                .checked_sub(i64::from(offset_seconds) * units)
+                .ok_or_else(|| exec_datafusion_err!("Timestamp {local} overflows"))
+        };
+        match self {
+            Self::FixedOffset(seconds) => shift(seconds),
+            Self::Region(tz) => {
+                let local_datetime =
+                    DateTime::<Utc>::from_timestamp(local.div_euclid(units), 0)
+                        .ok_or_else(|| {
+                            exec_datafusion_err!(
+                                "Timestamp is outside Chrono's calendar range"
+                            )
+                        })?
+                        .naive_utc();
+                let offset = region_offset_at_local(&tz, local_datetime);
+                shift(offset)
+            }
+            Self::SystemV(standard_offset) => {
+                // Use daylight time if the result is in daylight time. That picks
+                // the earlier offset in the overlap, and standard time, the
+                // offset before the transition, in the gap.
+                let daylight_offset = standard_offset + 3600;
+                let utc = shift(daylight_offset)?;
+                if system_v_offset::<T>(utc, standard_offset)? == daylight_offset {
+                    Ok(utc)
+                } else {
+                    shift(standard_offset)
+                }
+            }
+        }
+    }
+}
+
+/// The offset of `tz`, in seconds, at the local date-time `local`, resolved as
+/// Java's `LocalDateTime.atZone` does. The fraction of a second does not affect
+/// the offset, so `local` is in whole seconds.
+fn region_offset_at_local(tz: &Tz, local: NaiveDateTime) -> i32 {
+    let offset_of = |result: LocalResult<DateTime<Tz>>| match result {
+        LocalResult::Single(dt) | LocalResult::Ambiguous(dt, _) => {
+            Some(dt.offset().fix().local_minus_utc())
+        }
+        LocalResult::None => None,
+    };
+    offset_of(tz.from_local_datetime(&local)).unwrap_or_else(|| {
+        // In a gap, apply the offset in effect before it, which moves the time
+        // forward by the length of the gap. No zone is more than 14 hours ahead
+        // of UTC after a transition, so `local - 14h`, read as UTC, is an instant
+        // before the transition, even in a gap that skips a whole day.
+        tz.offset_from_utc_datetime(&(local - chrono::Duration::hours(14)))
+            .fix()
+            .local_minus_utc()
+    })
 }
 
 /// Parses Java's signed offsets after Spark's single-digit hour/minute normalization.
@@ -236,10 +369,33 @@ mod tests {
     use arrow::datatypes::TimestampMicrosecondType;
 
     fn shift(timezone: &str, timestamp: i64) -> i64 {
-        SparkTimeZone::parse(timezone)
+        TimeZoneRules::parse(timezone)
             .unwrap()
             .adjust_to_local_time::<TimestampMicrosecondType>(timestamp)
             .unwrap()
+    }
+
+    /// Local times in a gap move forward by the length of the gap, as Java's
+    /// `LocalDateTime.atZone` does. Expected values from Spark 4.2.0's
+    /// `CAST(CAST(TIMESTAMP_NTZ'...' AS TIMESTAMP) AS BIGINT)`.
+    #[test]
+    fn local_times_in_a_gap_use_the_offset_before_it() {
+        let cases = [
+            // An hour skipped for daylight saving time.
+            ("America/New_York", "2024-03-10T02:30:00", 1710055800),
+            // Whole days skipped when the zone crossed the date line.
+            ("Pacific/Apia", "2011-12-30T12:00:00", 1325282400),
+            ("Pacific/Kwajalein", "1993-08-21T12:00:00", 745977600),
+        ];
+        for (timezone, local, expected) in cases {
+            let local: NaiveDateTime = local.parse().unwrap();
+            let micros = local.and_utc().timestamp() * 1_000_000;
+            let utc = TimeZoneRules::parse(timezone)
+                .unwrap()
+                .local_to_utc::<TimestampMicrosecondType>(micros)
+                .unwrap();
+            assert_eq!(utc, expected * 1_000_000, "{timezone} {local}");
+        }
     }
 
     #[test]
@@ -307,7 +463,7 @@ mod tests {
                 "--01",
             ] {
                 let timezone = format!("{prefix}{offset}");
-                assert!(SparkTimeZone::parse(&timezone).is_err(), "{timezone}");
+                assert!(TimeZoneRules::parse(&timezone).is_err(), "{timezone}");
             }
         }
         for timezone in [
@@ -321,7 +477,7 @@ mod tests {
             "SystemV/PST9PDT",
             " UTC",
         ] {
-            assert!(SparkTimeZone::parse(timezone).is_err(), "{timezone}");
+            assert!(TimeZoneRules::parse(timezone).is_err(), "{timezone}");
         }
     }
 

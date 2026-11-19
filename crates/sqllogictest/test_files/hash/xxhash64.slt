@@ -6,16 +6,19 @@
 # Reference: https://spark.apache.org/docs/latest/api/sql/index.html#xxhash64
 
 # Basic integer tests (Int32 - hashed as 4 bytes)
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query I
 SELECT xxhash64(1);
 ----
 -7001672635703045582
 
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query I
 SELECT xxhash64(0);
 ----
 -5252525462095825812
 
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query I
 SELECT xxhash64(-1);
 ----
@@ -76,6 +79,7 @@ SELECT xxhash64(NULL);
 42
 
 # Multiple column hashing
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query I
 SELECT xxhash64(1, 2);
 ----
@@ -86,6 +90,7 @@ SELECT xxhash64('a', 'b', 'c');
 ----
 -8775012835737190202
 
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query I
 SELECT xxhash64(1, 'hello');
 ----
@@ -103,6 +108,7 @@ SELECT xxhash64(arrow_cast(0, 'Int64'));
 -5252525462095825812
 
 # Float tests - note: -0.0 and 0.0 hash to the same value in Spark
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query I
 SELECT xxhash64(1.0);
 ----
@@ -119,6 +125,7 @@ SELECT xxhash64(-0.0);
 -5252525462095825812
 
 # Float edge cases
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query I
 SELECT xxhash64(-1.0);
 ----
@@ -153,6 +160,7 @@ SELECT xxhash64(arrow_cast('2023-01-15', 'Date32'));
 290591839883576215
 
 # Struct hashing
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query I
 SELECT xxhash64(named_struct('a', 1, 'b', 2));
 ----
@@ -173,6 +181,7 @@ CREATE TABLE xxhash_test AS SELECT * FROM (VALUES
     (3, 'c')
 ) AS t(id, name);
 
+# xfail spark: VALUES integers are BIGINT in DataFusion and INT in Spark, so they hash differently (https://github.com/apache/datafusion-spark/issues/97)
 query II
 SELECT id, xxhash64(id, name) FROM xxhash_test ORDER BY id;
 ----
@@ -193,8 +202,207 @@ FROM (SELECT nullif(s, s) AS s FROM (SELECT named_struct('a', 1, 'b', 'x') AS s)
 true 42 42
 
 # A NULL struct in a later argument leaves the incoming hash unchanged
+# xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query II
 SELECT xxhash64(7, nullif(s, s)), xxhash64(7)
 FROM (SELECT named_struct('a', 1, 'b', 'x') AS s);
 ----
 -2864211556195259663 -2864211556195259663
+
+# Spark's documented example; DataFusion types 123 and 2 as BIGINT, Spark as INT
+query I
+SELECT xxhash64('Spark', [CAST(123 AS INT)], CAST(2 AS INT));
+----
+5602566077635097486
+
+# Decimals with precision <= 18 hash as the unscaled long
+query I
+SELECT xxhash64(CAST(123.45 AS DECIMAL(10, 2)));
+----
+8791244235932249694
+
+query I
+SELECT xxhash64(CAST(-123.45 AS DECIMAL(10, 2)));
+----
+-4814648695243699264
+
+# Decimals with precision > 18 hash the minimal big-endian two's complement
+# bytes of the unscaled value (Java's BigInteger.toByteArray)
+
+query I
+SELECT xxhash64(CAST(1 AS DECIMAL(20, 0)));
+----
+6668291691252061002
+
+query I
+SELECT xxhash64(CAST(0 AS DECIMAL(20, 0)));
+----
+-8959994473701255385
+
+query I
+SELECT xxhash64(CAST(-1 AS DECIMAL(20, 0)));
+----
+-4006032525457443936
+
+# 127 and -128 fit in one byte; 128 and -129 need a leading sign byte
+query I
+SELECT xxhash64(CAST(127 AS DECIMAL(20, 0)));
+----
+-5998106174972408993
+
+query I
+SELECT xxhash64(CAST(128 AS DECIMAL(20, 0)));
+----
+6715097930120473301
+
+query I
+SELECT xxhash64(CAST(-128 AS DECIMAL(20, 0)));
+----
+-7898411661632158123
+
+query I
+SELECT xxhash64(CAST(-129 AS DECIMAL(20, 0)));
+----
+-6459515886037897956
+
+query I
+SELECT xxhash64(CAST(1.5 AS DECIMAL(20, 1)));
+----
+7491490015795856943
+
+query I
+SELECT xxhash64(CAST('12345678901234567890.1234567890' AS DECIMAL(38, 10)));
+----
+7467050800690399880
+
+query I
+SELECT xxhash64(CAST('-12345678901234567890.1234567890' AS DECIMAL(38, 10)));
+----
+-5128632804645768173
+
+query I
+SELECT xxhash64(CAST('99999999999999999999999999999999999999' AS DECIMAL(38, 0)));
+----
+-47190729175993179
+
+query I
+SELECT xxhash64(CAST('-99999999999999999999999999999999999999' AS DECIMAL(38, 0)));
+----
+-2254039905620870768
+
+query I
+SELECT xxhash64(CAST(NULL AS DECIMAL(20, 0)));
+----
+42
+
+# Wide decimals inside lists and structs
+query I
+SELECT xxhash64([CAST(1 AS DECIMAL(20, 0)), CAST(-129 AS DECIMAL(20, 0))]);
+----
+7288194727865790865
+
+query I
+SELECT xxhash64(named_struct('a', CAST(1 AS DECIMAL(20, 0))));
+----
+6668291691252061002
+
+# Timestamps hash as BIGINT microseconds since the epoch, whatever the Arrow unit.
+# DataFusion's TIMESTAMP literals are nanoseconds. Spark values are with
+# spark.sql.session.timeZone=UTC.
+
+query I
+SELECT xxhash64(TIMESTAMP '2020-01-01 00:00:00');
+----
+7881863312764026046
+
+query I
+SELECT xxhash64(arrow_cast(TIMESTAMP '2020-01-01 00:00:00', 'Timestamp(Second, None)'));
+----
+7881863312764026046
+
+query I
+SELECT xxhash64(arrow_cast(TIMESTAMP '2020-01-01 00:00:00', 'Timestamp(Millisecond, None)'));
+----
+7881863312764026046
+
+query I
+SELECT xxhash64(arrow_cast(TIMESTAMP '2020-01-01 00:00:00', 'Timestamp(Microsecond, None)'));
+----
+7881863312764026046
+
+query I
+SELECT xxhash64([TIMESTAMP '2020-01-01 00:00:00']);
+----
+7881863312764026046
+
+# -1 ns floors to -1 us (Spark: timestamp_micros(-1)); -1 s is -1000000 us
+query I
+SELECT xxhash64(arrow_cast(-1, 'Timestamp(Nanosecond, None)'));
+----
+3858142552250413010
+
+query I
+SELECT xxhash64(arrow_cast(-1, 'Timestamp(Second, None)'));
+----
+-3302326838082710953
+
+# Dates hash as INT days since the epoch; Date64 (milliseconds) is floored to days
+
+query I
+SELECT xxhash64(DATE '2020-01-01');
+----
+2299834470729022467
+
+query I
+SELECT xxhash64(arrow_cast(DATE '2020-01-01', 'Date64'));
+----
+2299834470729022467
+
+query I
+SELECT xxhash64(arrow_cast(-1, 'Date64'));
+----
+2017008487422258757
+
+# Every NaN hashes like the canonical NaN; negating NaN flips its sign bit
+
+query I
+SELECT xxhash64(CAST('NaN' AS DOUBLE));
+----
+-3127944061524951246
+
+query I
+SELECT xxhash64(-CAST('NaN' AS DOUBLE));
+----
+-3127944061524951246
+
+query I
+SELECT xxhash64(CAST('NaN' AS FLOAT));
+----
+2692338816207849720
+
+query I
+SELECT xxhash64(-CAST('NaN' AS FLOAT));
+----
+2692338816207849720
+
+query I
+SELECT xxhash64([CAST('NaN' AS DOUBLE), -CAST('NaN' AS DOUBLE)]);
+----
+-1379520635868705102
+
+query I
+SELECT xxhash64([-CAST('NaN' AS FLOAT)]);
+----
+2692338816207849720
+
+# Spark requires at least one argument
+statement error does not support zero arguments
+SELECT xxhash64();
+
+# TIME and Spark's interval types. The intervals are built with arrow_cast, since
+# DataFusion reads INTERVAL literals as calendar intervals. Spark 4.2.0:
+# xxhash64(TIME '12:00:00'), xxhash64(INTERVAL '1' DAY), xxhash64(INTERVAL '14' MONTH).
+query III
+SELECT xxhash64(TIME '12:00:00'), xxhash64(arrow_cast(86400000000, 'Duration(Microsecond)')), xxhash64(arrow_cast('1 year 2 months', 'Interval(YearMonth)'));
+----
+7141818012718557382 5650310968337874586 -3715488255824917081

@@ -117,3 +117,123 @@ query T
 select sha2('a', null::int);
 ----
 NULL
+
+# Spark declares the input types (BINARY, INT) and casts other arguments to them.
+
+# An integer literal is a BIGINT here, and it is cast to INT
+query T
+SELECT sha2('Spark', 256);
+----
+529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
+
+query T
+SELECT sha2('Spark', '256');
+----
+529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
+
+query T
+SELECT sha2('Spark', 256::SMALLINT);
+----
+529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
+
+query T
+SELECT sha2('Spark', 0::TINYINT);
+----
+529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
+
+query T
+SELECT sha2('Spark', 256.7::DOUBLE);
+----
+529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
+
+query T
+SELECT sha2('Spark', 256.7::FLOAT);
+----
+529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
+
+query T
+SELECT sha2('Spark', 256.0::DECIMAL(10, 2));
+----
+529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
+
+query T
+SELECT sha2(NULL::STRING, 256);
+----
+NULL
+
+query T
+SELECT sha2(arrow_cast('Spark', 'Dictionary(Int32, Utf8)'), 256);
+----
+529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
+
+# Spark has no fixed-size binary, so it is cast to BINARY
+query T
+SELECT sha2(arrow_cast(X'537061726b', 'FixedSizeBinary(5)'), 256);
+----
+529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
+
+query T
+SELECT sha2(c, 256) FROM (VALUES (arrow_cast(X'537061726b', 'FixedSizeBinary(5)')), (arrow_cast(X'666f6f2062', 'FixedSizeBinary(5)'))) AS t(c);
+----
+529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
+bf83b9ea169e80880e11056e2e3e7624635321a1d3805fbc5e62e82fc2568b05
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha2` requires the "BINARY" type, however it has the type "INT"\. SQLSTATE: 42K09
+SELECT sha2(1::INT, 256);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha2` requires the "BINARY" type, however it has the type "DOUBLE"\. SQLSTATE: 42K09
+SELECT sha2(1.5::DOUBLE, 256);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha2` requires the "BINARY" type, however it has the type "BOOLEAN"\. SQLSTATE: 42K09
+SELECT sha2(true, 256);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha2` requires the "BINARY" type, however it has the type "DATE"\. SQLSTATE: 42K09
+SELECT sha2(DATE '2024-01-01', 256);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha2` requires the "BINARY" type, however it has the type "ARRAY<STRING>"\. SQLSTATE: 42K09
+SELECT sha2(array('a'), 256);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The second parameter of `sha2` requires the "INT" type, however it has the type "BOOLEAN"\. SQLSTATE: 42K09
+SELECT sha2('Spark', true);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The second parameter of `sha2` requires the "INT" type, however it has the type "DATE"\. SQLSTATE: 42K09
+SELECT sha2('Spark', DATE '2024-01-01');
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha2` requires the "BINARY" type, however it has the type "INTERVAL DAY TO SECOND"\. SQLSTATE: 42K09
+SELECT sha2(make_dt_interval(1), 256);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha2` requires the "BINARY" type, however it has the type "INTERVAL YEAR TO MONTH"\. SQLSTATE: 42K09
+SELECT sha2(arrow_cast(1, 'Interval(YearMonth)'), 256);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha2` requires the "BINARY" type, however it has the type "STRUCT<`a b`: INT>"\. SQLSTATE: 42K09
+SELECT sha2(named_struct('a b', CAST(NULL AS INT)), 256);
+
+query error \[WRONG_NUM_ARGS\.WITHOUT_SUGGESTION\] The `sha2` requires 2 parameters but the actual number is 1\.
+SELECT sha2('Spark');
+
+query error \[WRONG_NUM_ARGS\.WITHOUT_SUGGESTION\] The `sha2` requires 2 parameters but the actual number is 3\.
+SELECT sha2('Spark', 256, 1);
+
+# The same arguments are cast with ANSI mode on
+
+statement ok
+set datafusion.execution.enable_ansi_mode = true;
+
+query T
+SELECT sha2('Spark', '256');
+----
+529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
+
+query T
+SELECT sha2('Spark', 256.7::DOUBLE);
+----
+529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha2` requires the "BINARY" type, however it has the type "INT"\. SQLSTATE: 42K09
+SELECT sha2(1::INT, 256);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The second parameter of `sha2` requires the "INT" type, however it has the type "BOOLEAN"\. SQLSTATE: 42K09
+SELECT sha2('Spark', true);
+
+statement ok
+set datafusion.execution.enable_ansi_mode = false;
