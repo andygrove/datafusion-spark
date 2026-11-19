@@ -35,9 +35,57 @@ The scripts in this directory are:
 
 ## Versioning
 
-The version of `datafusion-spark` matches the major version of the DataFusion release it is built
-against. For example, `datafusion-spark` 56.x depends on DataFusion 56.x. The version is set once
-for the whole workspace in the root `Cargo.toml` (`[workspace.package] version`).
+`datafusion-spark` follows [Semantic Versioning](https://semver.org/), with its major version tied to
+DataFusion's:
+
+- **Major**: the major version of the DataFusion release it is built against. `datafusion-spark`
+  56.x depends on DataFusion 56.x, and `datafusion-spark` moves to 57.0.0 only when it moves to
+  DataFusion 57.
+- **Minor** (for example 56.1.0): new functions, new features and bug fixes. A release with any new
+  public API is a minor release.
+- **Patch** (for example 56.0.1): bug fixes only.
+
+The version is set once for the whole workspace in the root `Cargo.toml`
+(`[workspace.package] version`).
+
+### Releases between DataFusion major versions
+
+New Spark-compatible functions and fixes land here between DataFusion major releases. So
+`datafusion-spark` is released from `main` as often as needed within a major version, rather than
+only alongside DataFusion releases.
+
+`main` stays on DataFusion 56, and releases from it are 56.x, until DataFusion 57.0.0 is released.
+Then `main` moves to DataFusion 57, and its next release is 57.0.0.
+
+DataFusion 56.0.0 publishes `datafusion-spark` 56.0.0 from `branch-56` in apache/datafusion. Later
+56.x releases of `datafusion-spark` come from this repository, so a DataFusion 56.x patch release
+should not publish `datafusion-spark` again.
+
+### API compatibility
+
+A 56.x release must not break code that builds against an earlier 56.x release. Until `main` moves
+to the next DataFusion major version, pull requests must not, for example:
+
+- remove or rename a public item, or make it less visible
+- change the signature of a public function or method, such as adding a parameter or changing a
+  type
+- add a field to a public struct, or a variant to a public enum, unless it is `#[non_exhaustive]`
+- remove a Cargo feature, or make a dependency incompatible with DataFusion 56
+
+New public items, new functions and new `#[non_exhaustive]` fields or variants are fine. A change to
+a function's result that makes it match Spark is a bug fix, not a breaking change, and goes in the
+changelog.
+
+A breaking change waits until `main` moves to the next DataFusion major version. Often it can be
+avoided by adding a new item next to the old one and deprecating the old one with `#[deprecated]`,
+which is not a breaking change.
+
+Before a release, check the public API against the previous release with
+[`cargo-semver-checks`](https://github.com/obi1kenobi/cargo-semver-checks):
+
+```shell
+cargo semver-checks -p datafusion-spark --baseline-version <previous release>
+```
 
 crates.io does not accept crates with git dependencies. During development `main` may depend on a
 DataFusion git branch (for example `branch = "branch-56"`); before a release these must be changed to

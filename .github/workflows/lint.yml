@@ -29,3 +29,25 @@ jobs:
       - run: rustup toolchain install stable --profile minimal --component clippy --no-self-update && rustup default stable
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --all-targets --all-features --workspace -- -D warnings
+
+  # Clippy builds with every feature enabled, so it misses code that only
+  # compiles, or only compiles without warnings, with all features on. These
+  # checks cover the feature combinations users build with, as the
+  # `cargo check datafusion-spark features` job in apache/datafusion does.
+  check-features:
+    name: cargo check features
+    runs-on: ubuntu-latest
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Check datafusion-spark (default features)
+        run: cargo check --all-targets -p datafusion-spark
+      # Only check the library, not --all-targets, to cover the API that users
+      # build against.
+      - name: Check datafusion-spark (no default features)
+        run: cargo check --no-default-features -p datafusion-spark
+      - name: Check datafusion-spark (core)
+        run: cargo check --no-default-features --features core -p datafusion-spark

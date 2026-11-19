@@ -2,6 +2,8 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+//! Spark aggregate functions, such as `avg`, `try_sum`, `collect_list` and `collect_set`.
+
 use datafusion_expr::AggregateUDF;
 use std::sync::Arc;
 

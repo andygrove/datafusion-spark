@@ -87,6 +87,7 @@ SELECT last_day(null::DATE);
 NULL
 
 
+# xfail spark: Spark implicitly casts a string argument to DATE/TIMESTAMP, invalid strings give NULL (https://github.com/apache/datafusion-spark/issues/41)
 statement error Failed to coerce arguments to satisfy a call to 'last_day' function
 select last_day('foo');
 
@@ -101,9 +102,11 @@ select last_day();
 statement error Failed to coerce arguments to satisfy a call to 'last_day' function
 select last_day(last_day('2016-02-07'::string, 'foo'));
 
+# xfail spark: Spark implicitly casts a string argument to DATE/TIMESTAMP, invalid strings give NULL (https://github.com/apache/datafusion-spark/issues/41)
 statement error Failed to coerce arguments to satisfy a call to 'last_day' function
 select last_day(last_day('2016-02-31'::string));
 
 # Spark implicitly casts a string to DATE and returns 2016-02-29 (https://github.com/apache/datafusion-spark/issues/41)
+# xfail spark: Spark implicitly casts a string argument to DATE/TIMESTAMP, invalid strings give NULL (https://github.com/apache/datafusion-spark/issues/41)
 statement error Failed to coerce arguments to satisfy a call to 'last_day' function
 SELECT last_day('2016-02-07');

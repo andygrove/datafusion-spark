@@ -1,0 +1,243 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+## Spark-compatible nanvl() tests
+## See https://github.com/apache/datafusion-spark/issues/268
+
+## Basic NaN replacement
+query R
+SELECT nanvl(CAST('NaN' AS DOUBLE), 123);
+----
+123
+
+## Non-NaN expr1 is returned unchanged; a NULL expr2 doesn't matter
+query R
+SELECT nanvl(5.0::double, CAST(NULL AS DOUBLE));
+----
+5
+
+## NULL expr1 always gives NULL, regardless of expr2
+query R
+SELECT nanvl(CAST(NULL AS DOUBLE), 5.0::double);
+----
+NULL
+
+## NaN expr1 with NULL expr2 gives NULL
+query R
+SELECT nanvl(CAST('NaN' AS DOUBLE), CAST(NULL AS DOUBLE));
+----
+NULL
+
+## NaN expr1 with NaN expr2 gives NaN
+query R
+SELECT nanvl(CAST('NaN' AS DOUBLE), CAST('NaN' AS DOUBLE));
+----
+NaN
+
+## +/-Infinity and -0.0 are not NaN and pass through unchanged, sign preserved
+query R
+SELECT nanvl(CAST('Infinity' AS DOUBLE), 0.0::double);
+----
+Infinity
+
+query R
+SELECT nanvl(CAST('-Infinity' AS DOUBLE), 0.0::double);
+----
+-Infinity
+
+## Checking the sign via string formatting, rather than 1/x, so this
+## matches Spark too: Spark's divide returns NULL for a zero divisor
+## (or raises under ANSI), so 1.0 / nanvl(-0.0, 1.0) is NULL on Spark,
+## not -Infinity like DataFusion's own division.
+query B
+SELECT CAST(nanvl('-0.0'::double, 1.0::double) AS VARCHAR) LIKE '-%';
+----
+true
+
+## FLOAT/FLOAT stays FLOAT; any FLOAT/DOUBLE mix promotes to DOUBLE
+query R
+SELECT nanvl(CAST('NaN' AS FLOAT), CAST('NaN' AS FLOAT));
+----
+NaN
+
+query R
+SELECT nanvl(CAST('NaN' AS FLOAT), 1.0::double);
+----
+1
+
+query R
+SELECT nanvl(1.0::double, CAST('NaN' AS FLOAT));
+----
+1
+
+## Integer and DECIMAL arguments are implicitly cast to DOUBLE
+query R
+SELECT nanvl(1, 2);
+----
+1
+
+query R
+SELECT nanvl(CAST(1 AS DECIMAL(10,2)), 2);
+----
+1
+
+## Wider precision/scale DECIMAL still coerces to DOUBLE
+query R
+SELECT nanvl(CAST(123.456 AS DECIMAL(20,5)), 999::double);
+----
+123.456
+
+## DECIMAL on expr2's side also coerces, and only matters when expr1 is NaN
+query R
+SELECT nanvl(CAST('NaN' AS DOUBLE), CAST(42.5 AS DECIMAL(10,2)));
+----
+42.5
+
+## DECIMAL with small precision and zero scale
+query R
+SELECT nanvl(CAST(7 AS DECIMAL(3,0)), 1::double);
+----
+7
+
+## Both arguments DECIMAL: coercion target is DOUBLE, never FLOAT
+query T
+SELECT arrow_typeof(nanvl(CAST(1 AS DECIMAL(5,2)), CAST(2 AS DECIMAL(5,2))));
+----
+Float64
+
+## NULL expr1 paired with a FLOAT expr2 resolves to DOUBLE (Spark coerces an
+## untyped NULL left argument to DOUBLE outright), not FLOAT.
+query T
+SELECT arrow_typeof(nanvl(NULL, CAST(1 AS FLOAT)));
+----
+Float64
+
+## A NULL right argument instead takes on the left argument's resolved
+## type, so FLOAT expr1 with a NULL expr2 stays FLOAT.
+query T
+SELECT arrow_typeof(nanvl(CAST(1 AS FLOAT), NULL));
+----
+Float32
+
+
+## Scalar and array combinations
+query R
+SELECT nanvl(c2, 1.0::double) FROM (VALUES (0.0::double), (1.0::double), (1.0::double), (0.0::double)) t(c2) ORDER BY 1;
+----
+0
+0
+1
+1
+
+## Lazy evaluation of expr2: an error in expr2 must not surface when expr1 is not NaN,
+## even under ANSI mode, where eager evaluation of `1 / 0` would raise DIVIDE_BY_ZERO.
+statement ok
+SET datafusion.execution.enable_ansi_mode = true;
+
+# Only `simplify` makes expr2 lazy, so this is skipped in evaluate mode (https://github.com/apache/datafusion-spark/issues/376).
+skipif evaluate
+query R
+SELECT nanvl(c2, 1 / 0) FROM (VALUES (0), (1), (1), (0)) t(c2) ORDER BY 1;
+----
+0
+0
+1
+1
+
+## NaN values coming from a column (not a literal) must still trigger
+## replacement. A broken NaN check that only works on constant-folded
+## literals would pass every other test in this file but fail here.
+query R
+SELECT nanvl(c2, 99.0::double) FROM (VALUES (CAST('NaN' AS DOUBLE)), (1.0::double), (CAST('NaN' AS DOUBLE)), (0.0::double)) t(c2);
+----
+99
+1
+99
+0
+
+## Same check for a FLOAT column.
+query R
+SELECT nanvl(c2, 99.0::float) FROM (VALUES (CAST('NaN' AS FLOAT)), (1.0::float), (CAST('NaN' AS FLOAT)), (0.0::float)) t(c2);
+----
+99
+1
+99
+0
+
+## When expr1 genuinely is NaN, expr2 IS evaluated — confirm the laziness
+## mechanism isn't "never evaluates expr2" but specifically "only when NaN".
+statement error Divide by zero
+SELECT nanvl(c2, 1 / 0) FROM (VALUES (CAST('NaN' AS DOUBLE)), (1.0::double)) t(c2);
+
+# Only `simplify` makes expr2 lazy, so this is skipped in evaluate mode (https://github.com/apache/datafusion-spark/issues/376).
+skipif evaluate
+query R
+SELECT nanvl(1 - 0, 1 / 0) FROM (VALUES (0), (1), (1), (0)) t(c2);
+----
+1
+1
+1
+1
+
+statement ok
+SET datafusion.execution.enable_ansi_mode = false;
+
+## BOOLEAN is not one of Spark's numeric/decimal/string/null input types for
+## nanvl, and must be rejected at the type-coercion stage.
+statement error does not support the input type Boolean
+SELECT nanvl(true, 1);
+
+## A valid numeric string is implicitly cast to DOUBLE.
+# Only `simplify` casts a string argument, so this is skipped in evaluate mode (https://github.com/apache/datafusion-spark/issues/376).
+skipif evaluate
+query R
+SELECT nanvl('123.5', 1.0::double);
+----
+123.5
+
+## An invalid numeric string in legacy mode (ANSI off) returns NULL from the
+## cast, not a planning error.
+# Only `simplify` casts a string argument, so this is skipped in evaluate mode (https://github.com/apache/datafusion-spark/issues/376).
+skipif evaluate
+query R
+SELECT nanvl('abc', 1.0::double);
+----
+NULL
+
+## The same invalid string under ANSI mode raises instead.
+statement ok
+SET datafusion.execution.enable_ansi_mode = true;
+
+# Only `simplify` casts a string argument, so this is skipped in evaluate mode (https://github.com/apache/datafusion-spark/issues/376).
+skipif evaluate
+statement error Cannot cast
+SELECT nanvl('abc', 1.0::double);
+
+## A string expr2 is only cast, and only matters, when expr1 is NaN - even
+## under ANSI mode, where an unconditional eager cast of an invalid string
+## would raise for every row. Spark 4.2.0 (ANSI on):
+## SELECT d, nanvl(d, s) FROM VALUES (1.0D,'abc'), (CAST('NaN' AS DOUBLE),'2')
+## t(d,s) gives (1.0, 1.0), (NaN, 2.0) - 'abc' is never parsed because its
+## row's expr1 is not NaN.
+# Only `simplify` casts a string argument, so this is skipped in evaluate mode (https://github.com/apache/datafusion-spark/issues/376).
+skipif evaluate
+query RR
+SELECT d, nanvl(d, s) FROM (VALUES (1.0::double, 'abc'), (CAST('NaN' AS DOUBLE), '2')) t(d, s);
+----
+1 1
+NaN 2
+
+## A volatile expr1 (random()) paired with a STRING argument must still
+## work: the string cast in simplify() has to run before the volatility
+## check skips the CASE rewrite, or invoke_with_args receives a raw Utf8
+## array instead of the cast Float64 it expects.
+# Only `simplify` casts a string argument, so this is skipped in evaluate mode (https://github.com/apache/datafusion-spark/issues/376).
+skipif evaluate
+query T
+SELECT arrow_typeof(nanvl(random(), s)) FROM (VALUES ('1')) t(s);
+----
+Float64
+
+statement ok
+SET datafusion.execution.enable_ansi_mode = false;

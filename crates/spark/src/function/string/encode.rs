@@ -21,30 +21,30 @@ use datafusion_macros::user_doc;
 ///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#encode>
 // TODO: wire `spark.sql.legacy.javaCharsets` and `spark.sql.legacy.codingErrorAction`
-// so Spark 4.0 behavior can be selected at runtime.
+// via SparkOptions once the config extension is available in datafusion-spark.
 // See: <https://spark.apache.org/docs/4.0.0/sql-migration-guide.html>
 #[user_doc(
     doc_section(label = "Binary String Functions"),
     description = "Encodes a string into binary using a character set. Unlike DataFusion's `encode`, which takes \
         `base64` or `hex` and returns a string, this takes a character set and returns binary. \
         Supported character sets are `US-ASCII`, `ISO-8859-1`, `UTF-8`, `UTF-16`, `UTF-16BE`, `UTF-16LE`, \
-        `UTF-32`, `UTF-32BE` and `UTF-32LE`, matched case-insensitively, and the aliases `ASCII`, `LATIN1`, \
-        `ISO88591` and the spellings without a hyphen (`UTF8`, `UTF16BE`, ...). Any other character set is an error. \
+        and `UTF-32`, matched case-insensitively. Any other character set raises `[INVALID_PARAMETER_VALUE.CHARSET]`. \
         `UTF-16` writes a big-endian byte order mark first. `UTF-32` is big-endian with no byte order mark. \
         Characters the character set cannot represent (non-ASCII in `US-ASCII`, code points above U+00FF in \
-        `ISO-8859-1`) are replaced with `?`. Binary input is decoded as UTF-8 first, with each invalid byte \
-        replaced by U+FFFD. Returns NULL if either input is NULL. \
-        This follows Spark 3.5. Spark 4.0 rejects the aliases and raises an error on characters it cannot \
-        represent, unless `spark.sql.legacy.javaCharsets` and `spark.sql.legacy.codingErrorAction` are set; \
-        those settings are not supported yet.",
+        `ISO-8859-1`) raise `[MALFORMED_CHARACTER_CODING]`. Binary input is decoded as UTF-8 first, with each \
+        invalid byte replaced by U+FFFD. Returns NULL if either input is NULL. \
+        This follows Spark 4.0. Pre-Spark 4.0 accepted Java aliases (legacy mode supports a fixed set of aliases: \
+        `UTF8`, `ASCII`, `LATIN1`, `ISO88591`, `UTF16`, `UTF16BE`, `UTF16LE`, `UTF32`, `UTF32BE`, `UTF32LE`) \
+        and replaced unmappable characters with `?`; those legacy behaviors can be enabled programmatically \
+        via `with_legacy_java_charsets(true)` and `with_legacy_coding_error_action(true)`.",
     syntax_example = "encode(str, charset)",
     sql_example = r#"```sql
 > SELECT encode('Spark SQL', 'utf-8');
 537061726b2053514c
 > SELECT encode('AB', 'utf-16le');
 41004200
-> SELECT encode('é', 'us-ascii');
-3f
+> SELECT encode('Spark SQL', 'us-ascii');
+537061726b2053514c
 ```"#,
     argument(
         name = "str",
@@ -58,6 +58,8 @@ use datafusion_macros::user_doc;
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkEncode {
     signature: Signature,
+    legacy_java_charsets: bool,
+    legacy_coding_error_action: bool,
 }
 
 impl Default for SparkEncode {
@@ -68,37 +70,137 @@ impl Default for SparkEncode {
 
 impl SparkEncode {
     pub fn new() -> Self {
+        Self::with_options(false, false)
+    }
+
+    pub fn with_options(
+        legacy_java_charsets: bool,
+        legacy_coding_error_action: bool,
+    ) -> Self {
         Self {
             signature: Signature::user_defined(Volatility::Immutable),
+            legacy_java_charsets,
+            legacy_coding_error_action,
         }
     }
+
+    pub fn with_legacy_java_charsets(mut self, legacy_java_charsets: bool) -> Self {
+        self.legacy_java_charsets = legacy_java_charsets;
+        self
+    }
+
+    pub fn with_legacy_coding_error_action(
+        mut self,
+        legacy_coding_error_action: bool,
+    ) -> Self {
+        self.legacy_coding_error_action = legacy_coding_error_action;
+        self
+    }
+}
+
+/// The seven canonical Spark 4.0 charset names (case-insensitive).
+const CANONICAL_CHARSETS: [&str; 7] = [
+    "US-ASCII",
+    "ISO-8859-1",
+    "UTF-8",
+    "UTF-16",
+    "UTF-16BE",
+    "UTF-16LE",
+    "UTF-32",
+];
+
+fn is_canonical_charset(upper: &str) -> bool {
+    CANONICAL_CHARSETS.contains(&upper)
+}
+
+fn invalid_charset_error(raw: &str) -> datafusion_common::DataFusionError {
+    datafusion_common::DataFusionError::Execution(format!(
+        "[INVALID_PARAMETER_VALUE.CHARSET] The value of parameter(s) `charset` in `encode` is invalid: expects one of the iso-8859-1, us-ascii, utf-16, utf-16be, utf-16le, utf-32, utf-8, but got {raw}. SQLSTATE: 22023"
+    ))
+}
+
+fn validate_charset(raw: &str, upper: &str, legacy_java_charsets: bool) -> Result<()> {
+    if !legacy_java_charsets {
+        if !is_canonical_charset(upper) {
+            return Err(invalid_charset_error(raw));
+        }
+    } else {
+        match upper {
+            "UTF-8" | "UTF8" | "US-ASCII" | "ASCII" | "ISO-8859-1" | "ISO88591"
+            | "LATIN1" | "UTF-16BE" | "UTF16BE" | "UTF-16LE" | "UTF16LE" | "UTF-16"
+            | "UTF16" | "UTF-32" | "UTF32" | "UTF-32BE" | "UTF32BE" | "UTF-32LE"
+            | "UTF32LE" => {}
+            _ => {
+                return Err(invalid_charset_error(raw));
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Encodes a single string value using the specified charset into `bytes`,
 /// replacing its previous contents.
-/// Unmappable characters are silently replaced with `?` (Spark 3.5 behavior).
-fn encode_string(s: &str, charset: &str, bytes: &mut Vec<u8>) -> Result<()> {
+fn encode_string(
+    s: &str,
+    raw_charset: &str,
+    upper_charset: &str,
+    legacy_coding_error_action: bool,
+    bytes: &mut Vec<u8>,
+) -> Result<()> {
     bytes.clear();
-    match charset {
+    match upper_charset {
         "UTF-8" | "UTF8" => bytes.extend_from_slice(s.as_bytes()),
         "US-ASCII" | "ASCII" => {
-            bytes.extend(s.chars().map(|c| if c.is_ascii() { c as u8 } else { b'?' }))
+            if legacy_coding_error_action {
+                bytes
+                    .extend(s.chars().map(|c| if c.is_ascii() { c as u8 } else { b'?' }));
+            } else {
+                let _ = bytes.try_reserve(s.len());
+                for c in s.chars() {
+                    if c.is_ascii() {
+                        bytes.push(c as u8);
+                    } else {
+                        return exec_err!(
+                            "[MALFORMED_CHARACTER_CODING] Invalid value found when performing `encode` with {raw_charset} SQLSTATE: 22000"
+                        );
+                    }
+                }
+            }
         }
-        "ISO-8859-1" | "ISO88591" | "LATIN1" => bytes.extend(s.chars().map(|c| {
-            let cp = c as u32;
-            if cp <= 255 { cp as u8 } else { b'?' }
-        })),
+        "ISO-8859-1" | "ISO88591" | "LATIN1" => {
+            if legacy_coding_error_action {
+                bytes.extend(s.chars().map(|c| {
+                    let cp = c as u32;
+                    if cp <= 255 { cp as u8 } else { b'?' }
+                }));
+            } else {
+                let _ = bytes.try_reserve(s.len());
+                for c in s.chars() {
+                    let cp = c as u32;
+                    if cp <= 255 {
+                        bytes.push(cp as u8);
+                    } else {
+                        return exec_err!(
+                            "[MALFORMED_CHARACTER_CODING] Invalid value found when performing `encode` with {raw_charset} SQLSTATE: 22000"
+                        );
+                    }
+                }
+            }
+        }
         "UTF-16BE" | "UTF16BE" => {
+            let _ = bytes.try_reserve(s.len() * 2);
             for code_unit in s.encode_utf16() {
                 bytes.extend_from_slice(&code_unit.to_be_bytes());
             }
         }
         "UTF-16LE" | "UTF16LE" => {
+            let _ = bytes.try_reserve(s.len() * 2);
             for code_unit in s.encode_utf16() {
                 bytes.extend_from_slice(&code_unit.to_le_bytes());
             }
         }
         "UTF-16" | "UTF16" => {
+            let _ = bytes.try_reserve(2 + s.len() * 2);
             // BOM (big-endian marker) followed by UTF-16BE encoded bytes
             bytes.extend_from_slice(&[0xFE, 0xFF]);
             for code_unit in s.encode_utf16() {
@@ -107,39 +209,51 @@ fn encode_string(s: &str, charset: &str, bytes: &mut Vec<u8>) -> Result<()> {
         }
         // Spark treats UTF-32 as UTF-32BE (no BOM), matching Spark 3.5 and 4.1.
         "UTF-32" | "UTF32" | "UTF-32BE" | "UTF32BE" => {
+            let _ = bytes.try_reserve(s.len() * 4);
             for c in s.chars() {
                 bytes.extend_from_slice(&(c as u32).to_be_bytes());
             }
         }
         "UTF-32LE" | "UTF32LE" => {
+            let _ = bytes.try_reserve(s.len() * 4);
             for c in s.chars() {
                 bytes.extend_from_slice(&(c as u32).to_le_bytes());
             }
         }
         _ => {
-            return exec_err!(
-                "Unsupported charset for encode: '{}'. Supported: US-ASCII, ISO-8859-1, UTF-8, UTF-16, UTF-16BE, UTF-16LE, UTF-32, UTF-32BE, UTF-32LE",
-                charset
-            );
+            return Err(invalid_charset_error(raw_charset));
         }
     }
     Ok(())
 }
 
-/// The charset for each row. `Constant` is a single uppercased charset; `PerRow`
-/// uppercases each row on demand, yielding `None` for null entries.
+/// The charset for each row.
+///
+/// In Spark 4 strict mode, charsets must be validated against `CANONICAL_CHARSETS`.
+/// To produce accurate error messages with the exact raw parameter value provided by the user,
+/// both the raw string and its uppercase representation are stored.
 enum Charsets<'a> {
-    Constant(&'a str),
+    Constant { raw: &'a str, upper: String },
     PerRow(&'a StringArray),
 }
 
-impl Charsets<'_> {
-    fn get(&self, i: usize) -> Option<Cow<'_, str>> {
+impl<'a> Charsets<'a> {
+    fn constant(raw: &'a str) -> Self {
+        Self::Constant {
+            raw,
+            upper: raw.to_uppercase(),
+        }
+    }
+
+    fn get(&self, i: usize) -> Option<(Cow<'_, str>, Cow<'_, str>)> {
         match self {
-            Charsets::Constant(charset) => Some(Cow::Borrowed(charset)),
-            Charsets::PerRow(array) => {
-                (!array.is_null(i)).then(|| Cow::Owned(array.value(i).to_uppercase()))
+            Charsets::Constant { raw, upper } => {
+                Some((Cow::Borrowed(*raw), Cow::Borrowed(upper.as_str())))
             }
+            Charsets::PerRow(array) => (!array.is_null(i)).then(|| {
+                let raw = array.value(i);
+                (Cow::Borrowed(raw), Cow::Owned(raw.to_uppercase()))
+            }),
         }
     }
 }
@@ -153,13 +267,22 @@ fn encode_rows<'a>(
     is_null: impl Fn(usize) -> bool,
     decode: impl Fn(usize) -> Cow<'a, str>,
     charsets: &Charsets,
+    legacy_java_charsets: bool,
+    legacy_coding_error_action: bool,
 ) -> Result<ArrayRef> {
     let mut builder = BinaryBuilder::with_capacity(len, len * 4);
     let mut bytes = Vec::new();
     for i in 0..len {
         match (is_null(i), charsets.get(i)) {
-            (false, Some(charset)) => {
-                encode_string(&decode(i), &charset, &mut bytes)?;
+            (false, Some((raw, upper))) => {
+                validate_charset(&raw, &upper, legacy_java_charsets)?;
+                encode_string(
+                    &decode(i),
+                    &raw,
+                    &upper,
+                    legacy_coding_error_action,
+                    &mut bytes,
+                )?;
                 builder.append_value(&bytes);
             }
             _ => builder.append_null(),
@@ -171,45 +294,88 @@ fn encode_rows<'a>(
 fn encode_array<'a, S: StringArrayType<'a>>(
     array: &S,
     charsets: &Charsets,
+    legacy_java_charsets: bool,
+    legacy_coding_error_action: bool,
 ) -> Result<ArrayRef> {
     encode_rows(
         array.len(),
         |i| array.is_null(i),
         |i| Cow::Borrowed(array.value(i)),
         charsets,
+        legacy_java_charsets,
+        legacy_coding_error_action,
     )
 }
 
 fn encode_binary_array<'a, B: arrow::array::BinaryArrayType<'a>>(
     array: &'a B,
     charsets: &Charsets,
+    legacy_java_charsets: bool,
+    legacy_coding_error_action: bool,
 ) -> Result<ArrayRef> {
     encode_rows(
         array.len(),
         |i| array.is_null(i),
         |i| String::from_utf8_lossy(array.value(i)),
         charsets,
+        legacy_java_charsets,
+        legacy_coding_error_action,
     )
 }
 
-fn encode_dispatch(arr: &ArrayRef, charsets: &Charsets) -> Result<ArrayRef> {
+fn encode_dispatch(
+    arr: &ArrayRef,
+    charsets: &Charsets,
+    legacy_java_charsets: bool,
+    legacy_coding_error_action: bool,
+) -> Result<ArrayRef> {
     match arr.data_type() {
-        DataType::Utf8 => encode_array(&arr.as_string::<i32>(), charsets),
-        DataType::LargeUtf8 => encode_array(&arr.as_string::<i64>(), charsets),
-        DataType::Utf8View => encode_array(&arr.as_string_view(), charsets),
-        DataType::Binary => encode_binary_array(&arr.as_binary::<i32>(), charsets),
-        DataType::LargeBinary => encode_binary_array(&arr.as_binary::<i64>(), charsets),
-        DataType::BinaryView => encode_binary_array(&arr.as_binary_view(), charsets),
+        DataType::Utf8 => encode_array(
+            &arr.as_string::<i32>(),
+            charsets,
+            legacy_java_charsets,
+            legacy_coding_error_action,
+        ),
+        DataType::LargeUtf8 => encode_array(
+            &arr.as_string::<i64>(),
+            charsets,
+            legacy_java_charsets,
+            legacy_coding_error_action,
+        ),
+        DataType::Utf8View => encode_array(
+            &arr.as_string_view(),
+            charsets,
+            legacy_java_charsets,
+            legacy_coding_error_action,
+        ),
+        DataType::Binary => encode_binary_array(
+            &arr.as_binary::<i32>(),
+            charsets,
+            legacy_java_charsets,
+            legacy_coding_error_action,
+        ),
+        DataType::LargeBinary => encode_binary_array(
+            &arr.as_binary::<i64>(),
+            charsets,
+            legacy_java_charsets,
+            legacy_coding_error_action,
+        ),
+        DataType::BinaryView => encode_binary_array(
+            &arr.as_binary_view(),
+            charsets,
+            legacy_java_charsets,
+            legacy_coding_error_action,
+        ),
         DataType::Null => Ok(Arc::new(BinaryArray::new_null(arr.len()))),
         dt => exec_err!("encode expects a string or binary argument, got {dt:?}"),
     }
 }
 
-/// The uppercased charset from a scalar, or `None` if it is null.
-fn scalar_charset(scalar: &ScalarValue) -> Result<Option<String>> {
+/// The raw charset string from a scalar, or `None` if it is null.
+fn scalar_charset(scalar: &ScalarValue) -> Result<Option<&str>> {
     match scalar {
         ScalarValue::Utf8(s) | ScalarValue::LargeUtf8(s) | ScalarValue::Utf8View(s) => {
-            Ok(s.as_ref().map(|s| s.to_uppercase()))
+            Ok(s.as_deref())
         }
         ScalarValue::Null => Ok(None),
         other => exec_err!("encode charset argument must be a string, got {other:?}"),
@@ -282,6 +448,9 @@ impl ScalarUDFImpl for SparkEncode {
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         let [value, charset_arg] = take_function_args(self.name(), args.args)?;
 
+        let legacy_java_charsets = self.legacy_java_charsets;
+        let legacy_coding_error_action = self.legacy_coding_error_action;
+
         let len = [&value, &charset_arg]
             .into_iter()
             .find_map(|arg| match arg {
@@ -300,16 +469,37 @@ impl ScalarUDFImpl for SparkEncode {
         let result = match &charset_arg {
             ColumnarValue::Scalar(scalar) => match scalar_charset(scalar)? {
                 Some(charset) => {
-                    encode_dispatch(&value_arr, &Charsets::Constant(&charset))?
+                    let charsets = Charsets::constant(charset);
+                    encode_dispatch(
+                        &value_arr,
+                        &charsets,
+                        legacy_java_charsets,
+                        legacy_coding_error_action,
+                    )?
                 }
                 None => {
-                    return Ok(ColumnarValue::Scalar(ScalarValue::Binary(None)));
+                    if is_scalar {
+                        return Ok(ColumnarValue::Scalar(ScalarValue::Binary(None)));
+                    } else {
+                        return Ok(ColumnarValue::Array(Arc::new(
+                            BinaryArray::new_null(inferred_length),
+                        )));
+                    }
                 }
             },
-            ColumnarValue::Array(charset_array) => encode_dispatch(
-                &value_arr,
-                &Charsets::PerRow(charset_array.as_string::<i32>()),
-            )?,
+            ColumnarValue::Array(charset_array) => {
+                let charset_array = if charset_array.data_type() != &DataType::Utf8 {
+                    arrow::compute::cast(charset_array, &DataType::Utf8)?
+                } else {
+                    Arc::clone(charset_array)
+                };
+                encode_dispatch(
+                    &value_arr,
+                    &Charsets::PerRow(charset_array.as_string::<i32>()),
+                    legacy_java_charsets,
+                    legacy_coding_error_action,
+                )?
+            }
         };
 
         if is_scalar {
@@ -323,6 +513,363 @@ impl ScalarUDFImpl for SparkEncode {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow::array::AsArray;
+    use datafusion_common::config::ConfigOptions;
+
+    fn invoke_encode(
+        input: &str,
+        charset: &str,
+        legacy_java_charsets: bool,
+        legacy_coding_error_action: bool,
+    ) -> Result<Vec<u8>> {
+        let func =
+            SparkEncode::with_options(legacy_java_charsets, legacy_coding_error_action);
+        let config = Arc::new(ConfigOptions::default());
+        let args = ScalarFunctionArgs {
+            arg_fields: vec![],
+            args: vec![
+                ColumnarValue::Scalar(ScalarValue::Utf8(Some(input.to_string()))),
+                ColumnarValue::Scalar(ScalarValue::Utf8(Some(charset.to_string()))),
+            ],
+            number_rows: 1,
+            return_field: Arc::new(Field::new("encode", DataType::Binary, true)),
+            config_options: Arc::clone(&config),
+        };
+        match func.invoke_with_args(args)? {
+            ColumnarValue::Scalar(ScalarValue::Binary(Some(b))) => Ok(b),
+            other => panic!("expected binary scalar, got {other:?}"),
+        }
+    }
+
+    fn invoke_encode_binary(
+        input: &[u8],
+        charset: &str,
+        legacy_java_charsets: bool,
+        legacy_coding_error_action: bool,
+    ) -> Result<Vec<u8>> {
+        let func =
+            SparkEncode::with_options(legacy_java_charsets, legacy_coding_error_action);
+        let config = Arc::new(ConfigOptions::default());
+        let args = ScalarFunctionArgs {
+            arg_fields: vec![],
+            args: vec![
+                ColumnarValue::Scalar(ScalarValue::Binary(Some(input.to_vec()))),
+                ColumnarValue::Scalar(ScalarValue::Utf8(Some(charset.to_string()))),
+            ],
+            number_rows: 1,
+            return_field: Arc::new(Field::new("encode", DataType::Binary, true)),
+            config_options: Arc::clone(&config),
+        };
+        match func.invoke_with_args(args)? {
+            ColumnarValue::Scalar(ScalarValue::Binary(Some(b))) => Ok(b),
+            other => panic!("expected binary scalar, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_canonical_charsets_strict_mode() {
+        assert_eq!(
+            invoke_encode("Spark SQL", "utf-8", false, false).unwrap(),
+            b"Spark SQL"
+        );
+        assert_eq!(
+            invoke_encode("Hello", "us-ascii", false, false).unwrap(),
+            b"Hello"
+        );
+        assert_eq!(
+            invoke_encode("naïve", "iso-8859-1", false, false).unwrap(),
+            &[0x6E, 0x61, 0xEF, 0x76, 0x65]
+        );
+        assert_eq!(
+            invoke_encode("AB", "utf-16be", false, false).unwrap(),
+            &[0x00, 0x41, 0x00, 0x42]
+        );
+        assert_eq!(
+            invoke_encode("AB", "utf-16le", false, false).unwrap(),
+            &[0x41, 0x00, 0x42, 0x00]
+        );
+        assert_eq!(
+            invoke_encode("A", "utf-16", false, false).unwrap(),
+            &[0xFE, 0xFF, 0x00, 0x41]
+        );
+        assert_eq!(
+            invoke_encode("A", "utf-32", false, false).unwrap(),
+            &[0x00, 0x00, 0x00, 0x41]
+        );
+    }
+
+    #[test]
+    fn test_canonical_case_insensitivity() {
+        assert_eq!(
+            invoke_encode("hello", "Utf-8", false, false).unwrap(),
+            b"hello"
+        );
+        assert_eq!(
+            invoke_encode("hello", "US-ASCII", false, false).unwrap(),
+            b"hello"
+        );
+        assert_eq!(
+            invoke_encode("hello", "Iso-8859-1", false, false).unwrap(),
+            b"hello"
+        );
+        assert_eq!(
+            invoke_encode("AB", "Utf-16Be", false, false).unwrap(),
+            &[0x00, 0x41, 0x00, 0x42]
+        );
+        assert_eq!(
+            invoke_encode("AB", "Utf-16Le", false, false).unwrap(),
+            &[0x41, 0x00, 0x42, 0x00]
+        );
+        assert_eq!(
+            invoke_encode("A", "Utf-16", false, false).unwrap(),
+            &[0xFE, 0xFF, 0x00, 0x41]
+        );
+        assert_eq!(
+            invoke_encode("A", "Utf-32", false, false).unwrap(),
+            &[0x00, 0x00, 0x00, 0x41]
+        );
+    }
+
+    #[test]
+    fn test_alias_rejection_strict_mode() {
+        let aliases = [
+            "utf8", "ascii", "latin1", "iso88591", "utf-32be", "utf-32le", "utf32be",
+            "utf32le", "utf16be", "utf16le", "utf16", "utf32",
+        ];
+        for alias in aliases {
+            let err = invoke_encode("A", alias, false, false).unwrap_err();
+            assert!(
+                err.to_string()
+                    .contains("[INVALID_PARAMETER_VALUE.CHARSET]"),
+                "expected alias '{alias}' to be rejected in strict mode, got: {err}"
+            );
+        }
+
+        // Unknown charset
+        let err = invoke_encode("A", "EBCDIC", false, false).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("[INVALID_PARAMETER_VALUE.CHARSET]"),
+            "expected unknown charset to be rejected in strict mode, got: {err}"
+        );
+    }
+
+    #[test]
+    fn test_alias_acceptance_legacy_mode() {
+        assert_eq!(
+            invoke_encode("Spark", "utf8", true, false).unwrap(),
+            b"Spark"
+        );
+        assert_eq!(
+            invoke_encode("Hello", "ascii", true, false).unwrap(),
+            b"Hello"
+        );
+        assert_eq!(
+            invoke_encode("naïve", "latin1", true, false).unwrap(),
+            &[0x6E, 0x61, 0xEF, 0x76, 0x65]
+        );
+        assert_eq!(
+            invoke_encode("naïve", "iso88591", true, false).unwrap(),
+            &[0x6E, 0x61, 0xEF, 0x76, 0x65]
+        );
+        assert_eq!(
+            invoke_encode("A", "utf-32be", true, false).unwrap(),
+            &[0x00, 0x00, 0x00, 0x41]
+        );
+        assert_eq!(
+            invoke_encode("A", "utf-32le", true, false).unwrap(),
+            &[0x41, 0x00, 0x00, 0x00]
+        );
+
+        // Unknown charset in legacy mode raises INVALID_PARAMETER_VALUE.CHARSET with SQLSTATE 22023
+        let err = invoke_encode("A", "EBCDIC", true, false).unwrap_err();
+        let err_msg = err.to_string();
+        assert!(
+            err_msg.contains("[INVALID_PARAMETER_VALUE.CHARSET]"),
+            "expected INVALID_PARAMETER_VALUE.CHARSET in legacy mode, got: {err_msg}"
+        );
+        assert!(
+            err_msg.contains("SQLSTATE: 22023"),
+            "expected SQLSTATE: 22023, got: {err_msg}"
+        );
+    }
+
+    #[test]
+    fn test_unmappable_characters_strict_mode() {
+        // 'é' (U+00E9) in US-ASCII
+        let err = invoke_encode("é", "us-ascii", false, false).unwrap_err();
+        let err_msg = err.to_string();
+        assert!(
+            err_msg.contains("[MALFORMED_CHARACTER_CODING]"),
+            "expected MALFORMED_CHARACTER_CODING, got: {err_msg}"
+        );
+        assert!(
+            err_msg.contains("SQLSTATE: 22000"),
+            "expected SQLSTATE: 22000, got: {err_msg}"
+        );
+        assert!(
+            err_msg.contains(
+                "Invalid value found when performing `encode` with us-ascii SQLSTATE: 22000"
+            ),
+            "expected exact error message, got: {err_msg}"
+        );
+
+        // 'Ā' (U+0100) in ISO-8859-1
+        let err2 = invoke_encode("Ā", "iso-8859-1", false, false).unwrap_err();
+        let err2_msg = err2.to_string();
+        assert!(
+            err2_msg.contains("[MALFORMED_CHARACTER_CODING]"),
+            "expected MALFORMED_CHARACTER_CODING, got: {err2_msg}"
+        );
+        assert!(
+            err2_msg.contains("SQLSTATE: 22000"),
+            "expected SQLSTATE: 22000, got: {err2_msg}"
+        );
+        assert!(
+            err2_msg.contains(
+                "Invalid value found when performing `encode` with iso-8859-1 SQLSTATE: 22000"
+            ),
+            "expected exact error message, got: {err2_msg}"
+        );
+    }
+
+    #[test]
+    fn test_unmappable_characters_legacy_mode() {
+        // In legacy mode, 'é' in US-ASCII becomes '?' (0x3F)
+        let res = invoke_encode("é", "us-ascii", false, true).unwrap();
+        assert_eq!(res, b"?");
+
+        // 'Ā' in ISO-8859-1 becomes '?'
+        let res2 = invoke_encode("Ā", "iso-8859-1", false, true).unwrap();
+        assert_eq!(res2, b"?");
+    }
+
+    #[test]
+    fn test_independent_flags() {
+        // 1. legacy_java_charsets = true, legacy_coding_error_action = false:
+        // 'ascii' alias accepted, but 'é' fails with MALFORMED_CHARACTER_CODING
+        let err = invoke_encode("é", "ascii", true, false).unwrap_err();
+        assert!(err.to_string().contains("[MALFORMED_CHARACTER_CODING]"));
+
+        // 2. legacy_java_charsets = false, legacy_coding_error_action = true:
+        // 'us-ascii' accepted, and 'é' replaced with '?'
+        let res = invoke_encode("é", "us-ascii", false, true).unwrap();
+        assert_eq!(res, b"?");
+
+        // But non-canonical 'ascii' is still rejected
+        let err2 = invoke_encode("é", "ascii", false, true).unwrap_err();
+        assert!(
+            err2.to_string()
+                .contains("[INVALID_PARAMETER_VALUE.CHARSET]")
+        );
+    }
+
+    #[test]
+    fn test_empty_and_null_inputs() {
+        let func = SparkEncode::new();
+        let config = Arc::new(ConfigOptions::default());
+
+        // Empty string
+        let args = ScalarFunctionArgs {
+            arg_fields: vec![],
+            args: vec![
+                ColumnarValue::Scalar(ScalarValue::Utf8(Some(String::new()))),
+                ColumnarValue::Scalar(ScalarValue::Utf8(Some("utf-8".to_string()))),
+            ],
+            number_rows: 1,
+            return_field: Arc::new(Field::new("encode", DataType::Binary, true)),
+            config_options: Arc::clone(&config),
+        };
+        match func.invoke_with_args(args).unwrap() {
+            ColumnarValue::Scalar(ScalarValue::Binary(Some(b))) => {
+                assert_eq!(b, Vec::<u8>::new())
+            }
+            other => panic!("expected empty binary, got {other:?}"),
+        }
+
+        // Null value yields null
+        let args_null_val = ScalarFunctionArgs {
+            arg_fields: vec![],
+            args: vec![
+                ColumnarValue::Scalar(ScalarValue::Utf8(None)),
+                ColumnarValue::Scalar(ScalarValue::Utf8(Some("utf-8".to_string()))),
+            ],
+            number_rows: 1,
+            return_field: Arc::new(Field::new("encode", DataType::Binary, true)),
+            config_options: Arc::clone(&config),
+        };
+        match func.invoke_with_args(args_null_val).unwrap() {
+            ColumnarValue::Scalar(ScalarValue::Binary(None)) => {}
+            other => panic!("expected null binary, got {other:?}"),
+        }
+
+        // Null charset yields null (NullIntolerant)
+        let args_null_charset = ScalarFunctionArgs {
+            arg_fields: vec![],
+            args: vec![
+                ColumnarValue::Scalar(ScalarValue::Utf8(Some("hello".to_string()))),
+                ColumnarValue::Scalar(ScalarValue::Utf8(None)),
+            ],
+            number_rows: 1,
+            return_field: Arc::new(Field::new("encode", DataType::Binary, true)),
+            config_options: Arc::clone(&config),
+        };
+        match func.invoke_with_args(args_null_charset).unwrap() {
+            ColumnarValue::Scalar(ScalarValue::Binary(None)) => {}
+            other => panic!("expected null binary, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_per_row_charsets_array() {
+        let func = SparkEncode::new();
+        let config = Arc::new(ConfigOptions::default());
+
+        let values = Arc::new(StringArray::from(vec![Some("hello"), Some("world")]));
+        let charsets = Arc::new(StringArray::from(vec![Some("utf-8"), Some("utf-16be")]));
+
+        let args = ScalarFunctionArgs {
+            arg_fields: vec![],
+            args: vec![ColumnarValue::Array(values), ColumnarValue::Array(charsets)],
+            number_rows: 2,
+            return_field: Arc::new(Field::new("encode", DataType::Binary, true)),
+            config_options: Arc::clone(&config),
+        };
+
+        let res = func.invoke_with_args(args).unwrap();
+        match res {
+            ColumnarValue::Array(arr) => {
+                let bin = arr.as_binary::<i32>();
+                assert_eq!(bin.value(0), b"hello");
+                assert_eq!(
+                    bin.value(1),
+                    &[0x00, 0x77, 0x00, 0x6F, 0x00, 0x72, 0x00, 0x6C, 0x00, 0x64]
+                );
+            }
+            other => panic!("expected array, got {other:?}"),
+        }
+
+        // Array with invalid alias in strict mode should fail
+        let bad_charsets = Arc::new(StringArray::from(vec![Some("utf-8"), Some("utf8")]));
+        let bad_args = ScalarFunctionArgs {
+            arg_fields: vec![],
+            args: vec![
+                ColumnarValue::Array(Arc::new(StringArray::from(vec![
+                    Some("hello"),
+                    Some("world"),
+                ]))),
+                ColumnarValue::Array(bad_charsets),
+            ],
+            number_rows: 2,
+            return_field: Arc::new(Field::new("encode", DataType::Binary, true)),
+            config_options: Arc::clone(&config),
+        };
+        let err = func.invoke_with_args(bad_args).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("[INVALID_PARAMETER_VALUE.CHARSET]")
+        );
+    }
 
     #[test]
     fn test_encode_return_field_nullable() {
@@ -350,5 +897,144 @@ mod tests {
             })
             .unwrap();
         assert!(!non_nullable.is_nullable());
+    }
+
+    #[test]
+    fn test_binary_input_malformed_utf8_strict_and_legacy() {
+        // X'ff' with us-ascii in strict mode raises MALFORMED_CHARACTER_CODING
+        let err = invoke_encode_binary(&[0xFF], "us-ascii", false, false).unwrap_err();
+        let err_msg = err.to_string();
+        assert!(
+            err_msg.contains("[MALFORMED_CHARACTER_CODING]"),
+            "expected MALFORMED_CHARACTER_CODING, got: {err_msg}"
+        );
+        assert!(
+            err_msg.contains("SQLSTATE: 22000"),
+            "expected SQLSTATE: 22000, got: {err_msg}"
+        );
+        assert!(
+            err_msg.contains(
+                "Invalid value found when performing `encode` with us-ascii SQLSTATE: 22000"
+            ),
+            "expected exact error text, got: {err_msg}"
+        );
+
+        // X'ff' with us-ascii in legacy coding error action produces '?' (0x3F)
+        let res = invoke_encode_binary(&[0xFF], "us-ascii", false, true).unwrap();
+        assert_eq!(res, b"?");
+    }
+
+    #[test]
+    fn test_invalid_charset_error_message_format() {
+        let err = invoke_encode("hello", "bogus", false, false).unwrap_err();
+        let err_msg = err.to_string();
+        assert_eq!(
+            err_msg,
+            "Execution error: [INVALID_PARAMETER_VALUE.CHARSET] The value of parameter(s) `charset` in `encode` is invalid: expects one of the iso-8859-1, us-ascii, utf-16, utf-16be, utf-16le, utf-32, utf-8, but got bogus. SQLSTATE: 22023"
+        );
+
+        // Also verify case preservation of the raw charset argument
+        let err2 = invoke_encode("hello", "My_Bogus_Charset", false, false).unwrap_err();
+        let err2_msg = err2.to_string();
+        assert!(
+            err2_msg.contains("but got My_Bogus_Charset. SQLSTATE: 22023"),
+            "expected preserved raw charset casing, got: {err2_msg}"
+        );
+    }
+
+    #[test]
+    fn test_null_propagation_with_invalid_charset() {
+        let func = SparkEncode::new();
+        let config = Arc::new(ConfigOptions::default());
+
+        // 1. encode(NULL, 'bogus') returns NULL
+        let args = ScalarFunctionArgs {
+            arg_fields: vec![],
+            args: vec![
+                ColumnarValue::Scalar(ScalarValue::Utf8(None)),
+                ColumnarValue::Scalar(ScalarValue::Utf8(Some("bogus".to_string()))),
+            ],
+            number_rows: 1,
+            return_field: Arc::new(Field::new("encode", DataType::Binary, true)),
+            config_options: Arc::clone(&config),
+        };
+        match func.invoke_with_args(args).unwrap() {
+            ColumnarValue::Scalar(ScalarValue::Binary(None)) => {}
+            other => panic!("expected null binary, got {other:?}"),
+        }
+
+        // 2. Column where all values are NULL with invalid charset returns NULL array
+        let null_values = Arc::new(StringArray::from(vec![None as Option<&str>, None]));
+        let args_all_nulls = ScalarFunctionArgs {
+            arg_fields: vec![],
+            args: vec![
+                ColumnarValue::Array(null_values),
+                ColumnarValue::Scalar(ScalarValue::Utf8(Some("bogus".to_string()))),
+            ],
+            number_rows: 2,
+            return_field: Arc::new(Field::new("encode", DataType::Binary, true)),
+            config_options: Arc::clone(&config),
+        };
+        match func.invoke_with_args(args_all_nulls).unwrap() {
+            ColumnarValue::Array(arr) => {
+                assert_eq!(arr.len(), 2);
+                assert!(arr.is_null(0));
+                assert!(arr.is_null(1));
+            }
+            other => panic!("expected null binary array, got {other:?}"),
+        }
+
+        // 3. Empty input batch with invalid charset returns empty array without error
+        let empty_values = Arc::new(StringArray::from(Vec::<Option<&str>>::new()));
+        let args_empty = ScalarFunctionArgs {
+            arg_fields: vec![],
+            args: vec![
+                ColumnarValue::Array(empty_values),
+                ColumnarValue::Scalar(ScalarValue::Utf8(Some("bogus".to_string()))),
+            ],
+            number_rows: 0,
+            return_field: Arc::new(Field::new("encode", DataType::Binary, true)),
+            config_options: Arc::clone(&config),
+        };
+        match func.invoke_with_args(args_empty).unwrap() {
+            ColumnarValue::Array(arr) => {
+                assert_eq!(arr.len(), 0);
+            }
+            other => panic!("expected empty binary array, got {other:?}"),
+        }
+
+        // 4. Empty string with invalid charset raises error
+        let args_empty_str = ScalarFunctionArgs {
+            arg_fields: vec![],
+            args: vec![
+                ColumnarValue::Scalar(ScalarValue::Utf8(Some(String::new()))),
+                ColumnarValue::Scalar(ScalarValue::Utf8(Some("bogus".to_string()))),
+            ],
+            number_rows: 1,
+            return_field: Arc::new(Field::new("encode", DataType::Binary, true)),
+            config_options: Arc::clone(&config),
+        };
+        let err = func.invoke_with_args(args_empty_str).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("[INVALID_PARAMETER_VALUE.CHARSET]")
+        );
+
+        // 5. Non-null string with invalid charset raises error
+        let args_non_null = ScalarFunctionArgs {
+            arg_fields: vec![],
+            args: vec![
+                ColumnarValue::Scalar(ScalarValue::Utf8(Some("hello".to_string()))),
+                ColumnarValue::Scalar(ScalarValue::Utf8(Some("bogus".to_string()))),
+            ],
+            number_rows: 1,
+            return_field: Arc::new(Field::new("encode", DataType::Binary, true)),
+            config_options: Arc::clone(&config),
+        };
+        let err2 = func.invoke_with_args(args_non_null).unwrap_err();
+        assert!(
+            err2.to_string()
+                .contains("[INVALID_PARAMETER_VALUE.CHARSET]")
+        );
     }
 }

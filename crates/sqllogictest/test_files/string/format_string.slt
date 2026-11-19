@@ -109,35 +109,41 @@ Negative: -42
 # ================================
 
 ## Basic float formatting
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Float: %f', 3.14159);
 ----
 Float: 3.141590
 
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Float: %f', 30.0);
 ----
 Float: 30.000000
 
 ## Float with precision
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Precision: %.2f', 3.14159);
 ----
 Precision: 3.14
 
 ## Scientific notation (lowercase)
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Scientific: %e', 1234.5);
 ----
 Scientific: 1.234500e+03
 
 ## Scientific notation (uppercase)
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Scientific: %E', 1234.5);
 ----
 Scientific: 1.234500E+03
 
 ## Compact float (lowercase)
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Compact: %g', 1234.5);
 ----
@@ -149,6 +155,7 @@ SELECT format_string('Compact: %g', CAST(123456789.1 AS DOUBLE));
 Compact: 1.23457e+08
 
 ## Compact float (uppercase)
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Compact: %G', 1234.5);
 ----
@@ -160,72 +167,84 @@ SELECT format_string('Compact: %G', CAST(123456789.1 AS DOUBLE));
 Compact: 1.23457E+08
 
 ## Float with width and precision
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Formatted: %10.2f', 3.14159);
 ----
 Formatted:       3.14
 
 ## Float zero padding
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Zero: %08.2f', 3.14);
 ----
 Zero: 00003.14
 
 ## Float with left alignment
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Left: %-10.2f|', 3.14);
 ----
 Left: 3.14      |
 
 ## Float with space sign (positive)
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Space: % .2f', 3.14);
 ----
 Space:  3.14
 
 ## Float with space sign (negative)
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Space: % .2f', -3.14);
 ----
 Space: -3.14
 
 ## Float with force sign (positive)
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Force: %+.2f', 3.14);
 ----
 Force: +3.14
 
 ## Float with force sign (negative)
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Force: %+.2f', -3.14);
 ----
 Force: -3.14
 
 ## Float with precision 0
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Precision 0: %.0f', 3.14);
 ----
 Precision 0: 3
 
 ## Float with precision 0 (rounds up)
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Precision 0: %.0f', 3.6);
 ----
 Precision 0: 4
 
 ## Float with precision 0 and alternate form
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Alt form: %#.0f', 3.14);
 ----
 Alt form: 3.
 
 ## Scientific notation with precision 0
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Sci: %.0e', 1234.5);
 ----
 Sci: 1e+03
 
 ## Compact format with precision 0
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Compact: %.0g', 1234.5);
 ----
@@ -254,6 +273,7 @@ SELECT format_string('Bool: %6b', true);
 Bool:   true
 
 ## Boolean with invalid ARGUMENT
+# xfail spark: Spark accepts %b of a non-boolean, %h/%H and a non-string format (https://github.com/apache/datafusion-spark/issues/79)
 statement error
 SELECT format_string('Bool: %6b', 1)
 
@@ -344,12 +364,14 @@ SELECT format_string('Char: %c', -1);
 # ================================
 
 ## Hour formatting (24-hour)
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Hour: %tH', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Hour: 14
 
 ## Hour formatting (12-hour)
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Hour: %tI', TIMESTAMP '2023-12-25 14:30:45');
 ----
@@ -362,6 +384,7 @@ SELECT format_string('Minute: %tM', TIMESTAMP '2023-12-25 14:30:45');
 Minute: 30
 
 ## Second formatting
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Second: %tS', TIMESTAMP '2023-12-25 14:30:45');
 ----
@@ -386,18 +409,21 @@ SELECT format_string('AM/PM: %Tp', TIMESTAMP '2023-12-25 09:30:45');
 AM/PM: AM
 
 ## Year formatting
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Year: %tY', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Year: 2023
 
 ## Year formatting uppercase
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Year: %TY', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Year: 2023
 
 ## Month formatting
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Month: %tm', TIMESTAMP '2023-12-25 14:30:45');
 ----
@@ -410,30 +436,35 @@ SELECT format_string('Day: %td', TIMESTAMP '2023-12-25 14:30:45');
 Day: 25
 
 ## Time formatting (HH:MM)
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Time: %tR', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Time: 14:30
 
 ## Time formatting (HH:MM:SS)
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Time: %tT', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Time: 14:30:45
 
 ## Date formatting (MM/DD/YY)
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Date: %tD', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Date: 12/25/23
 
 ## ISO date formatting (YYYY-MM-DD)
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('ISO Date: %tF', TIMESTAMP '2023-12-25 14:30:45');
 ----
 ISO Date: 2023-12-25
 
 ## Complex date formatting (Sun Jul 20 16:17:00 EDT 1969)
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query B
 SELECT format_string('Date: %tc', TIMESTAMP '1969-07-20 16:17:00') LIKE 'Date: Sun Jul 20 16:17:00 % 1969';
 ----
@@ -441,24 +472,28 @@ true
 
 
 ## Hour formatting (24-hour no padding)
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Hour: %tk', TIMESTAMP '2023-12-25 04:30:45');
 ----
 Hour: 4
 
 ## Hour formatting (12-hour no padding)
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Hour: %tl', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Hour: 2
 
 ## Milliseconds formatting
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Milliseconds: %tL', TIMESTAMP '2023-12-25 14:30:45.123');
 ----
 Milliseconds: 123
 
 ## Nanoseconds formatting
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Nanoseconds: %tN', TIMESTAMP '2023-12-25 14:30:45.123456789');
 ----
@@ -471,102 +506,119 @@ SELECT format_string('Timezone: %tz', TIMESTAMP '2023-12-25 14:30:45');
 Timezone: +0000
 
 ## Timezone abbreviation
+# xfail spark: from_unixtime is DataFusion's (2nd arg a time zone), Spark's takes a format (https://github.com/apache/datafusion-spark/issues/226)
 query T
 SELECT format_string('Timezone: %tZ', from_unixtime(1599572549, 'America/New_York'));
 ----
 Timezone: UTC
 
 ## Seconds since epoch
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Epoch seconds: %ts', TIMESTAMP '1970-01-01 00:00:01');
 ----
 Epoch seconds: 1
 
 ## Milliseconds since epoch
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Epoch millis: %tQ', TIMESTAMP '1970-01-01 00:00:01');
 ----
 Epoch millis: 1000
 
 ## Full month name
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Month: %tB', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Month: December
 
 ## Full month name uppercase
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Month: %TB', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Month: DECEMBER
 
 ## Abbreviated month name
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Month: %tb', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Month: Dec
 
 ## Abbreviated month name uppercase
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Month: %Tb', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Month: DEC
 
 ## Same as %tb
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Month: %th', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Month: Dec
 
 ## Full day of week
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Day: %tA', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Day: Monday
 
 ## Full day of week uppercase
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Day: %TA', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Day: MONDAY
 
 ## Abbreviated day of week
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Day: %ta', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Day: Mon
 
 ## Abbreviated day of week uppercase
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Day: %Ta', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Day: MON
 
 ## Century (year/100)
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Century: %tC', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Century: 20
 
 ## Two-digit year
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Year: %ty', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Year: 23
 
 ## Day of year
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Day of year: %tj', TIMESTAMP '2023-12-25 14:30:45');
 ----
 Day of year: 359
 
 ## Day of month (no padding)
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Day: %te', TIMESTAMP '2023-12-05 14:30:45');
 ----
 Day: 5
 
 ## 12-hour time with AM/PM
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Time: %tr', TIMESTAMP '2023-12-25 14:30:45');
 ----
@@ -592,108 +644,126 @@ SELECT format_string('Time: %Tx', TIMESTAMP '2023-12-25 14:30:45');
 # ================================
 
 ## Decimal formatting
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Decimal: %f', CAST(123.456 AS DECIMAL(10,3)));
 ----
 Decimal: 123.456000
 
 ## Decimal with precision
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Decimal: %.2f', CAST(123.456 AS DECIMAL(10,3)));
 ----
 Decimal: 123.46
 
 ## Decimal scientific notation
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Scientific: %e', CAST(1234.5 AS DECIMAL(10,2)));
 ----
 Scientific: 1.234500e+03
 
 ## Decimal with width padding
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Padded: %10.2f', CAST(123.456 AS DECIMAL(10,3)));
 ----
 Padded:     123.46
 
 ## Decimal with zero padding
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Zero padded: %010.2f', CAST(123.456 AS DECIMAL(10,3)));
 ----
 Zero padded: 0000123.46
 
 ## Decimal with left adjustment
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Left: %-10.2f', CAST(123.456 AS DECIMAL(10,3)));
 ----
 Left: 123.46
 
 ## Decimal with plus sign
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Plus: %+.2f', CAST(123.456 AS DECIMAL(10,3)));
 ----
 Plus: +123.46
 
 ## Decimal with space sign
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Space: % .2f', CAST(123.456 AS DECIMAL(10,3)));
 ----
 Space:  123.46
 
 ## Negative decimal with plus sign
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Negative: %+.2f', CAST(-123.456 AS DECIMAL(10,3)));
 ----
 Negative: -123.46
 
 ## Negative decimal with space sign
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Negative: % .2f', CAST(-123.456 AS DECIMAL(10,3)));
 ----
 Negative: -123.46
 
 ## Decimal with width and plus sign
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Width+Plus: %+10.2f', CAST(123.456 AS DECIMAL(10,3)));
 ----
 Width+Plus:    +123.46
 
 ## Decimal with zero padding and plus sign
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Zero+Plus: %+010.2f', CAST(123.456 AS DECIMAL(10,3)));
 ----
 Zero+Plus: +000123.46
 
 ## Decimal with left adjustment and plus sign
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Left+Plus: %-+10.2f', CAST(123.456 AS DECIMAL(10,3)));
 ----
 Left+Plus: +123.46
 
 ## Decimal scientific notation with width
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Sci Width: %15.2e', CAST(1234.5 AS DECIMAL(10,2)));
 ----
 Sci Width:        1.23e+03
 
 ## Decimal scientific notation with zero padding
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Sci Zero: %015.2e', CAST(1234.5 AS DECIMAL(10,2)));
 ----
 Sci Zero: 00000001.23e+03
 
 ## Decimal scientific notation with plus sign
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Sci Plus: %+.2e', CAST(1234.5 AS DECIMAL(10,2)));
 ----
 Sci Plus: +1.23e+03
 
 ## Decimal compact format with width
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Compact: %10.2g', CAST(123.456 AS DECIMAL(10,3)));
 ----
 Compact:    1.2e+02
 
 ## Decimal compact format with plus sign
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Compact+: %+.2g', CAST(123.456 AS DECIMAL(10,3)));
 ----
@@ -721,12 +791,14 @@ SELECT format_string('Line1%nLine2');
 02)Line2
 
 ## Multiple format specifiers
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('String: %s, Integer: %d, Float: %.2f', 'test', 42, 3.14159);
 ----
 String: test, Integer: 42, Float: 3.14
 
 ## Mixed width and precision
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Mixed: %10s %5d %.2f', 'hello', 123, 45.678);
 ----
@@ -1079,6 +1151,7 @@ Value: null
 statement error
 SELECT format_string('Value: %d');
 
+# xfail spark: Spark accepts %b of a non-boolean, %h/%H and a non-string format (https://github.com/apache/datafusion-spark/issues/79)
 statement error
 SELECT format_string(1);
 
@@ -1548,6 +1621,7 @@ SELECT format_string('Scientific: %e', arrow_cast(1234.5, 'Float32'));
 ----
 Scientific: 1.234500e+03
 
+# xfail spark: %g strips trailing zeros, Java keeps six significant digits (https://github.com/apache/datafusion-spark/issues/39)
 query T
 SELECT format_string('Compact: %g', arrow_cast(1234.5, 'Float32'));
 ----
@@ -1581,57 +1655,68 @@ SELECT format_string('String: %S', arrow_cast(3.14159, 'Float64'));
 String: 3.14159
 
 ## Decimal128 with various formats
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Float: %f', arrow_cast(123.456, 'Decimal128(10, 3)'));
 ----
 Float: 123.456000
 
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Scientific: %e', arrow_cast(1234.5, 'Decimal128(10, 2)'));
 ----
 Scientific: 1.234500e+03
 
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Scientific: %E', arrow_cast(1234.5, 'Decimal128(10, 2)'));
 ----
 Scientific: 1.234500E+03
 
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Compact: %g', arrow_cast(1234.5, 'Decimal128(10, 2)'));
 ----
 Compact: 1234.5
 
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Compact: %G', arrow_cast(1234.5, 'Decimal128(10, 2)'));
 ----
 Compact: 1234.5
 
+# xfail spark: %s of a DECIMAL prints the unscaled value, Spark prints it with its scale (https://github.com/apache/datafusion-spark/issues/39)
 query T
 SELECT format_string('String: %s', arrow_cast(123.456, 'Decimal128(10, 3)'));
 ----
 String: 123456
 
+# xfail spark: %s of a DECIMAL prints the unscaled value, Spark prints it with its scale (https://github.com/apache/datafusion-spark/issues/39)
 query T
 SELECT format_string('String: %S', arrow_cast(123.456, 'Decimal128(10, 3)'));
 ----
 String: 123456
 
 ## Decimal256 with various formats
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Float: %f', arrow_cast(123.456, 'Decimal256(20, 3)'));
 ----
 Float: 123.456000
 
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Scientific: %e', arrow_cast(1234.5, 'Decimal256(20, 2)'));
 ----
 Scientific: 1.234500e+03
 
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Compact: %g', arrow_cast(1234.5, 'Decimal256(20, 2)'));
 ----
 Compact: 1234.5
 
+# xfail spark: %s of a DECIMAL prints the unscaled value, Spark prints it with its scale (https://github.com/apache/datafusion-spark/issues/39)
 query T
 SELECT format_string('String: %s', arrow_cast(123.456, 'Decimal256(20, 3)'));
 ----
@@ -1707,38 +1792,45 @@ SELECT format_string('String: %s', arrow_cast(52245000000000, 'Time64(Nanosecond
 String: 52245000000000
 
 ## TimestampSecond with time formats
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Year: %tY', arrow_cast(1703512245, 'Timestamp(s)'));
 ----
 Year: 2023
 
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Month: %tm', arrow_cast(1703512245, 'Timestamp(s)'));
 ----
 Month: 12
 
+# xfail spark: Spark prints %s of a TIMESTAMP as its internal epoch microseconds (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('String: %s', arrow_cast(1703512245, 'Timestamp(s)'));
 ----
 String: 1703512245
 
+# xfail spark: Spark prints %s of a TIMESTAMP as its internal epoch microseconds (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('String: %S', arrow_cast(1703512245, 'Timestamp(s)'));
 ----
 String: 1703512245
 
 ## TimestampMillisecond with time formats
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('ISO Date: %tF', arrow_cast(1703512245000, 'Timestamp(ms)'));
 ----
 ISO Date: 2023-12-25
 
+# xfail spark: Spark prints %s of a TIMESTAMP as its internal epoch microseconds (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('String: %s', arrow_cast(1703512245000, 'Timestamp(ms)'));
 ----
 String: 1703512245000
 
 ## TimestampMicrosecond with time formats
+# xfail spark: Spark passes TIMESTAMP micros to %t, which reads them as millis (https://github.com/apache/datafusion-spark/issues/14)
 query T
 SELECT format_string('Date: %tD', arrow_cast(1703512245000000, 'Timestamp(µs)'));
 ----
@@ -1755,11 +1847,13 @@ SELECT format_string('String: %s', arrow_cast('2020-01-02 01:01:11.1234567890Z',
 String: 1577926871123456789
 
 ## Date32 with time formats
+# xfail spark: Spark errors for %t of a DATE, which it passes as Integer days (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Year: %tY', arrow_cast(19716, 'Date32'));
 ----
 Year: 2023
 
+# xfail spark: Spark errors for %t of a DATE, which it passes as Integer days (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('Month: %tB', arrow_cast(19716, 'Date32'));
 ----
@@ -1806,18 +1900,21 @@ SELECT format_string('String: %tY', true);
 
 # Not implemented yet. Can be implemented after https://github.com/apache/datafusion/pull/17093 is merged
 ## Hash value formatting (lowercase)
+# xfail spark: Spark accepts %b of a non-boolean, %h/%H and a non-string format (https://github.com/apache/datafusion-spark/issues/79)
 statement error
 SELECT format_string('Hash: %h', 'test');
 # ----
 # Hash: ec06e15a
 
 ## Hash value formatting (uppercase)
+# xfail spark: Spark accepts %b of a non-boolean, %h/%H and a non-string format (https://github.com/apache/datafusion-spark/issues/79)
 statement error
 SELECT format_string('Hash: %H', 'test');
 # ----
 # Hash: EC06E15A
 
 ## Hash with width
+# xfail spark: Spark accepts %b of a non-boolean, %h/%H and a non-string format (https://github.com/apache/datafusion-spark/issues/79)
 statement error
 SELECT format_string('Hash: %10h', 'test');
 # ----
@@ -1828,95 +1925,111 @@ SELECT format_string('Hash: %10h', 'test');
 # ================================
 
 ## Hexadecimal float (lowercase)
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Hex float: %a', 15.9375);
 ----
 Hex float: 0x1.fep3
 
 ## Hexadecimal float (uppercase)
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Hex float: %A', 15.9375);
 ----
 Hex float: 0X1.FEP3
 
 ## Hexadecimal float with precision
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Hex float: %.10a', 15.9375);
 ----
 Hex float: 0x1.fe00000000p3
 
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('%a', 12.3456);
 ----
 0x1.8b0f27bb2fec5p3
 
 ## Hexadecimal float with zero
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Hex float: %a', 0.0);
 ----
 Hex float: 0x0.0p0
 
 ## Hexadecimal float with negative value
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Hex float: %a', -15.9375);
 ----
 Hex float: -0x1.fep3
 
 ## Hexadecimal float with very small value
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Hex float: %a', 0.0000152587890625);
 ----
 Hex float: 0x1.0p-16
 
 ## Hexadecimal float with force sign
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Hex float: %+a', 15.9375);
 ----
 Hex float: +0x1.fep3
 
 ## Hexadecimal float with space sign (positive)
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Hex float: % a', 15.9375);
 ----
 Hex float:  0x1.fep3
 
 ## Hexadecimal float with space sign (negative)
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Hex float: % a', -15.9375);
 ----
 Hex float: -0x1.fep3
 
 ## Hexadecimal float uppercase with space sign
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Hex float: % A', 15.9375);
 ----
 Hex float:  0X1.FEP3
 
 ## Hexadecimal float with width
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Hex float: %20a', 15.9375);
 ----
 Hex float:             0x1.fep3
 
 ## Hexadecimal float with zero padding
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Hex float: %020a', 15.9375);
 ----
 Hex float: 0x0000000000001.fep3
 
 ## Hexadecimal float with alternate form and precision
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Hex float: %#.5a', 1.0);
 ----
 Hex float: 0x1.00000p0
 
 ## Hexadecimal float uppercase with force sign
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Hex float: %+A', -15.9375);
 ----
 Hex float: -0X1.FEP3
 
 ## Hexadecimal float with left alignment
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Hex float: %-20a', 15.9375);
 ----
@@ -2034,12 +2147,14 @@ SELECT format_string('Space padded: % 8d', 42);
 Space padded:       42
 
 ## Combine # flag with float
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Always decimal: %#.0f', 42.0);
 ----
 Always decimal: 42.
 
 ## Combine # flag with float
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Always decimal: %#.0f', 40.0);
 ----
@@ -2122,6 +2237,7 @@ SELECT format_string('[%-,12d]', arrow_cast(1234567::BIGINT, 'UInt64'));
 [1,234,567   ]
 
 ## Negative decimal zero padding keeps the closing parenthesis last
+# xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
 SELECT format_string('[%(012.2f]', -1234.50::DECIMAL(10, 2));
 ----
@@ -2305,18 +2421,21 @@ Grouped large: 9,223,372,036,854,775,807
 # ================================
 
 ## Zero precision with decimal
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Zero precision: %.0f', 3.14159);
 ----
 Zero precision: 3
 
 ## High precision float
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('High precision: %.10f', 3.14159);
 ----
 High precision: 3.1415900000
 
 ## Scientific notation with precision
+# xfail spark: Spark types the literal as DECIMAL, and %f/%e/%g/%a of a DECIMAL errors (https://github.com/apache/datafusion-spark/issues/97)
 query T
 SELECT format_string('Scientific: %.3e', 1234.56789);
 ----

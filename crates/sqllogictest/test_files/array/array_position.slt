@@ -126,6 +126,7 @@ NULL
 
 # Spark's `array(1, NULL)[0]` is its first element; arrays in this crate are 1-based, so the
 # same element is `[1]` here.
+# xfail spark: runner: [] is 1-based in DataFusion and 0-based in Spark, and the runner does not translate the index
 query I
 SELECT array_position(array(1, NULL), array(1, NULL)[1]);
 ----
@@ -274,8 +275,8 @@ SELECT array_position(array(CAST(1.0 AS DOUBLE)), CAST(1 AS DECIMAL(5,1)));
 query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
 SELECT array_position(array(1), '1');
 
-query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
-SELECT array_position(array('1'), 1);
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_position` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<STRING>", "INT"\]\. SQLSTATE: 42K09
+SELECT array_position(array('1'), CAST(1 AS INT));
 
 query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
 SELECT array_position(array(1), CAST(NULL AS STRING));
@@ -292,6 +293,24 @@ SELECT array_position(array(X'01'), '1');
 query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
 SELECT array_position(array(DATE '2020-01-01'), '2020-01-01');
 
+# A dictionary-encoded element or array has the type of its values
+query II
+SELECT array_position(array('a', 'b'), arrow_cast('b', 'Dictionary(Int32, Utf8)')), array_position(array(arrow_cast('a', 'Dictionary(Int32, Utf8)'), arrow_cast('b', 'Dictionary(Int32, Utf8)')), 'b');
+----
+2 2
+
+# Dictionary-encoded floats are normalized, so -0.0 equals 0.0
+query I
+SELECT array_position(arrow_cast(array(CAST('-0.0' AS DOUBLE), CAST(1.0 AS DOUBLE)), 'List(Dictionary(Int32, Float64))'), arrow_cast(CAST(0.0 AS DOUBLE), 'Dictionary(Int32, Float64)'));
+----
+1
+
+# So are dictionary-encoded floats inside nested types
+query II
+SELECT array_position(arrow_cast(array(array(CAST('-0.0' AS DOUBLE))), 'List(List(Dictionary(Int32, Float64)))'), arrow_cast(array(CAST(0.0 AS DOUBLE)), 'List(Dictionary(Int32, Float64))')), array_position(arrow_cast(array(named_struct('a', CAST('-0.0' AS DOUBLE))), 'List(Struct("a": Dictionary(Int32, Float64)))'), arrow_cast(named_struct('a', CAST(0.0 AS DOUBLE)), 'Struct("a": Dictionary(Int32, Float64))'));
+----
+1 1
+
 # DATE and TIMESTAMP become TIMESTAMP
 query I
 SELECT array_position(array(DATE '2020-01-01'), TIMESTAMP '2020-01-01 00:00:00');
@@ -305,6 +324,7 @@ SELECT array_position(array(TIMESTAMP '2020-01-01 00:00:00'), DATE '2020-01-01')
 
 # Struct fields are matched by name, in order. Spark ignores the case of the names and returns 1
 # here, but DataFusion cannot cast between struct fields whose names differ only in case.
+# xfail spark: Spark matches struct field names without case, DataFusion cannot cast between them (https://github.com/apache/datafusion-spark/issues/362)
 query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
 SELECT array_position(array(named_struct('a', 1)), named_struct('A', 1));
 
@@ -331,6 +351,38 @@ SELECT array_position(array(named_struct('m', map(1, 2))), named_struct('m', map
 
 query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\]
 SELECT array_position(array(array(map(1, 2))), array(map(1, 2)));
+
+# Map keys and values are widened, and the common map type is then rejected
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_position` does not support ordering on type "MAP<BIGINT, BIGINT>"\. SQLSTATE: 42K09
+SELECT array_position(array(map(CAST(1 AS INT), CAST(1 AS INT))), map(1L, 1L));
+
+# A map key does not widen from DATE to TIMESTAMP_NTZ, because Spark's cast between them can
+# return NULL. A map value does.
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_position` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<MAP<DATE, INT>>", "MAP<TIMESTAMP_NTZ, INT>"\]\. SQLSTATE: 42K09
+SELECT array_position(array(map(DATE '2020-01-01', CAST(1 AS INT))), map(arrow_cast(TIMESTAMP '2020-01-01 00:00:00', 'Timestamp(Microsecond, None)'), CAST(1 AS INT)));
+
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_position` does not support ordering on type "MAP<INT, TIMESTAMP_NTZ>"\. SQLSTATE: 42K09
+SELECT array_position(array(map(CAST(1 AS INT), DATE '2020-01-01')), map(CAST(1 AS INT), arrow_cast(TIMESTAMP '2020-01-01 00:00:00', 'Timestamp(Microsecond, None)')));
+
+# Spark's names for interval, time and struct types in errors
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_position` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<INTERVAL DAY TO SECOND>", "STRING"\]\. SQLSTATE: 42K09
+SELECT array_position(array(make_dt_interval(1)), 'x');
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_position` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<INTERVAL YEAR TO MONTH>", "STRING"\]\. SQLSTATE: 42K09
+SELECT array_position(array(arrow_cast(1, 'Interval(YearMonth)')), 'x');
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_position` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<TIME\(6\)>", "STRING"\]\. SQLSTATE: 42K09
+SELECT array_position(array(make_time(1, 2, 3)), 'x');
+
+query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\] Input to `array_position` should have been "ARRAY" followed by a value with same element type, but it's \["ARRAY<STRUCT<`a b`: INT>>", "STRING"\]\. SQLSTATE: 42K09
+SELECT array_position(array(named_struct('a b', CAST(NULL AS INT))), 'x');
+
+# Spark cannot order intervals
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_position` does not support ordering on type "INTERVAL"\. SQLSTATE: 42K09
+SELECT array_position(array(make_interval(1)), make_interval(2));
+
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_position` does not support ordering on type "ARRAY<INTERVAL>"\. SQLSTATE: 42K09
+SELECT array_position(array(array(make_interval(1))), array(make_interval(2)));
 
 # Signed zero: -0.0 equals 0.0
 query I

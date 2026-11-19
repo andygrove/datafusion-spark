@@ -75,6 +75,29 @@ class ParseTest(unittest.TestCase):
         [record] = parse("query T\nSELECT format_string('Line1%nLine2');\n----\n \n01)Line1\n02)Line2\n")
         self.assertEqual(record.expected, [" ", "01)Line1", "02)Line2"])
 
+    def test_xfail(self):
+        records = parse(
+            "# xfail spark: Spark returns NULL\n"
+            "skipif postgres\n"
+            "query I\n"
+            "SELECT 1\n"
+            "----\n"
+            "1\n"
+            "\n"
+            "query I\n"
+            "SELECT 2\n"
+            "\n"
+            "#xfail spark:   no space after the hash  \n"
+            "statement ok\n"
+            "SELECT 3\n"
+            "\n"
+            "# xfail postgres: another engine\n"
+            "query I\n"
+            "SELECT 4\n"
+        )
+        reasons = [record.xfail_reason for record in records]
+        self.assertEqual(reasons, ["Spark returns NULL", None, "no space after the hash", None])
+
 
 class TranslateTest(unittest.TestCase):
     def test_spark_parses_double_colon_casts(self):
@@ -299,16 +322,15 @@ class FormatTest(unittest.TestCase):
         return r.format_cell(value, tree, time_zone)
 
     def test_doubles(self):
-        # Expected strings from conversion.rs tests and DataFusion's float_to_str.
+        # Expected strings from Rust's `Display` for f64, as the test engine prints them.
         double = ("double",)
         self.assertEqual(self.cell(11.0, double), "11")
         self.assertEqual(self.cell(-0.011, double), "-0.011")
-        self.assertEqual(self.cell(0.12345678901234567, double), "0.123456789012346")
+        self.assertEqual(self.cell(0.12345678901234567, double), "0.12345678901234566")
+        self.assertEqual(self.cell(2.9999999999999996, double), "2.9999999999999996")
         self.assertEqual(self.cell(1e20, double), "100000000000000000000")
-        self.assertEqual(self.cell(-0.0, double), "0")
-        # BigDecimal::round rounds half to even.
-        self.assertEqual(self.cell(0.1234567890123445, double), "0.123456789012344")
-        self.assertEqual(self.cell(0.1234567890123455, double), "0.123456789012346")
+        self.assertEqual(self.cell(1e-20, double), "0.00000000000000000001")
+        self.assertEqual(self.cell(-0.0, double), "-0")
         self.assertEqual(self.cell(float("nan"), double), "NaN")
         self.assertEqual(self.cell(float("-inf"), double), "-Infinity")
 
@@ -387,6 +409,8 @@ class CompareTest(unittest.TestCase):
         )
         self.assertIsNone(r.numeric_difference(["0.1235"], ["0.1234"], "nosort"))
         self.assertIsNone(r.numeric_difference(["NULL"], ["0"], "nosort"))
+        self.assertIsNone(r.numeric_difference(["0"], ["-0"], "nosort"))
+        self.assertEqual(r.numeric_difference(["-0"], ["-0.0"], "nosort"), "scale")
         # Strings that Python's float() accepts are not numbers here.
         self.assertIsNone(r.numeric_difference(["007"], ["7"], "nosort"))
         self.assertIsNone(r.numeric_difference(["1_0"], ["10"], "nosort"))
@@ -503,6 +527,26 @@ class RunRecordTest(unittest.TestCase):
         self.assertEqual(len(outcome.actual), r.MAX_ROWS + 1)
         self.assertEqual(outcome.actual[-1], f"... (more than {r.MAX_ROWS} rows)")
         self.assertIn("... 981 more line(s)", r.report(outcome, "4.2.0"))
+
+    def test_xfail(self):
+        result = (FakeSchema("IntegerType"), [(1,)])
+        outcome = self.outcome("# xfail spark: a known bug\nquery I\nSELECT a\n----\n2\n", result)
+        self.assertEqual((outcome.status, outcome.detail), ("xfail", "results differ (a known bug)"))
+        self.assertEqual(r.report(outcome, "4.2.0").split(": ", 1)[1], "expected failure: results differ (a known bug)")
+        error = r.SparkError("error", "[DIVIDE_BY_ZERO]")
+        self.assertEqual(self.outcome("# xfail spark: x\nquery I\nSELECT a\n----\n1\n", error).status, "xfail")
+        self.assertEqual(self.outcome("# xfail spark: x\nquery I\nSELECT a\n----\n1.0\n", result).status, "xfail")
+
+    def test_xpass(self):
+        result = (FakeSchema("IntegerType"), [(1,)])
+        outcome = self.outcome("# xfail spark: a fixed bug\nquery I\nSELECT a\n----\n1\n", result)
+        self.assertEqual(outcome.status, "xpass")
+        self.assertIn("remove `# xfail spark: a fixed bug`", r.report(outcome, "4.2.0"))
+
+    def test_xfail_skipped_record_stays_skipped(self):
+        parse_error = r.SparkError("parse", "Spark cannot parse it (PARSE_SYNTAX_ERROR)")
+        outcome = self.outcome("# xfail spark: x\nquery ?\nSELECT [1]\n----\n[1]\n", parse_error)
+        self.assertEqual(outcome.status, "skip")
 
     def test_session_died(self):
         died = type("Py4JNetworkError", (Exception,), {})("Answer from Java side is empty")

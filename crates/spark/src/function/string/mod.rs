@@ -2,11 +2,15 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+//! Spark string functions, such as `concat`, `concat_ws`, `format_string`, `substring`,
+//! `base64`, `like` and `ilike`.
+
 pub mod ascii;
 pub mod base64;
 pub mod char;
 pub mod concat;
 pub mod concat_ws;
+pub mod contains;
 pub mod elt;
 pub mod encode;
 pub mod format_string;
@@ -31,6 +35,7 @@ make_udf_function!(base64::SparkBase64, base64);
 make_udf_function!(char::CharFunc, char);
 make_udf_function!(concat::SparkConcat, concat);
 make_udf_function!(concat_ws::SparkConcatWs, concat_ws);
+make_udf_function!(contains::SparkContains, contains);
 make_udf_function!(ilike::SparkILike, ilike);
 make_udf_function!(length::SparkLengthFunc, length);
 make_udf_function!(elt::SparkElt, elt);
@@ -75,6 +80,11 @@ pub mod expr_fn {
         concat_ws,
         "Concatenates strings with separator. Supports arrays. Null values are skipped.",
         sep args
+    ));
+    export_functions!((
+        contains,
+        "Returns true if right is found inside left. Both arguments may be strings or binary.",
+        left right
     ));
     export_functions!((
         elt,
@@ -157,6 +167,7 @@ pub fn functions() -> Vec<Arc<ScalarUDF>> {
         char(),
         concat(),
         concat_ws(),
+        contains(),
         elt(),
         encode(),
         ilike(),

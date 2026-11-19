@@ -5,8 +5,8 @@
 use std::sync::Arc;
 
 use arrow::array::{ArrayRef, BooleanArray, Scalar, new_null_array};
-use arrow::compute::kernels::cast::{CastOptions, cast_with_options};
-use arrow::compute::kernels::numeric::add;
+use arrow::compute::kernels::cast::{CastOptions, cast, cast_with_options};
+use arrow::compute::kernels::numeric::add_wrapping;
 use arrow::compute::kernels::{
     boolean::{and, is_not_null, or},
     cmp::{eq, lt},
@@ -39,7 +39,7 @@ fn negative_zero(data_type: &DataType) -> Result<Option<ArrayRef>> {
 }
 
 /// Rows of `values` that equal zero, counting `-0.0` as zero.
-fn is_zero(values: &ArrayRef) -> Result<BooleanArray> {
+pub(crate) fn is_zero(values: &ArrayRef) -> Result<BooleanArray> {
     let zero = ScalarValue::new_zero(values.data_type())?.to_array()?;
     let mask = eq(values, &Scalar::new(zero))?;
     match negative_zero(values.data_type())? {
@@ -156,8 +156,24 @@ pub fn spark_pmod(
     let result = try_rem(left, right, enable_ansi_mode)?;
     let neg = lt(&result, &zero)?;
     let plus = zip(&neg, right, &zero)?;
-    let result = add(&plus, &result)?;
-    let result = try_rem(&result, right, enable_ansi_mode)?;
+    // Spark evaluates `(r + n) % n` with Java arithmetic. Java promotes `byte`
+    // and `short` operands to `int`, so those widths never overflow, while
+    // `int` and `long` wrap around. Widen the narrow integer types to reproduce
+    // the promotion, and use the wrapping addition so that, for example,
+    // `pmod(-1, -2147483648)` returns `2147483647` the way Spark does instead
+    // of reporting an overflow.
+    let (result, plus, divisor) =
+        if matches!(left.data_type(), DataType::Int8 | DataType::Int16) {
+            (
+                cast(&result, &DataType::Int32)?,
+                cast(&plus, &DataType::Int32)?,
+                cast(right, &DataType::Int32)?,
+            )
+        } else {
+            (result, plus, Arc::clone(right))
+        };
+    let result = add_wrapping(&plus, &result)?;
+    let result = try_rem(&result, &divisor, enable_ansi_mode)?;
 
     // The remainder is bounded by the divisor, but the result type only carries
     // `min(p1 - s1, p2 - s2)` integer digits, so a remainder approaching a

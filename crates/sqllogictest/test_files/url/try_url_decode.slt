@@ -56,6 +56,7 @@ SELECT try_url_decode('https%3%2F%2Fspark.apache.org'::string);
 NULL
 
 # Bytes that are not valid UTF-8 give NULL
+# xfail spark: Spark replaces bytes that are not valid UTF-8 with U+FFFD, datafusion-spark raises an error or returns NULL (https://github.com/apache/datafusion-spark/issues/366)
 query T
 SELECT try_url_decode('%FF'::string);
 ----
