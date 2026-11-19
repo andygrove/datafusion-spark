@@ -2,36 +2,46 @@
 # SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 # SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+# `base64` has no `invoke_with_args` yet, so the records that call it are marked
+# `skipif evaluate` until https://github.com/apache/datafusion-spark/issues/313 is fixed.
+
+skipif evaluate
 query T
 SELECT base64('Spark SQL'::string);
 ----
 U3BhcmsgU1FM
 
+skipif evaluate
 query T
 SELECT base64('Spark SQ'::string);
 ----
 U3BhcmsgU1E=
 
+skipif evaluate
 query T
 SELECT base64('Spark S'::string);
 ----
 U3BhcmsgUw==
 
+skipif evaluate
 query T
 SELECT base64('Spark SQL'::bytea);
 ----
 U3BhcmsgU1FM
 
+skipif evaluate
 query T
 SELECT base64(NULL::string);
 ----
 NULL
 
+skipif evaluate
 query T
 SELECT base64(NULL::bytea);
 ----
 NULL
 
+skipif evaluate
 query T
 SELECT base64(column1)
 FROM VALUES
