@@ -93,17 +93,10 @@ SELECT ln('abc');
 statement ok
 set datafusion.execution.enable_ansi_mode = false;
 
-# Spark 4.2.0 returns NULL for a malformed string when ANSI mode is off; DataFusion errors
-# https://github.com/apache/datafusion-spark/issues/88
-# query R
-# SELECT ln('abc');
-# ----
-# NULL
+# xfail spark: Spark returns NULL for a malformed string when ANSI mode is off, DataFusion's cast errors (https://github.com/apache/datafusion-spark/issues/88)
+query error Cannot cast string 'abc' to value of Float64 type
+SELECT ln('abc');
 
-# Spark parses strings with Java's Double.valueOf, which accepts a d or f suffix in both
-# ANSI modes; DataFusion errors
-# https://github.com/apache/datafusion-spark/issues/88
-# query R
-# SELECT ln('10d');
-# ----
-# 2.302585092994046
+# xfail spark: Spark parses strings with Java's Double.valueOf, which accepts a d or f suffix in both ANSI modes, DataFusion's cast errors (https://github.com/apache/datafusion-spark/issues/88)
+query error Cannot cast string '10d' to value of Float64 type
+SELECT ln('10d');
