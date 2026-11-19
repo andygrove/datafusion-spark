@@ -127,6 +127,7 @@ SELECT contains(array('a'), 'a'::string);
 # Spark casts floating-point, decimal and timestamp arguments to a string, which
 # this version cannot do yet, so it rejects them.
 # https://github.com/apache/datafusion-spark/issues/347
+# xfail spark: contains rejects a DOUBLE argument that Spark casts to a string (https://github.com/apache/datafusion-spark/issues/347)
 statement error Spark `contains` function expects STRING or BINARY arguments, got Float64
 SELECT contains(1.5::double, '.');
 

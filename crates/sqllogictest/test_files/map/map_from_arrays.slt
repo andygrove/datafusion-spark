@@ -79,6 +79,7 @@ NULL
 {6: f, 7: g, 8: h}
 
 # Test with complex types
+# xfail spark: DataFusion's struct() names fields c0, c1, ..., Spark's names them col1, col2, ... (https://github.com/apache/datafusion-spark/issues/364)
 query ?
 SELECT map_from_arrays(array(array('a', 'b'), array('c', 'd')), array(struct(1, 2, 3), struct(4, 5, 6)));
 ----
@@ -140,16 +141,19 @@ SELECT map_from_arrays(arrow_cast(array('a', 'b', 'c'), 'FixedSizeList(3, Utf8)'
 statement ok
 set spark.map_key_dedup_policy = 'LAST_WIN';
 
+# xfail spark: runner: SET spark.map_key_dedup_policy is not mapped to spark.sql.mapKeyDedupPolicy, so Spark keeps EXCEPTION
 query ?
 SELECT map_from_arrays(array(1, 2, 1), array('a', 'b', 'c'));
 ----
 {1: c, 2: b}
 
+# xfail spark: runner: SET spark.map_key_dedup_policy is not mapped to spark.sql.mapKeyDedupPolicy, so Spark keeps EXCEPTION
 query ?
 SELECT map_from_arrays(array('k', 'k', 'k'), array(1, 2, 3));
 ----
 {k: 3}
 
+# xfail spark: runner: SET spark.map_key_dedup_policy is not mapped to spark.sql.mapKeyDedupPolicy, so Spark keeps EXCEPTION
 query ?
 SELECT map_from_arrays(array(true, false, true), array('a', NULL, 'b'));
 ----

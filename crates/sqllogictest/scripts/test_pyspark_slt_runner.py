@@ -75,6 +75,29 @@ class ParseTest(unittest.TestCase):
         [record] = parse("query T\nSELECT format_string('Line1%nLine2');\n----\n \n01)Line1\n02)Line2\n")
         self.assertEqual(record.expected, [" ", "01)Line1", "02)Line2"])
 
+    def test_xfail(self):
+        records = parse(
+            "# xfail spark: Spark returns NULL\n"
+            "skipif postgres\n"
+            "query I\n"
+            "SELECT 1\n"
+            "----\n"
+            "1\n"
+            "\n"
+            "query I\n"
+            "SELECT 2\n"
+            "\n"
+            "#xfail spark:   no space after the hash  \n"
+            "statement ok\n"
+            "SELECT 3\n"
+            "\n"
+            "# xfail postgres: another engine\n"
+            "query I\n"
+            "SELECT 4\n"
+        )
+        reasons = [record.xfail_reason for record in records]
+        self.assertEqual(reasons, ["Spark returns NULL", None, "no space after the hash", None])
+
 
 class TranslateTest(unittest.TestCase):
     def test_spark_parses_double_colon_casts(self):
@@ -504,6 +527,26 @@ class RunRecordTest(unittest.TestCase):
         self.assertEqual(len(outcome.actual), r.MAX_ROWS + 1)
         self.assertEqual(outcome.actual[-1], f"... (more than {r.MAX_ROWS} rows)")
         self.assertIn("... 981 more line(s)", r.report(outcome, "4.2.0"))
+
+    def test_xfail(self):
+        result = (FakeSchema("IntegerType"), [(1,)])
+        outcome = self.outcome("# xfail spark: a known bug\nquery I\nSELECT a\n----\n2\n", result)
+        self.assertEqual((outcome.status, outcome.detail), ("xfail", "results differ (a known bug)"))
+        self.assertEqual(r.report(outcome, "4.2.0").split(": ", 1)[1], "expected failure: results differ (a known bug)")
+        error = r.SparkError("error", "[DIVIDE_BY_ZERO]")
+        self.assertEqual(self.outcome("# xfail spark: x\nquery I\nSELECT a\n----\n1\n", error).status, "xfail")
+        self.assertEqual(self.outcome("# xfail spark: x\nquery I\nSELECT a\n----\n1.0\n", result).status, "xfail")
+
+    def test_xpass(self):
+        result = (FakeSchema("IntegerType"), [(1,)])
+        outcome = self.outcome("# xfail spark: a fixed bug\nquery I\nSELECT a\n----\n1\n", result)
+        self.assertEqual(outcome.status, "xpass")
+        self.assertIn("remove `# xfail spark: a fixed bug`", r.report(outcome, "4.2.0"))
+
+    def test_xfail_skipped_record_stays_skipped(self):
+        parse_error = r.SparkError("parse", "Spark cannot parse it (PARSE_SYNTAX_ERROR)")
+        outcome = self.outcome("# xfail spark: x\nquery ?\nSELECT [1]\n----\n[1]\n", parse_error)
+        self.assertEqual(outcome.status, "skip")
 
     def test_session_died(self):
         died = type("Py4JNetworkError", (Exception,), {})("Answer from Java side is empty")

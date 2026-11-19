@@ -372,9 +372,12 @@ fn spark_timestamp_text<T: ArrowTimestampType>(
         Some(tz) => {
             let dt =
                 as_datetime_with_timezone::<T>(value, tz).ok_or_else(out_of_range)?;
-            let offset = dt.format("%:z").to_string();
+            // `%::z` keeps the seconds of the offset (`%:z` rounds them away);
+            // they are written only when not zero
+            let offset = dt.format("%::z").to_string();
+            let offset = offset.strip_suffix(":00").unwrap_or(&offset);
             // Java's `XXX` pattern writes a zero offset as `Z`
-            let offset = if offset == "+00:00" { "Z" } else { &offset };
+            let offset = if offset == "+00:00" { "Z" } else { offset };
             Ok(format!("{}{offset}", dt.format(SPARK_TIMESTAMP_FORMAT)))
         }
         None => Ok(as_datetime::<T>(value)
@@ -1755,6 +1758,37 @@ mod tests {
             out.value(0),
             r#"{"plus5":"2024-01-01T01:02:03.123Z","secs":"2024-01-01T01:02:03.000Z","l":["2024-01-01T01:02:03.000Z"]}"#
         );
+    }
+
+    /// 1800-01-01 07:52:58 UTC, in microseconds since the epoch: midnight in
+    /// `America/Los_Angeles`, whose offset was then its local mean time
+    /// (UTC-07:52:58)
+    const LMT_MICROS: i64 = -5_364_634_022_000_000;
+
+    #[test]
+    fn test_timestamp_offset_keeps_its_seconds() {
+        // with the session time zone America/Los_Angeles, Spark writes
+        // TIMESTAMP '1800-01-01 00:00:00' as 1800-01-01T00:00:00.000-07:52:58:
+        // an offset with a seconds part is not rounded to the minute
+        let t = Arc::new(
+            TimestampMicrosecondArray::from(vec![TS_MICROS, LMT_MICROS])
+                .with_timezone("UTC"),
+        ) as ArrayRef;
+        let fields = Fields::from(vec![Field::new("t", t.data_type().clone(), true)]);
+        let input = StructArray::new(fields, vec![t], None);
+        let field = field_of(&input);
+
+        let mut config = ConfigOptions::default();
+        config
+            .set("datafusion.execution.time_zone", "America/Los_Angeles")
+            .unwrap();
+        let input = ColumnarValue::Array(Arc::new(input));
+        let out = run_with_config(input, field, config).unwrap();
+        let out = as_string_array(&out).unwrap();
+        // an offset of whole minutes keeps its short form
+        assert_eq!(out.value(0), r#"{"t":"2023-12-31T17:02:03.123-08:00"}"#);
+        // the local mean time offset keeps its seconds
+        assert_eq!(out.value(1), r#"{"t":"1800-01-01T00:00:00.000-07:52:58"}"#);
     }
 
     #[test]

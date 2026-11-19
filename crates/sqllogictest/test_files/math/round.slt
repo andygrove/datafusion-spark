@@ -292,23 +292,27 @@ SELECT round(arrow_cast(42, 'UInt32'), 2::int);
 # --- Decimal32 ---
 
 # round(decimal32, 0) — round to integer
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(arrow_cast(2.5, 'Decimal32(9, 1)'), 0::int);
 ----
 3.0
 
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(arrow_cast(-2.5, 'Decimal32(9, 1)'), 0::int);
 ----
 -3.0
 
 # round(decimal32, 2)
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(arrow_cast(2.345, 'Decimal32(9, 3)'), 2::int);
 ----
 2.350
 
 # round(decimal32) default scale = 0
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(arrow_cast(3.5, 'Decimal32(9, 1)'));
 ----
@@ -317,23 +321,27 @@ SELECT round(arrow_cast(3.5, 'Decimal32(9, 1)'));
 # --- Decimal64 ---
 
 # round(decimal64, 0) — round to integer
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(arrow_cast(2.5, 'Decimal64(18, 1)'), 0::int);
 ----
 3.0
 
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(arrow_cast(-2.5, 'Decimal64(18, 1)'), 0::int);
 ----
 -3.0
 
 # round(decimal64, 2)
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(arrow_cast(2.345, 'Decimal64(18, 3)'), 2::int);
 ----
 2.350
 
 # round(decimal64) default scale = 0
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(arrow_cast(3.5, 'Decimal64(18, 1)'));
 ----
@@ -342,22 +350,26 @@ SELECT round(arrow_cast(3.5, 'Decimal64(18, 1)'));
 # --- Decimal128 ---
 
 # round(decimal, 0) — round to integer
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(2.5::decimal(2,1), 0::int);
 ----
 3.0
 
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(3.5::decimal(2,1), 0::int);
 ----
 4.0
 
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(-2.5::decimal(2,1), 0::int);
 ----
 -3.0
 
 # round(decimal) default scale = 0
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(2.5::decimal(2,1));
 ----
@@ -365,11 +377,13 @@ SELECT round(2.5::decimal(2,1));
 
 # round(decimal, 2) — keep 2 decimal places
 # Spark reduces the scale and returns 2.35 as DECIMAL(10, 2) (https://github.com/apache/datafusion-spark/issues/37)
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(2.345::decimal(10,3), 2::int);
 ----
 2.350
 
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(2.355::decimal(10,3), 2::int);
 ----
@@ -382,18 +396,21 @@ SELECT round(2.5::decimal(2,1), 5::int);
 2.5
 
 # round(decimal, 1)
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(123.456::decimal(10,3), 1::int);
 ----
 123.500
 
 # round(decimal, negative scale) — round to tens
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(125.0::decimal(10,1), -1::int);
 ----
 130.0
 
 # round(decimal, extreme negative scale) — should return 0, not error
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(2.5::decimal(10,1), -400::int);
 ----
@@ -402,23 +419,27 @@ SELECT round(2.5::decimal(10,1), -400::int);
 # --- Decimal256 ---
 
 # round(decimal256, 0) — round to integer
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(arrow_cast(2.5, 'Decimal256(38, 1)'), 0::int);
 ----
 3.0
 
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(arrow_cast(-2.5, 'Decimal256(38, 1)'), 0::int);
 ----
 -3.0
 
 # round(decimal256, 2)
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(arrow_cast(2.345, 'Decimal256(38, 3)'), 2::int);
 ----
 2.350
 
 # round(decimal256) default scale = 0
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(arrow_cast(3.5, 'Decimal256(38, 1)'));
 ----
@@ -466,6 +487,7 @@ CREATE TABLE test_round (id int, int_val int, float_val double, dec_val decimal(
   (4, 123, 1.4, 1.005),
   (5, NULL, NULL, NULL);
 
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query IIRR rowsort
 SELECT id, round(int_val, -1::int), round(float_val), round(dec_val, 2::int) FROM test_round;
 ----
@@ -551,6 +573,7 @@ SELECT round(2.5::double);
 ----
 3
 
+# xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
 SELECT round(2.5::decimal(2,1), 0::int);
 ----
@@ -581,6 +604,7 @@ set datafusion.execution.enable_ansi_mode = false;
 # -------------------------------------------------------------------
 
 # round(string) should fail
+# xfail spark: round rejects a STRING argument, Spark casts it to DOUBLE (NULL for 'hello') (https://github.com/apache/datafusion-spark/issues/41)
 query error Error during planning: Function 'round' failed to match any signature
 SELECT round('hello'::varchar);
 

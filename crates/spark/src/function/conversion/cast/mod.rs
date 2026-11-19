@@ -15,6 +15,8 @@
 //! than falling through to Arrow's cast and producing a result that differs
 //! from Spark's.
 
+mod data_type;
+mod numeric;
 mod udf;
 mod utils;
 
@@ -31,9 +33,12 @@ use datafusion_common::{
 use datafusion_expr::ColumnarValue;
 
 use crate::function::timezone_utils::{local_to_timestamp, timestamp_to_local};
+use crate::function::type_coercion::spark_sql_type;
 use crate::{EvalMode, SparkTimeZone};
+use numeric::{cast_float_to_timestamp, cast_int_to_timestamp};
 use utils::remove_trailing_zeroes;
 
+pub(crate) use data_type::parse_spark_type;
 pub use udf::SparkCast;
 
 /// The format Spark uses for a timestamp cast to a string. `%.f` writes the
@@ -54,6 +59,8 @@ pub struct SparkCastOptions {
     /// `TIMESTAMP` to `TIMESTAMP_NTZ`, `STRING` or `DATE`, or from
     /// `TIMESTAMP_NTZ` to `TIMESTAMP`, returns an error without one.
     pub timezone: Option<SparkTimeZone>,
+    /// Why `timezone` is missing, for the error of a cast that needs it.
+    missing_timezone_reason: Option<String>,
 }
 
 impl SparkCastOptions {
@@ -62,20 +69,39 @@ impl SparkCastOptions {
         Self {
             eval_mode,
             timezone: None,
+            missing_timezone_reason: None,
         }
     }
 
     pub fn with_timezone(self, timezone: SparkTimeZone) -> Self {
         Self {
             timezone: Some(timezone),
+            missing_timezone_reason: None,
+            ..self
+        }
+    }
+
+    /// Options with no session time zone because the configured one could not
+    /// be used, for `reason`.
+    pub(crate) fn without_timezone_because(self, reason: String) -> Self {
+        Self {
+            timezone: None,
+            missing_timezone_reason: Some(reason),
             ..self
         }
     }
 
     fn session_timezone(&self) -> Result<&SparkTimeZone> {
-        self.timezone.as_ref().ok_or_else(|| {
-            exec_datafusion_err!("Casting a timestamp requires a session time zone")
-        })
+        self.timezone
+            .as_ref()
+            .ok_or_else(|| match &self.missing_timezone_reason {
+                Some(reason) => exec_datafusion_err!(
+                    "Casting a timestamp requires a session time zone: {reason}"
+                ),
+                None => exec_datafusion_err!(
+                    "Casting a timestamp requires a session time zone"
+                ),
+            })
     }
 }
 
@@ -159,6 +185,15 @@ pub(crate) fn cast_array(
         // A NULL array has no values, so Arrow's cast only changes the type.
         (Null, _) => arrow_cast(&array),
 
+        // Numbers are seconds since the epoch. Spark has no cast from a number
+        // to TIMESTAMP_NTZ.
+        (Int8 | Int16 | Int32 | Int64, Timestamp(_, tz @ Some(_))) => {
+            cast_int_to_timestamp(&array, tz)
+        }
+        (Float32 | Float64, Timestamp(_, tz @ Some(_))) => {
+            cast_float_to_timestamp(&array, tz, eval_mode)
+        }
+
         // Timestamps. Arrow's casts ignore the session time zone.
         (Timestamp(_, Some(_)), Int64) => {
             // Spark returns whole seconds, rounded down.
@@ -213,6 +248,38 @@ pub(crate) fn cast_array(
         }
         // Spark replaces invalid UTF-8, and Arrow raises an error.
         (Binary, Utf8) => not_yet_ported(from_type, to_type, eval_mode),
+        // Casts Spark supports that Arrow does not do the same way.
+        (
+            Utf8 | LargeUtf8 | Utf8View,
+            Boolean
+            | Int8
+            | Int16
+            | Int32
+            | Int64
+            | Float32
+            | Float64
+            | Decimal128(_, _)
+            | Date32
+            | Timestamp(_, _),
+        )
+        | (Boolean | Decimal128(_, _), Timestamp(_, Some(_)))
+        | (Boolean | Int8 | Int16 | Int32 | Int64, Decimal128(_, _))
+        | (Int8 | Int16 | Int32 | Int64, Binary)
+        | (Float32 | Float64, Decimal128(_, _) | Utf8)
+        | (Decimal128(_, _), Boolean | Float32 | Float64)
+        | (Date32, Timestamp(_, _))
+        | (
+            Timestamp(_, Some(_)),
+            Boolean | Int8 | Int16 | Int32 | Float32 | Float64 | Decimal128(_, _),
+        )
+        | (
+            Date32,
+            Boolean | Int8 | Int16 | Int64 | Float32 | Float64 | Decimal128(_, _),
+        )
+        | (Struct(_) | List(_) | Map(_, _), Utf8)
+        | (Struct(_), Struct(_))
+        | (List(_), List(_))
+        | (Map(_, _), Map(_, _)) => not_yet_ported(from_type, to_type, eval_mode),
         // LEGACY returns NULL and ANSI rejects the cast, while Arrow reinterprets
         // the days since the epoch.
         (Date32, Int32) => not_yet_ported(from_type, to_type, eval_mode),
@@ -223,7 +290,11 @@ pub(crate) fn cast_array(
 }
 
 fn not_supported(from_type: &DataType, to_type: &DataType) -> Result<ArrayRef> {
-    not_impl_err!("Spark-compatible cast from {from_type} to {to_type} is not supported")
+    not_impl_err!(
+        "Spark-compatible cast from {} to {} is not supported",
+        spark_sql_type(from_type),
+        spark_sql_type(to_type)
+    )
 }
 
 fn not_yet_ported(
@@ -232,8 +303,9 @@ fn not_yet_ported(
     eval_mode: EvalMode,
 ) -> Result<ArrayRef> {
     not_impl_err!(
-        "Spark-compatible cast from {from_type} to {to_type} in {eval_mode:?} mode is \
-         not implemented yet"
+        "Spark-compatible cast from {} to {} in {eval_mode:?} mode is not implemented yet",
+        spark_sql_type(from_type),
+        spark_sql_type(to_type)
     )
 }
 
@@ -321,9 +393,10 @@ mod tests {
 
     #[test]
     fn test_unsupported_cast_is_an_error() {
+        // Spark has no cast from DATE to BINARY.
         let error = cast_array(
-            Arc::new(StringArray::from(vec!["1"])),
-            &DataType::Int32,
+            Arc::new(arrow::array::Date32Array::from(vec![1])),
+            &DataType::Binary,
             &legacy(),
         )
         .unwrap_err();
@@ -334,9 +407,40 @@ mod tests {
         assert!(
             error
                 .to_string()
-                .contains("cast from Utf8 to Int32 is not supported"),
+                .contains("cast from DATE to BINARY is not supported"),
             "{error}"
         );
+
+        // Spark supports a cast from STRING to INT, which is not ported yet.
+        let error = cast_array(
+            Arc::new(StringArray::from(vec!["1"])),
+            &DataType::Int32,
+            &legacy(),
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("not implemented yet"), "{error}");
+    }
+
+    /// Casts from TIMESTAMP and DATE to numbers and BOOLEAN exist in Spark, so
+    /// they are reported as not implemented rather than not supported.
+    #[test]
+    fn test_timestamp_and_date_to_numbers_are_pending() {
+        let timestamp: ArrayRef =
+            Arc::new(TimestampMicrosecondArray::from(vec![0]).with_timezone("UTC"));
+        let date: ArrayRef = Arc::new(arrow::array::Date32Array::from(vec![0]));
+        let targets = [
+            DataType::Boolean,
+            DataType::Int16,
+            DataType::Float64,
+            DataType::Decimal128(20, 2),
+        ];
+        for (array, target) in [&timestamp, &date]
+            .into_iter()
+            .flat_map(|array| targets.iter().map(move |t| (array, t)))
+        {
+            let error = cast_array(Arc::clone(array), target, &legacy()).unwrap_err();
+            assert!(error.to_string().contains("not implemented yet"), "{error}");
+        }
     }
 
     /// Arrow reinterprets the days since the epoch, while Spark returns NULL

@@ -77,11 +77,13 @@ SELECT make_interval(0, 0, 0, 0, 2147483647, 1, 0.0);
 ----
 NULL
 
+# xfail spark: test: || '' turns the interval into a string here, Spark's concat rejects an INTERVAL argument
 query T
 SELECT make_interval(0, 0, 0, 0, 0, 0, 0.0) || '';
 ----
 0 secs
 
+# xfail spark: test: || '' turns the interval into a string here, Spark's concat rejects an INTERVAL argument
 query T
 SELECT make_interval() || '';
 ----

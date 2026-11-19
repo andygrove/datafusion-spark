@@ -50,6 +50,7 @@ SELECT date_trunc('MON', '2015-03-05T09:32:05.123456'::timestamp);
 ----
 2015-03-01T00:00:00
 
+# xfail spark: Spark returns NULL for an unsupported or NULL trunc/date_trunc format (https://github.com/apache/datafusion-spark/issues/40)
 skipif evaluate
 query P
 SELECT date_trunc('MONTHS', '2015-03-05T09:32:05.123456'::timestamp);
@@ -133,6 +134,7 @@ SELECT date_trunc('YEAR', '2015-03-05T09:32:05.123456');
 2015-01-01T00:00:00
 
 # Null handling
+# xfail spark: Spark returns NULL for an unsupported or NULL trunc/date_trunc format (https://github.com/apache/datafusion-spark/issues/40)
 skipif evaluate
 query error DataFusion error: Optimizer rule 'simplify_expressions' failed\ncaused by\nError during planning: First argument of `DATE_TRUNC` must be non-null scalar Utf8
 SELECT date_trunc(NULL, '2015-03-05T09:32:05.123456');
@@ -144,6 +146,7 @@ SELECT date_trunc('YEAR', NULL::timestamp);
 NULL
 
 # incorrect format
+# xfail spark: Spark returns NULL for an unsupported or NULL trunc/date_trunc format (https://github.com/apache/datafusion-spark/issues/40)
 skipif evaluate
 query error DataFusion error: Execution error: Unsupported date_trunc granularity: 'test'. Supported granularities are: microsecond, millisecond, second, minute, hour, day, week, month, quarter, year
 SELECT date_trunc('test', '2015-03-05T09:32:05.123456');

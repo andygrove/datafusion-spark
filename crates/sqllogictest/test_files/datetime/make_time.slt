@@ -271,6 +271,25 @@ NULL
 statement ok
 DROP TABLE make_time_t;
 
+# A NULL in any argument returns NULL before the other fields are checked
+statement ok
+CREATE TABLE make_time_null_t AS VALUES
+  (NULL::INT, 60, 60::DECIMAL(16, 6)),
+  (24, NULL::INT, -0.5::DECIMAL(16, 6)),
+  (24, 60, NULL::DECIMAL(16, 6)),
+  (1, 2, 3::DECIMAL(16, 6));
+
+query D rowsort
+SELECT make_time(column1, column2, column3) FROM make_time_null_t;
+----
+01:02:03
+NULL
+NULL
+NULL
+
+statement ok
+DROP TABLE make_time_null_t;
+
 # Seconds columns of other types
 query D
 SELECT make_time(1, 2, c) FROM (VALUES (3::INT), (59::INT), (NULL::INT)) AS t(c);
