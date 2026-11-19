@@ -105,3 +105,79 @@ query ?
 select array_repeat('a', NULL);
 ----
 NULL
+
+# Spark's `ArrayRepeat` takes an INT count. An integer count of another type is
+# cast to INT, because DataFusion types `2` as BIGINT.
+# xfail spark: intended: Spark rejects a non-INT integer count, it is accepted here because DataFusion types an integer literal as BIGINT (https://github.com/apache/datafusion-spark/issues/97)
+query ?
+SELECT array_repeat('a', 2::TINYINT);
+----
+[a, a]
+
+# xfail spark: intended: Spark rejects a non-INT integer count, it is accepted here because DataFusion types an integer literal as BIGINT (https://github.com/apache/datafusion-spark/issues/97)
+query ?
+SELECT array_repeat('a', 2::SMALLINT);
+----
+[a, a]
+
+# xfail spark: intended: Spark rejects a non-INT integer count, it is accepted here because DataFusion types an integer literal as BIGINT (https://github.com/apache/datafusion-spark/issues/97)
+query ?
+SELECT array_repeat('a', 2::BIGINT);
+----
+[a, a]
+
+query ?
+SELECT array_repeat('a', arrow_cast(2, 'UInt32'));
+----
+[a, a]
+
+query ?
+SELECT array_repeat(1, c) FROM (VALUES (2), (NULL), (0)) AS t(c);
+----
+[1, 1]
+NULL
+[]
+
+# A dictionary-encoded integer count has the type of its values.
+# xfail spark: intended: Spark rejects a non-INT integer count, it is accepted here because DataFusion types an integer literal as BIGINT (https://github.com/apache/datafusion-spark/issues/97)
+query ?
+SELECT array_repeat('a', arrow_cast(2, 'Dictionary(Int32, Int64)'));
+----
+[a, a]
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The second parameter of `array_repeat` requires the "INT" type, however it has the type "STRING"\. SQLSTATE: 42K09
+SELECT array_repeat('a', arrow_cast('2', 'Dictionary(Int32, Utf8)'));
+
+# A BIGINT count outside the INT range fails the cast to INT. Spark rejects
+# this at analysis with UNEXPECTED_INPUT_TYPE, because it types the literal as
+# BIGINT. `coerce_types` only sees types, so it accepts every integer type and
+# the out-of-range value fails the cast instead.
+query error Cast error
+SELECT array_repeat('a', 3000000000);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The second parameter of `array_repeat` requires the "INT" type, however it has the type "STRING"\. SQLSTATE: 42K09
+SELECT array_repeat('a', '2');
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The second parameter of `array_repeat` requires the "INT" type, however it has the type "DOUBLE"\. SQLSTATE: 42K09
+SELECT array_repeat('a', 2.7::DOUBLE);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The second parameter of `array_repeat` requires the "INT" type, however it has the type "DECIMAL\(2,1\)"\. SQLSTATE: 42K09
+SELECT array_repeat('a', 2.7::DECIMAL(2, 1));
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The second parameter of `array_repeat` requires the "INT" type, however it has the type "BOOLEAN"\. SQLSTATE: 42K09
+SELECT array_repeat('a', true);
+
+# The same with ANSI mode on.
+statement ok
+set datafusion.execution.enable_ansi_mode = true;
+
+query ?
+SELECT array_repeat('a', 2);
+----
+[a, a]
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The second parameter of `array_repeat` requires the "INT" type, however it has the type "STRING"\. SQLSTATE: 42K09
+SELECT array_repeat('a', '2');
+
+statement ok
+set datafusion.execution.enable_ansi_mode = false;

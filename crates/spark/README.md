@@ -24,7 +24,8 @@ errors, ...). This crate is useful when you are:
 - running SQL migrated from Spark on DataFusion.
 
 Not every Spark function is implemented yet. Progress is tracked in the
-[`datafusion-spark` epic]; see the [API documentation] for the functions available today.
+[`datafusion-spark` epic]. See the [function reference] for the documented functions, with
+descriptions, arguments and examples, and the [API documentation] for the Rust API.
 
 ## Quick start
 
@@ -102,4 +103,5 @@ and the [DataFusion contributor guide](https://datafusion.apache.org/contributor
 [apache spark]: https://spark.apache.org/
 [apache datafusion comet]: https://datafusion.apache.org/comet/
 [api documentation]: https://docs.rs/datafusion-spark
+[function reference]: https://github.com/apache/datafusion-spark/blob/main/docs/functions/README.md
 [`datafusion-spark` epic]: https://github.com/apache/datafusion/issues/15914

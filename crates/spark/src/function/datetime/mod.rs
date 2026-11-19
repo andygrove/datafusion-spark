@@ -17,6 +17,7 @@ pub mod dayname;
 pub mod extract;
 pub mod from_utc_timestamp;
 pub mod last_day;
+pub mod make_date;
 pub mod make_dt_interval;
 pub mod make_interval;
 pub mod make_time;
@@ -52,6 +53,7 @@ make_udf_function!(extract::SparkHour, hour);
 make_udf_function!(extract::SparkMinute, minute);
 make_udf_function!(extract::SparkSecond, second);
 make_udf_function!(last_day::SparkLastDay, last_day);
+make_udf_function!(make_date::SparkMakeDate, make_date);
 make_udf_function!(make_dt_interval::SparkMakeDtInterval, make_dt_interval);
 make_udf_function!(make_interval::SparkMakeInterval, make_interval);
 make_udf_function!(make_time::SparkMakeTime, make_time);
@@ -111,6 +113,11 @@ pub mod expr_fn {
         last_day,
         "Returns the last day of the month which the date belongs to.",
         arg1
+    ));
+    export_functions!((
+        make_date,
+        "Creates a date from `year`, `month` and `day` fields.",
+        year month day
     ));
     export_functions!((
         make_dt_interval,
@@ -224,6 +231,7 @@ pub fn functions() -> Vec<Arc<ScalarUDF>> {
         from_utc_timestamp(),
         hour(),
         last_day(),
+        make_date(),
         make_dt_interval(),
         make_interval(),
         make_time(),

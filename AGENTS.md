@@ -10,9 +10,11 @@ DataFusion expressions that emulate Apache Spark's behavior.
 
 - `crates/spark` – the `datafusion-spark` crate
 - `crates/sqllogictest` – `.slt` tests for the Spark functions
+- `crates/docgen` – generates the `docs/functions` reference from `#[user_doc]` (run `dev/update_function_docs.sh`)
 
 Before opening a PR, run `cargo fmt --all`, `cargo clippy --all-targets --all-features -- -D warnings`,
 `cargo test -p datafusion-spark` and `cargo test -p datafusion-spark-sqllogictest`.
+If you changed any `#[user_doc]` attribute, also run `dev/update_function_docs.sh` and commit the changes under `docs/functions`.
 
 ## Agent Skills
 
