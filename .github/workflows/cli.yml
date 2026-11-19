@@ -28,8 +28,26 @@ jobs:
           cli=target/debug/datafusion-spark-cli
           $cli -q --format csv -c "SELECT sha2('Spark', 256) AS h" \
             | grep -x '529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b'
-          if $cli -q -c "SELECT abs(cast(-2147483648 AS int))"; then
+          if out=$($cli -q -c "SELECT abs(cast(-2147483648 AS int))" 2>&1); then
             echo "expected an ARITHMETIC_OVERFLOW error with ANSI mode on" && exit 1
           fi
+          grep -F '[ARITHMETIC_OVERFLOW]' <<< "$out"
           $cli -q --ansi false --format csv -c "SELECT abs(cast(-2147483648 AS int)) AS a" \
             | grep -x -- '-2147483648'
+      # SQL read from stdin by the REPL. `LONG` is a type in the Spark dialect only.
+      - name: Run the REPL from stdin
+        run: |
+          set -euo pipefail
+          echo "SELECT CAST(1 AS LONG) AS l;" \
+            | target/debug/datafusion-spark-cli -q --format csv | grep -x '1'
+      # `-f` and `-r` paths are relative to the working directory, not to `-p`.
+      - name: Run files with a data path
+        run: |
+          set -euo pipefail
+          cli=$PWD/target/debug/datafusion-spark-cli
+          dir=$(mktemp -d) && cd "$dir" && mkdir data
+          echo "SELECT 'cwd' AS s;" > q.sql
+          echo "SELECT 'data' AS s;" > data/q.sql
+          $cli -q --format csv -p data -f q.sql | grep -x 'cwd'
+          echo "" | $cli -q --format csv -p data -r q.sql | grep -x 'cwd'
+          echo "SELECT 'stdin' AS s;" | $cli -q --format csv -p data -f /dev/stdin | grep -x 'stdin'

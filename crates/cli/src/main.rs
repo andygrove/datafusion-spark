@@ -9,7 +9,9 @@
 //! object stores) comes from the `datafusion-cli` library.
 
 use std::env;
-use std::path::Path;
+use std::fs::File;
+use std::io::BufReader;
+use std::path::{Path, absolute};
 use std::process::ExitCode;
 use std::sync::Arc;
 
@@ -132,7 +134,7 @@ async fn main() -> ExitCode {
 
 async fn main_inner() -> Result<()> {
     env_logger::init();
-    let args = Args::parse();
+    let mut args = Args::parse();
 
     if !args.quiet {
         println!(
@@ -143,6 +145,10 @@ async fn main_inner() -> Result<()> {
     }
 
     if let Some(path) = &args.data_path {
+        // `-f` and `-r` paths are relative to where the CLI was started, not to
+        // the data directory.
+        args.file = absolute_paths(&args.file)?;
+        args.rc = absolute_paths(&args.rc)?;
         env::set_current_dir(Path::new(path))?;
     }
 
@@ -179,17 +185,46 @@ async fn main_inner() -> Result<()> {
 
     if args.repl_mode() {
         if !args.rc.is_empty() {
-            exec::exec_from_files(&ctx, args.rc, &print_options).await?;
+            exec_files(&ctx, &args.rc, &print_options).await?;
         }
         return exec::exec_from_repl(&ctx, &mut print_options)
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)));
     }
     if !args.file.is_empty() {
-        exec::exec_from_files(&ctx, args.file.clone(), &print_options).await?;
+        exec_files(&ctx, &args.file, &print_options).await?;
     }
     if !args.command.is_empty() {
         exec::exec_from_commands(&ctx, args.command.clone(), &print_options).await?;
+    }
+    Ok(())
+}
+
+/// Makes each path absolute, leaving the names of stdin as they are.
+fn absolute_paths(paths: &[String]) -> Result<Vec<String>> {
+    paths
+        .iter()
+        .map(|path| {
+            if is_stdin_location(path) {
+                return Ok(path.clone());
+            }
+            Ok(absolute(path)?.to_string_lossy().into_owned())
+        })
+        .collect()
+}
+
+/// Runs the SQL in each file in turn. Unlike `exec::exec_from_files`, which panics,
+/// a file that cannot be opened is an error.
+async fn exec_files(
+    ctx: &SessionContext,
+    files: &[String],
+    print_options: &PrintOptions,
+) -> Result<()> {
+    for path in files {
+        let file = File::open(path).map_err(|e| {
+            DataFusionError::Execution(format!("Cannot open file '{path}': {e}"))
+        })?;
+        exec::exec_from_lines(ctx, &mut BufReader::new(file), print_options).await?;
     }
     Ok(())
 }
@@ -218,7 +253,8 @@ fn session_config(args: &Args) -> Result<SessionConfig> {
 }
 
 fn parse_valid_file(path: &str) -> Result<String, String> {
-    if Path::new(path).is_file() {
+    // stdin is a pipe or a terminal, not a regular file.
+    if is_stdin_location(path) || Path::new(path).is_file() {
         Ok(path.to_string())
     } else {
         Err(format!("Invalid file '{path}'"))

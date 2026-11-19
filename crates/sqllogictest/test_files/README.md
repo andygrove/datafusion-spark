@@ -42,7 +42,8 @@ set datafusion.execution.enable_ansi_mode = false;
 Run `cargo run -p datafusion-spark-cli` to explore Spark-compatible functions
 interactively. The CLI enables the Spark SQL dialect and registers the
 Spark-compatible function library. Unlike these test files, it starts with
-ANSI mode on, as Spark 4 does. Pass `--ansi false` to turn it off.
+ANSI mode on, as Spark 4 does. To turn it off, pass `--ansi false` after `--`,
+so that `cargo` passes it to the CLI: `cargo run -p datafusion-spark-cli -- --ansi false`.
 
 ### Finding Test Cases
 

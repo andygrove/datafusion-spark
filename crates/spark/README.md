@@ -84,7 +84,12 @@ cargo run -p datafusion-spark-cli
 ```
 
 The Spark functions override DataFusion functions with the same name. ANSI mode
-is on by default, as in Spark 4. Pass `--ansi false` for Spark's legacy behavior.
+is on by default, as in Spark 4. Pass `--ansi false` for Spark's legacy behavior,
+after `--` so that `cargo` passes it to the CLI:
+
+```shell
+cargo run -p datafusion-spark-cli -- --ansi false
+```
 
 ## Things to know
 
