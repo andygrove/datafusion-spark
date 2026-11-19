@@ -168,7 +168,7 @@ array_repeat(element, count)
 ### Arguments
 
 - **element**: Value to repeat, of any type. NULL is repeated.
-- **count**: Integer number of times to repeat `element`. Non-integer types are an error. NULL returns NULL.
+- **count**: Number of times to repeat `element`, cast to INT. Non-integer types are an error. NULL returns NULL.
 
 ### Example
 

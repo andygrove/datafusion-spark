@@ -28,6 +28,7 @@ Part of the [datafusion-spark function reference](../README.md).
 - [from_utc_timestamp](#from_utc_timestamp)
 - [hour](#hour)
 - [last_day](#last_day)
+- [make_date](#make_date)
 - [make_dt_interval](#make_dt_interval)
 - [make_interval](#make_interval)
 - [make_time](#make_time)
@@ -349,6 +350,31 @@ last_day(date)
 > SELECT last_day(DATE '2016-02-07');
 2016-02-29
 > SELECT last_day(NULL::DATE);
+NULL
+```
+
+## `make_date`
+
+Creates a date from `year`, `month` and `day` fields. Years from -999999999 to 999999999 are accepted (year 0 is 1 BC), as long as the date fits the DATE range. When the fields do not form a valid date (for example month 13 or February 29 in a non-leap year), the function returns NULL, or raises DATETIME_FIELD_OUT_OF_BOUNDS when `datafusion.execution.enable_ansi_mode` is true. A valid date outside the DATE range (before -5877641-06-23 or after +5881580-07-11) raises ARITHMETIC_OVERFLOW in both modes, as in Spark. Other numeric and string inputs are cast to INT first, which truncates fractions and raises an error if the value is out of the INT range or is not a valid number. These errors match Spark with ANSI mode enabled. With ANSI mode disabled, Spark wraps an out-of-range BIGINT or DECIMAL, truncates a string with a fractional part, returns NULL for a malformed string or a floating-point value out of the INT range, and casts NaN to 0, while this function still errors (see https://github.com/apache/datafusion-spark/issues/88). Returns NULL if any input is NULL. DataFusion's built-in `make_date` differs: it raises an error for an invalid date regardless of ANSI mode, accepts only integer and string arguments, and is limited to years -262143 to 262142.
+
+```sql
+make_date(year, month, day)
+```
+
+### Arguments
+
+- **year**: The year, from -999999999 to 999999999, as an INT. Other integer, floating-point, decimal and string inputs are cast to INT. NULL returns NULL.
+- **month**: The month of the year, from 1 (January) to 12 (December), as an INT. NULL returns NULL.
+- **day**: The day of the month, from 1 to 31, as an INT. NULL returns NULL.
+
+### Example
+
+```sql
+> SELECT make_date(2013, 7, 15);
+2013-07-15
+> SELECT make_date(2019, 7, NULL);
+NULL
+> SELECT make_date(2023, 2, 29);
 NULL
 ```
 
