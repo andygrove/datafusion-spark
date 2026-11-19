@@ -118,11 +118,13 @@ NULL
 statement ok
 set spark.map_key_dedup_policy = 'LAST_WIN';
 
+# xfail spark: runner: SET spark.map_key_dedup_policy is not mapped to spark.sql.mapKeyDedupPolicy, so Spark keeps EXCEPTION
 query ?
 SELECT str_to_map('a:1,b:2,a:3');
 ----
 {a: 3, b: 2}
 
+# xfail spark: runner: SET spark.map_key_dedup_policy is not mapped to spark.sql.mapKeyDedupPolicy, so Spark keeps EXCEPTION
 query ?
 SELECT str_to_map('a:1,a:2,a:3');
 ----
@@ -130,12 +132,14 @@ SELECT str_to_map('a:1,a:2,a:3');
 
 # Missing kv_delim: the later occurrence overwrites the value at the key's
 # first-seen position.
+# xfail spark: runner: SET spark.map_key_dedup_policy is not mapped to spark.sql.mapKeyDedupPolicy, so Spark keeps EXCEPTION
 query ?
 SELECT str_to_map('a:1,b:2,a');
 ----
 {a: NULL, b: 2}
 
 # Multi-row: both clean and duplicate rows succeed under LAST_WIN.
+# xfail spark: runner: SET spark.map_key_dedup_policy is not mapped to spark.sql.mapKeyDedupPolicy, so Spark keeps EXCEPTION
 query ?
 SELECT str_to_map(col) FROM (VALUES ('a:1,b:2'), ('a:3,a:4')) AS t(col);
 ----

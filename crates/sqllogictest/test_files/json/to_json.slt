@@ -267,11 +267,13 @@ SELECT to_json(named_struct('t', arrow_cast('2024-01-01T01:02:03.123456Z', 'Time
 {"t":"2024-01-01T01:02:03.123Z"}
 
 # TIMESTAMP_NTZ (a wall-clock time): no offset
+# xfail spark: runner: DataFusion's TIMESTAMP literal is TIMESTAMP_NTZ, Spark's is TIMESTAMP (LTZ); the runner does not translate it
 query T
 SELECT to_json(named_struct('t', TIMESTAMP '2024-01-01 01:02:03.123456'));
 ----
 {"t":"2024-01-01T01:02:03.123"}
 
+# xfail spark: runner: DataFusion's TIMESTAMP literal is TIMESTAMP_NTZ, Spark's is TIMESTAMP (LTZ); the runner does not translate it
 query T
 SELECT to_json(named_struct('t', TIMESTAMP '2024-01-01 01:02:03'));
 ----
@@ -286,10 +288,30 @@ SELECT to_json(named_struct('t', arrow_cast('2024-01-01T01:02:03.123456Z', 'Time
 {"t":"2024-01-01T03:02:03.123+02:00"}
 
 # the session time zone does not apply to TIMESTAMP_NTZ
+# xfail spark: runner: DataFusion's TIMESTAMP literal is TIMESTAMP_NTZ, Spark's is TIMESTAMP (LTZ); the runner does not translate it
 query T
 SELECT to_json(named_struct('t', TIMESTAMP '2024-01-01 01:02:03.123456'));
 ----
 {"t":"2024-01-01T01:02:03.123"}
+
+statement ok
+RESET datafusion.execution.time_zone;
+
+# the offset keeps its seconds when it has any: with the session time zone America/Los_Angeles,
+# Spark writes TIMESTAMP '1800-01-01 00:00:00' (07:52:58 UTC) with the local mean time offset
+statement ok
+SET datafusion.execution.time_zone = 'America/Los_Angeles';
+
+query T
+SELECT to_json(named_struct('t', arrow_cast('1800-01-01T07:52:58Z', 'Timestamp(Microsecond, Some("America/Los_Angeles"))')));
+----
+{"t":"1800-01-01T00:00:00.000-07:52:58"}
+
+# an offset of whole minutes keeps its short form
+query T
+SELECT to_json(named_struct('t', arrow_cast('2024-01-01T01:02:03.123456Z', 'Timestamp(Microsecond, Some("America/Los_Angeles"))')));
+----
+{"t":"2023-12-31T17:02:03.123-08:00"}
 
 statement ok
 RESET datafusion.execution.time_zone;
@@ -341,6 +363,7 @@ query error to_json.* but received 2
 SELECT to_json(named_struct('a', 1::INT), named_struct('b', 2::INT));
 
 # types without a Spark JSON representation are rejected at planning time
+# xfail spark: intended: Arrow intervals do not record Spark's start and end fields, so to_json rejects them
 query error Error during planning: to_json: field i has type Interval\(MonthDayNano\), which has no Spark JSON representation
 SELECT to_json(named_struct('i', INTERVAL '1' DAY));
 

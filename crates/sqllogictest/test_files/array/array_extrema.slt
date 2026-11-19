@@ -1,0 +1,238 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+# Tests for Spark-compatible array_max and array_min.
+# NULL elements are skipped; a NULL, empty or all-NULL array returns NULL.
+# Expected values verified with pyspark==4.2.0.
+
+query II
+SELECT array_max(array(1, 20, NULL, 3)), array_min(array(1, 20, NULL, 3));
+----
+20 1
+
+query II
+SELECT array_max(array(CAST(1 AS TINYINT), CAST(-1 AS TINYINT))), array_min(array(1L, 2L));
+----
+1 1
+
+query II
+SELECT array_max(CAST(NULL AS ARRAY<INT>)), array_min(CAST(NULL AS ARRAY<INT>));
+----
+NULL NULL
+
+query I
+SELECT array_max(array(CAST(NULL AS INT)));
+----
+NULL
+
+# Spark accepts an untyped NULL, an empty array and an array of untyped NULLs, and returns
+# a NULL of the NULL type. DataFusion's built-in raises a planning error for these.
+query ??
+SELECT array_max(NULL), array_min(NULL);
+----
+NULL NULL
+
+query ??
+SELECT array_max(array()), array_min(array(NULL, NULL));
+----
+NULL NULL
+
+# NaN is greater than every other value, including infinity
+query RR
+SELECT array_max(array(CAST('NaN' AS DOUBLE), CAST(1.0 AS DOUBLE), CAST('Infinity' AS DOUBLE))),
+       array_min(array(CAST('NaN' AS DOUBLE), CAST(1.0 AS DOUBLE), CAST('-Infinity' AS DOUBLE)));
+----
+NaN -Infinity
+
+query RR
+SELECT array_max(array(CAST(-0.0 AS DOUBLE), CAST(0.0 AS DOUBLE), CAST('NaN' AS DOUBLE))),
+       array_min(array(CAST('NaN' AS DOUBLE), CAST('NaN' AS DOUBLE)));
+----
+NaN NaN
+
+query RR
+SELECT array_max(array(CAST('NaN' AS FLOAT), CAST(1.5 AS FLOAT))), array_min(array(CAST('NaN' AS FLOAT), CAST(1.5 AS FLOAT)));
+----
+NaN 1.5
+
+# -0.0 equals 0.0, so the first of them is returned, with its sign. DataFusion's built-in
+# orders -0.0 before 0.0, so its array_max returns 0.0 and its array_min -0.0 for both
+# orders.
+query RRRR
+SELECT array_max(array(CAST(0.0 AS DOUBLE), CAST('-0.0' AS DOUBLE))),
+       array_max(array(CAST('-0.0' AS DOUBLE), CAST(0.0 AS DOUBLE))),
+       array_min(array(CAST(0.0 AS DOUBLE), CAST('-0.0' AS DOUBLE))),
+       array_min(array(CAST('-0.0' AS DOUBLE), CAST(0.0 AS DOUBLE)));
+----
+0 -0 0 -0
+
+query TTTT
+SELECT CAST(array_max(array(CAST(0.0 AS DOUBLE), CAST('-0.0' AS DOUBLE))) AS STRING),
+       CAST(array_max(array(CAST('-0.0' AS DOUBLE), CAST(0.0 AS DOUBLE))) AS STRING),
+       CAST(array_min(array(CAST(0.0 AS DOUBLE), CAST('-0.0' AS DOUBLE))) AS STRING),
+       CAST(array_min(array(CAST('-0.0' AS DOUBLE), CAST(0.0 AS DOUBLE))) AS STRING);
+----
+0.0 -0.0 0.0 -0.0
+
+query TT
+SELECT CAST(array_max(array(CAST('-0.0' AS FLOAT), CAST(0.0 AS FLOAT))) AS STRING),
+       CAST(array_min(array(CAST(NULL AS FLOAT), CAST(0.0 AS FLOAT), CAST('-0.0' AS FLOAT))) AS STRING);
+----
+-0.0 0.0
+
+# Strings compare bytewise: uppercase sorts before lowercase, and 'é' after 'z'
+query TT
+SELECT array_max(array('a', 'b', 'B', '')), array_min(array('a', 'b', 'B', ''));
+----
+b (empty)
+
+query T
+SELECT array_max(array('é', 'z'));
+----
+é
+
+# Binary compares unsigned bytes, and a prefix sorts first
+query ??
+SELECT array_max(array(X'01', X'FF', X'0100')), array_min(array(X'01', X'FF', X'0100'));
+----
+ff 01
+
+query BB
+SELECT array_max(array(true, false)), array_min(array(true, false, NULL));
+----
+true false
+
+query R
+SELECT array_max(array(CAST(1.5 AS DECIMAL(3, 2)), CAST(2.25 AS DECIMAL(3, 2))));
+----
+2.25
+
+query D
+SELECT array_max(array(DATE'2024-01-01', DATE'2023-12-31'));
+----
+2024-01-01
+
+query D
+SELECT array_min(array(DATE'2024-01-01', DATE'2023-12-31', NULL));
+----
+2023-12-31
+
+query P
+SELECT array_max(array(TIMESTAMP'2024-01-01 00:00:00', TIMESTAMP'2023-12-31 00:00:00'));
+----
+2024-01-01T00:00:00
+
+# Nested arrays compare element by element and then by length
+query ??
+SELECT array_max(array(array(1, 2), array(1, 2, 3), array(2))), array_min(array(array(1, 2), array(1, 2, 3), array(2), array()));
+----
+[2] []
+
+# A NULL nested inside an array sorts before other values. DataFusion's built-in sorts it
+# after them, and its array_max returns [1, NULL] here.
+query ??
+SELECT array_min(array(array(1, NULL), array(1, 2))), array_max(array(array(1, NULL), array(1, 2)));
+----
+[1, NULL] [1, 2]
+
+query ?
+SELECT array_max(array(array(CAST('NaN' AS DOUBLE)), array(CAST('Infinity' AS DOUBLE))));
+----
+[NaN]
+
+# Structs compare field by field, and a NULL field sorts first
+query ?
+SELECT array_max(array(named_struct('a', 1, 'b', 'x'), named_struct('a', 1, 'b', 'y')));
+----
+{a: 1, b: y}
+
+query ?
+SELECT array_min(array(named_struct('a', 1, 'b', 'x'), named_struct('a', CAST(NULL AS INT), 'b', 'y')));
+----
+{a: NULL, b: y}
+
+query ?
+SELECT array_max(array(named_struct('a', CAST('-0.0' AS DOUBLE)), named_struct('a', CAST(0.0 AS DOUBLE))));
+----
+{a: -0.0}
+
+# LargeList
+query II
+SELECT array_max(arrow_cast(array(3, NULL, 7), 'LargeList(Int32)')), array_min(arrow_cast(array(3, NULL, 7), 'LargeList(Int32)'));
+----
+7 3
+
+# Column input, with NULL, empty and all-NULL rows
+query II
+SELECT array_max(a), array_min(a) FROM (VALUES
+  (array(1, 5, 3)),
+  (array(CAST(NULL AS INT), -2)),
+  (CAST(array() AS ARRAY<INT>)),
+  (array(CAST(NULL AS INT))),
+  (CAST(NULL AS ARRAY<INT>))
+) AS t(a);
+----
+5 1
+-2 -2
+NULL NULL
+NULL NULL
+NULL NULL
+
+query RRTT
+SELECT array_max(a) AS max, array_min(a) AS min,
+       CAST(array_max(a) AS STRING) AS max_str, CAST(array_min(a) AS STRING) AS min_str
+FROM (VALUES
+  (array(CAST(1.5 AS DOUBLE), CAST('NaN' AS DOUBLE))),
+  (array(CAST('-0.0' AS DOUBLE), CAST(0.0 AS DOUBLE))),
+  (array(CAST(0.0 AS DOUBLE), CAST('-0.0' AS DOUBLE)))
+) AS t(a);
+----
+NaN 1.5 NaN 1.5
+-0 -0 -0.0 -0.0
+0 0 0.0 0.0
+
+# Spark has no dictionary types. Dictionary-encoded elements, also inside nested arrays and
+# structs, compare as their values, so -0.0 equals 0.0 and the first of them is returned.
+query TTTT
+SELECT CAST(array_max(arrow_cast(array(CAST('-0.0' AS DOUBLE), CAST(0.0 AS DOUBLE)), 'List(Dictionary(Int32, Float64))')) AS STRING),
+       CAST(array_min(arrow_cast(array(CAST(0.0 AS DOUBLE), CAST('-0.0' AS DOUBLE)), 'List(Dictionary(Int32, Float64))')) AS STRING),
+       CAST(array_max(arrow_cast(array(CAST(NULL AS DOUBLE), CAST('NaN' AS DOUBLE), CAST(1.0 AS DOUBLE)), 'LargeList(Dictionary(Int8, Float64))')) AS STRING),
+       CAST(array_min(arrow_cast(array(CAST(0.0 AS FLOAT), CAST('-0.0' AS FLOAT)), 'FixedSizeList(2, Dictionary(Int32, Float32))')) AS STRING);
+----
+-0.0 0.0 NaN 0.0
+
+query ??
+SELECT array_max(arrow_cast(array(array(CAST('-0.0' AS DOUBLE)), array(CAST(0.0 AS DOUBLE))), 'List(List(Dictionary(Int32, Float64)))')),
+       array_max(arrow_cast(array(named_struct('a', CAST('-0.0' AS DOUBLE)), named_struct('a', CAST(0.0 AS DOUBLE))), 'List(Struct("a": Dictionary(Int32, Float64)))'));
+----
+[-0.0] {a: -0.0}
+
+query TT
+SELECT array_max(arrow_cast(array('b', NULL, 'c', 'a'), 'List(Dictionary(Int32, Utf8))')),
+       array_min(arrow_cast(array('b', NULL, 'c', 'a'), 'List(Dictionary(Int32, Utf8))'));
+----
+c a
+
+# Maps cannot be ordered, at any depth. DataFusion's built-in fails at execution instead.
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_max` does not support ordering on type "MAP<BIGINT, BIGINT>"\. SQLSTATE: 42K09
+SELECT array_max(array(map(1, 2)));
+
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_min` does not support ordering on type "ARRAY<MAP<BIGINT, BIGINT>>"\. SQLSTATE: 42K09
+SELECT array_min(array(array(map(1, 2))));
+
+# Intervals cannot be ordered, at any depth
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_max` does not support ordering on type "INTERVAL"\. SQLSTATE: 42K09
+SELECT array_max(array(make_interval(1)));
+
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `array_min` does not support ordering on type "STRUCT<i: INTERVAL>"\. SQLSTATE: 42K09
+SELECT array_min(array(named_struct('i', make_interval(1))));
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `array_max` requires the "ARRAY" type, however it has the type "BIGINT"\. SQLSTATE: 42K09
+SELECT array_max(1);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `array_min` requires the "ARRAY" type
+SELECT array_min('abc');
+
+query error
+SELECT array_min(array(1, 2), array(3));

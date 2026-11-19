@@ -45,6 +45,9 @@ SELECT date_part('QTR'::string, '2000-01-01'::date);
 ----
 1
 
+# The error comes from planning in simplify mode and from execution in evaluate mode,
+# so the message differs.
+skipif evaluate
 query error
 SELECT date_part('QUARTERS'::string, '2000-01-01'::date);
 ----
@@ -134,6 +137,9 @@ SELECT date_part('DOY'::string, '2000-01-01'::date);
 ----
 1
 
+# The error comes from planning in simplify mode and from execution in evaluate mode,
+# so the message differs.
+skipif evaluate
 query error
 SELECT date_part('DAYOFYEAR'::string, '2000-01-01'::date);
 ----
@@ -195,32 +201,38 @@ SELECT date_part('MINUTES'::string, '2000-01-01 12:30:45'::timestamp);
 30
 
 # SECOND
+# xfail spark: date_part('SECOND', ts) returns INT, Spark returns DECIMAL(8,6) with the fraction (https://github.com/apache/datafusion-spark/issues/38)
 query I
 SELECT date_part('SECOND'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 45
 
+# xfail spark: date_part('SECOND', ts) returns INT, Spark returns DECIMAL(8,6) with the fraction (https://github.com/apache/datafusion-spark/issues/38)
 query I
 SELECT date_part('S'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 45
 
+# xfail spark: date_part('SECOND', ts) returns INT, Spark returns DECIMAL(8,6) with the fraction (https://github.com/apache/datafusion-spark/issues/38)
 query I
 SELECT date_part('SEC'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 45
 
+# xfail spark: date_part('SECOND', ts) returns INT, Spark returns DECIMAL(8,6) with the fraction (https://github.com/apache/datafusion-spark/issues/38)
 query I
 SELECT date_part('SECONDS'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 45
 
+# xfail spark: date_part('SECOND', ts) returns INT, Spark returns DECIMAL(8,6) with the fraction (https://github.com/apache/datafusion-spark/issues/38)
 query I
 SELECT date_part('SECS'::string, '2000-01-01 12:30:45'::timestamp);
 ----
 45
 
 # Known difference: Spark returns DECIMAL(8, 6) including the fraction (45.999000)
+# xfail spark: date_part('SECOND', ts) returns INT, Spark returns DECIMAL(8,6) with the fraction (https://github.com/apache/datafusion-spark/issues/38)
 query I
 SELECT date_part('SECOND'::string, '2000-01-01 12:30:45.999'::timestamp);
 ----
@@ -232,12 +244,16 @@ SELECT date_part('year'::string, NULL::timestamp);
 ----
 NULL
 
+# xfail spark: date_part with a NULL field returns a NULL INT, Spark returns a NULL DOUBLE (https://github.com/apache/datafusion-spark/issues/363)
 query I
 SELECT date_part(NULL::string, '2000-01-01'::date);
 ----
 NULL
 
 # Invalid part
+# The error comes from planning in simplify mode and from execution in evaluate mode,
+# so the message differs.
+skipif evaluate
 query error
 SELECT date_part('test'::string, '2000-01-01'::date);
 ----
@@ -297,3 +313,36 @@ query TTT
 DESCRIBE SELECT date_part('SECOND'::string, ts) AS s FROM (VALUES (timestamp '2020-01-01')) AS t(ts)
 ----
 s Int32 YES
+
+# A field from a column is rejected when the query is planned, like Spark. Evaluate
+# mode rejects it at execution instead, so the message differs.
+skipif evaluate
+query error
+SELECT date_part(column1, column2) FROM VALUES ('year', '2000-01-01'::date);
+----
+DataFusion error: Optimizer rule 'simplify_expressions' failed
+caused by
+Error during planning: First argument of `DATE_PART` must be a constant string
+
+
+# Also for an empty input. Evaluate mode runs nothing, so it does not fail.
+skipif evaluate
+query error
+SELECT date_part(column1, column2) FROM VALUES ('year', '2000-01-01'::date) WHERE false;
+----
+DataFusion error: Optimizer rule 'simplify_expressions' failed
+caused by
+Error during planning: First argument of `DATE_PART` must be a constant string
+
+
+# A field that is only known at execution time, such as a prepared statement parameter
+statement ok
+PREPARE extract_field(VARCHAR) AS SELECT date_part($1, '2000-01-01'::date);
+
+query I
+EXECUTE extract_field('YEAR');
+----
+2000
+
+statement ok
+DEALLOCATE extract_field;

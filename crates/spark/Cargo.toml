@@ -114,4 +114,8 @@ name = "stack"
 
 [[bench]]
 harness = false
+name = "array_extrema"
+
+[[bench]]
+harness = false
 name = "array_remove"
