@@ -17,7 +17,7 @@ function differs from the DataFusion built-in of the same name, if there is one.
 
 ## Scalar Functions
 
-- [Math Functions](scalar/math.md) (25)
+- [Math Functions](scalar/math.md) (27)
 - [Conditional Functions](scalar/conditional.md) (2)
 - [String Functions](scalar/string.md) (17)
 - [Binary String Functions](scalar/binary_string.md) (5)
@@ -86,6 +86,7 @@ function differs from the DataFusion built-in of the same name, if there is one.
 - [format_string](scalar/string.md#format_string)
 - [from_utc_timestamp](scalar/time_and_date.md#from_utc_timestamp)
 - [getbit](scalar/math.md#getbit)
+- [greatest](scalar/math.md#greatest)
 - [hash](scalar/hashing.md#hash)
 - [hex](scalar/math.md#hex)
 - [hour](scalar/time_and_date.md#hour)
@@ -96,6 +97,7 @@ function differs from the DataFusion built-in of the same name, if there is one.
 - [json_array_length](scalar/json.md#json_array_length)
 - [json_tuple](scalar/json.md#json_tuple)
 - [last_day](scalar/time_and_date.md#last_day)
+- [least](scalar/math.md#least)
 - [len](scalar/string.md#len)
 - [length](scalar/string.md#length)
 - [like](scalar/string.md#like)

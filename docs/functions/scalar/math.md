@@ -28,8 +28,10 @@ Part of the [datafusion-spark function reference](../README.md).
 - [factorial](#factorial)
 - [floor](#floor)
 - [getbit](#getbit)
+- [greatest](#greatest)
 - [hex](#hex)
 - [hypot](#hypot)
+- [least](#least)
 - [negative](#negative)
 - [positive](#positive)
 - [pow](#pow)
@@ -344,6 +346,29 @@ floor(expr)
 
 _Alias of [bit_get](#bit_get)._
 
+## `greatest`
+
+Returns the greatest value of all arguments, skipping NULLs. The result is NULL only if every argument is NULL. At least two arguments are required. The arguments are cast to a common type as in Spark: numbers widen (an integer and a FLOAT widen to DOUBLE with `datafusion.execution.enable_ansi_mode` on and to FLOAT with it off), integers and decimals widen to a decimal that holds both, a decimal and a float widen to DOUBLE, a date and a timestamp widen to the timestamp, and arrays and structs widen element by element. Strings are never promoted: a string and a number, a string and a date, or a boolean and a number are an error, as are maps, which cannot be ordered. NaN is greater than every other value and `-0.0` equals `0.0`, also inside arrays and structs, and of equal values the first argument wins, so `greatest(-0.0, 0.0)` is `-0.0`. A NULL inside an array or struct is smaller than every other value. DataFusion's built-in `greatest` orders floats by IEEE 754 total order, lets a later argument win a tie, accepts a single argument, and compares numbers with strings.
+
+```sql
+greatest(expr1, expr2[, ..., expr_n])
+```
+
+### Arguments
+
+- **expr1, expr2, ..., expr_n**: Expressions of an orderable type that share a common type. NULLs are skipped.
+
+### Example
+
+```sql
+> SELECT greatest(10, 9, 2, 4, 3);
+10
+> SELECT greatest(1, NULL, 3);
+3
+> SELECT greatest(1.0, 'NaN'::double);
+NaN
+```
+
 ## `hex`
 
 Returns the hexadecimal representation of `expr` as an upper-case string. Numbers are cast to BIGINT and rendered with no leading zeros; negative values are rendered as their 64-bit two's complement (so -1 is `FFFFFFFFFFFFFFFF`). Strings are encoded as the hex of their UTF-8 bytes, and binary values as the hex of their bytes. DataFusion's `to_hex` only accepts integers and returns lower case. Dictionary-encoded input returns a dictionary-encoded string. Returns NULL if the input is NULL.
@@ -387,6 +412,29 @@ hypot(expr1, expr2)
 Infinity
 > SELECT hypot(NULL::double, 4.0::double);
 NULL
+```
+
+## `least`
+
+Returns the least value of all arguments, skipping NULLs. The result is NULL only if every argument is NULL. At least two arguments are required. The arguments are cast to a common type as in `greatest`. NaN is greater than every other value and `-0.0` equals `0.0`, also inside arrays and structs, and of equal values the first argument wins, so `least(0.0, -0.0)` is `0.0`. A NULL inside an array or struct is smaller than every other value, so `least(array(1, NULL), array(1, 0))` is `[1, NULL]`. DataFusion's built-in `least` orders floats by IEEE 754 total order, lets a later argument win a tie, orders a NULL inside an array or struct after every other value, accepts a single argument, and compares numbers with strings.
+
+```sql
+least(expr1, expr2[, ..., expr_n])
+```
+
+### Arguments
+
+- **expr1, expr2, ..., expr_n**: Expressions of an orderable type that share a common type. NULLs are skipped.
+
+### Example
+
+```sql
+> SELECT least(10, 9, 2, 4, 3);
+2
+> SELECT least(NULL, 2, NULL);
+2
+> SELECT least(1.0, 'NaN'::double);
+1.0
 ```
 
 ## `negative`
