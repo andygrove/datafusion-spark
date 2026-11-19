@@ -45,7 +45,9 @@ SELECT date_part('QTR'::string, '2000-01-01'::date);
 ----
 1
 
-# Checked when the query is planned
+# The error comes from planning in simplify mode and from execution in evaluate mode,
+# so the message differs.
+skipif evaluate
 query error
 SELECT date_part('QUARTERS'::string, '2000-01-01'::date);
 ----
@@ -135,7 +137,9 @@ SELECT date_part('DOY'::string, '2000-01-01'::date);
 ----
 1
 
-# Checked when the query is planned
+# The error comes from planning in simplify mode and from execution in evaluate mode,
+# so the message differs.
+skipif evaluate
 query error
 SELECT date_part('DAYOFYEAR'::string, '2000-01-01'::date);
 ----
@@ -247,7 +251,9 @@ SELECT date_part(NULL::string, '2000-01-01'::date);
 NULL
 
 # Invalid part
-# Checked when the query is planned
+# The error comes from planning in simplify mode and from execution in evaluate mode,
+# so the message differs.
+skipif evaluate
 query error
 SELECT date_part('test'::string, '2000-01-01'::date);
 ----
@@ -308,7 +314,9 @@ DESCRIBE SELECT date_part('SECOND'::string, ts) AS s FROM (VALUES (timestamp '20
 ----
 s Int32 YES
 
-# A field from a column is rejected when the query is planned, like Spark
+# A field from a column is rejected when the query is planned, like Spark. Evaluate
+# mode rejects it at execution instead, so the message differs.
+skipif evaluate
 query error
 SELECT date_part(column1, column2) FROM VALUES ('year', '2000-01-01'::date);
 ----
@@ -317,7 +325,8 @@ caused by
 Error during planning: First argument of `DATE_PART` must be a constant string
 
 
-# Also for an empty input
+# Also for an empty input. Evaluate mode runs nothing, so it does not fail.
+skipif evaluate
 query error
 SELECT date_part(column1, column2) FROM VALUES ('year', '2000-01-01'::date) WHERE false;
 ----

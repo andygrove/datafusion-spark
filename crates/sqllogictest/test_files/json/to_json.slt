@@ -297,6 +297,25 @@ SELECT to_json(named_struct('t', TIMESTAMP '2024-01-01 01:02:03.123456'));
 statement ok
 RESET datafusion.execution.time_zone;
 
+# the offset keeps its seconds when it has any: with the session time zone America/Los_Angeles,
+# Spark writes TIMESTAMP '1800-01-01 00:00:00' (07:52:58 UTC) with the local mean time offset
+statement ok
+SET datafusion.execution.time_zone = 'America/Los_Angeles';
+
+query T
+SELECT to_json(named_struct('t', arrow_cast('1800-01-01T07:52:58Z', 'Timestamp(Microsecond, Some("America/Los_Angeles"))')));
+----
+{"t":"1800-01-01T00:00:00.000-07:52:58"}
+
+# an offset of whole minutes keeps its short form
+query T
+SELECT to_json(named_struct('t', arrow_cast('2024-01-01T01:02:03.123456Z', 'Timestamp(Microsecond, Some("America/Los_Angeles"))')));
+----
+{"t":"2023-12-31T17:02:03.123-08:00"}
+
+statement ok
+RESET datafusion.execution.time_zone;
+
 ## Dates are written as yyyy-MM-dd
 
 query T

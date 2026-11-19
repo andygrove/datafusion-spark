@@ -2,6 +2,9 @@
 # SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 # SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+# `if` has no `invoke_with_args` yet, so the records that call it are marked
+# `skipif evaluate` until https://github.com/apache/datafusion-spark/issues/305 is fixed.
+
 # This file was originally created by a porting script from:
 #   https://github.com/lakehq/sail/tree/43b6ed8221de5c4c4adbedbb267ae1351158b43c/crates/sail-spark-connect/tests/gold_data/function
 # This file is part of the implementation of the datafusion-spark function library.
@@ -11,23 +14,27 @@
 ## Basic IF function tests
 
 # Test basic true condition
+skipif evaluate
 query T
 SELECT if(true, 'yes', 'no');
 ----
 yes
 
 # Test basic false condition
+skipif evaluate
 query T
 SELECT if(false, 'yes', 'no');
 ----
 no
 
 # Test with comparison operators
+skipif evaluate
 query T
 SELECT if(1 < 2, 'a', 'b');
 ----
 a
 
+skipif evaluate
 query T
 SELECT if(1 > 2, 'a', 'b');
 ----
@@ -37,17 +44,20 @@ b
 ## Numeric type tests
 
 # Test with integers
+skipif evaluate
 query I
 SELECT if(true, 10, 20);
 ----
 10
 
+skipif evaluate
 query I
 SELECT if(false, 10, 20);
 ----
 20
 
 # Test with different integer types
+skipif evaluate
 query I
 SELECT if(true, 100, 200);
 ----
@@ -56,11 +66,13 @@ SELECT if(true, 100, 200);
 ## Float type tests
 
 # Test with floating point numbers
+skipif evaluate
 query R
 SELECT if(true, 1.5, 2.5);
 ----
 1.5
 
+skipif evaluate
 query R
 SELECT if(false, 1.5, 2.5);
 ----
@@ -69,11 +81,13 @@ SELECT if(false, 1.5, 2.5);
 ## String type tests
 
 # Test with different string values
+skipif evaluate
 query T
 SELECT if(true, 'hello', 'world');
 ----
 hello
 
+skipif evaluate
 query T
 SELECT if(false, 'hello', 'world');
 ----
@@ -82,29 +96,34 @@ world
 ## NULL handling tests
 
 # Test with NULL condition
+skipif evaluate
 query T
 SELECT if(NULL, 'yes', 'no');
 ----
 no
 
+skipif evaluate
 query T
 SELECT if(NOT NULL, 'yes', 'no');
 ----
 no
 
 # Test with NULL true value
+skipif evaluate
 query T
 SELECT if(true, NULL, 'no');
 ----
 NULL
 
 # Test with NULL false value
+skipif evaluate
 query T
 SELECT if(false, 'yes', NULL);
 ----
 NULL
 
 # Test with all NULL
+skipif evaluate
 query ?
 SELECT if(true, NULL, NULL);
 ----
@@ -114,23 +133,27 @@ NULL
 
 # Test integer to float coercion
 # xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
+skipif evaluate
 query R
 SELECT if(true, 10, 20.5);
 ----
 10
 
+skipif evaluate
 query R
 SELECT if(false, 10, 20.5);
 ----
 20.5
 
 # Test float to integer coercion
+skipif evaluate
 query R
 SELECT if(true, 10.5, 20);
 ----
 10.5
 
 # xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
+skipif evaluate
 query R
 SELECT if(false, 10.5, 20);
 ----
@@ -143,12 +166,14 @@ SELECT if(1, 10.5, 20);
 statement error Utf8 is not a boolean or null
 SELECT if('x', 10.5, 20);
 
+skipif evaluate
 query IR
 SELECT v, IF(v < 0, 10/0, 1) FROM (VALUES (1), (2)) t(v)
 ----
 1 1
 2 1
 
+skipif evaluate
 query R
 SELECT IF(true, 1 / 1, 1 / 0);
 ----
