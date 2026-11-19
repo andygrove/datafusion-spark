@@ -67,3 +67,52 @@ query T
 SELECT sha1(arrow_cast('Spark', 'BinaryView'));
 ----
 85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
+
+query T
+SELECT sha1(arrow_cast('Spark', 'Dictionary(Int32, Utf8)'));
+----
+85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
+
+query T
+SELECT sha1(v) FROM (VALUES ('Spark'), (NULL), ('Spark')) AS t(v);
+----
+85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
+NULL
+85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
+
+# Spark's `Sha1.inputTypes` is BINARY. Only a STRING argument is cast to it.
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha1` requires the "BINARY" type, however it has the type "INT"\. SQLSTATE: 42K09
+SELECT sha1(1::INT);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha1` requires the "BINARY" type, however it has the type "BIGINT"\. SQLSTATE: 42K09
+SELECT sha1(1);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha1` requires the "BINARY" type, however it has the type "DOUBLE"\. SQLSTATE: 42K09
+SELECT sha1(1.5::DOUBLE);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha1` requires the "BINARY" type, however it has the type "BOOLEAN"\. SQLSTATE: 42K09
+SELECT sha1(true);
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha1` requires the "BINARY" type, however it has the type "DATE"\. SQLSTATE: 42K09
+SELECT sha1(DATE '2024-01-01');
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha1` requires the "BINARY" type, however it has the type "ARRAY<STRING>"\. SQLSTATE: 42K09
+SELECT sha1(array('a'));
+
+query error \[WRONG_NUM_ARGS\.WITHOUT_SUGGESTION\] The `sha1` requires 1 parameters but the actual number is 2\.
+SELECT sha1('a', 'b');
+
+# With ANSI mode on, a STRING argument is still cast to BINARY, and an INT is still rejected.
+statement ok
+set datafusion.execution.enable_ansi_mode = true;
+
+query T
+SELECT sha1('Spark');
+----
+85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
+
+query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha1` requires the "BINARY" type, however it has the type "INT"\. SQLSTATE: 42K09
+SELECT sha1(1::INT);
+
+statement ok
+set datafusion.execution.enable_ansi_mode = false;

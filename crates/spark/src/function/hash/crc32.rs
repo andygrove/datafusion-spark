@@ -11,15 +11,17 @@ use datafusion_common::cast::{
     as_binary_array, as_binary_view_array, as_fixed_size_binary_array,
     as_large_binary_array,
 };
-use datafusion_common::types::{NativeType, logical_string};
+use datafusion_common::config::ConfigOptions;
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, internal_err};
 use datafusion_expr::{
-    Coercion, ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs,
-    ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDF,
+    ScalarUDFImpl, Signature, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
 use datafusion_macros::user_doc;
+
+use crate::function::implicit_cast::{SparkInputType, SparkInputTypes};
 
 /// Spark-compatible `crc32` expression.
 ///
@@ -45,7 +47,7 @@ NULL
 )]
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkCrc32 {
-    signature: Signature,
+    input_types: SparkInputTypes,
 }
 
 impl Default for SparkCrc32 {
@@ -57,12 +59,9 @@ impl Default for SparkCrc32 {
 impl SparkCrc32 {
     pub fn new() -> Self {
         Self {
-            signature: Signature::coercible(
-                vec![Coercion::new_implicit(
-                    TypeSignatureClass::Binary,
-                    vec![TypeSignatureClass::Native(logical_string())],
-                    NativeType::Binary,
-                )],
+            // Spark's `Crc32.inputTypes`
+            input_types: SparkInputTypes::new(
+                vec![SparkInputType::Binary],
                 Volatility::Immutable,
             ),
         }
@@ -75,7 +74,16 @@ impl ScalarUDFImpl for SparkCrc32 {
     }
 
     fn signature(&self) -> &Signature {
-        &self.signature
+        self.input_types.signature()
+    }
+
+    fn coerce_types(&self, arg_types: &[DataType]) -> Result<Vec<DataType>> {
+        self.input_types.coerce(self.name(), arg_types)
+    }
+
+    fn with_updated_config(&self, config: &ConfigOptions) -> Option<ScalarUDF> {
+        let input_types = self.input_types.with_config(config)?;
+        Some(ScalarUDF::from(Self { input_types }))
     }
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {

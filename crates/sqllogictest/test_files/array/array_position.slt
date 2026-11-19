@@ -126,6 +126,7 @@ NULL
 
 # Spark's `array(1, NULL)[0]` is its first element; arrays in this crate are 1-based, so the
 # same element is `[1]` here.
+# xfail spark: runner: [] is 1-based in DataFusion and 0-based in Spark, and the runner does not translate the index
 query I
 SELECT array_position(array(1, NULL), array(1, NULL)[1]);
 ----
@@ -323,6 +324,7 @@ SELECT array_position(array(TIMESTAMP '2020-01-01 00:00:00'), DATE '2020-01-01')
 
 # Struct fields are matched by name, in order. Spark ignores the case of the names and returns 1
 # here, but DataFusion cannot cast between struct fields whose names differ only in case.
+# xfail spark: Spark matches struct field names without case, DataFusion cannot cast between them (https://github.com/apache/datafusion-spark/issues/362)
 query error \[DATATYPE_MISMATCH\.ARRAY_FUNCTION_DIFF_TYPES\]
 SELECT array_position(array(named_struct('a', 1)), named_struct('A', 1));
 

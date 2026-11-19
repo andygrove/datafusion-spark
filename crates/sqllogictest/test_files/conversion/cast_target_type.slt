@@ -1,0 +1,91 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+# Tests for the target type of spark_cast, which uses Spark's SQL type syntax
+
+query TTTT
+SELECT arrow_typeof(spark_cast(NULL, 'tinyint')), arrow_typeof(spark_cast(NULL, 'SMALLINT')),
+       arrow_typeof(spark_cast(NULL, 'Int')), arrow_typeof(spark_cast(NULL, 'long'));
+----
+Int8 Int16 Int32 Int64
+
+query TTT
+SELECT arrow_typeof(spark_cast(NULL, 'float')), arrow_typeof(spark_cast(NULL, 'double')),
+       arrow_typeof(spark_cast(NULL, 'boolean'));
+----
+Float32 Float64 Boolean
+
+query TT
+SELECT arrow_typeof(spark_cast(NULL, 'string')), arrow_typeof(spark_cast(NULL, 'varchar(3)'));
+----
+Utf8 Utf8
+
+# CHAR and VARCHAR require a length, as in Spark
+statement error \[DATATYPE_MISSING_SIZE\] DataType "CHAR" requires a length parameter, for example "CHAR"\(10\)\. Please specify the length\. SQLSTATE: 42K01
+SELECT spark_cast(NULL, 'char');
+
+query TT
+SELECT arrow_typeof(spark_cast(NULL, 'decimal')), arrow_typeof(spark_cast(NULL, 'decimal(38, 2)'));
+----
+Decimal128(10, 0) Decimal128(38, 2)
+
+query TT
+SELECT arrow_typeof(spark_cast(NULL, 'timestamp')), arrow_typeof(spark_cast(NULL, 'timestamp_ntz'));
+----
+Timestamp(µs, "UTC") Timestamp(µs)
+
+# TIMESTAMP is tagged with the session time zone
+statement ok
+SET datafusion.execution.time_zone = 'America/Los_Angeles';
+
+query T
+SELECT arrow_typeof(spark_cast(NULL, 'timestamp'));
+----
+Timestamp(µs, "America/Los_Angeles")
+
+statement ok
+RESET datafusion.execution.time_zone;
+
+query TTT
+SELECT arrow_typeof(spark_cast(NULL, 'array<int>')),
+       arrow_typeof(spark_cast(NULL, 'map<string, bigint>')),
+       arrow_typeof(spark_cast(NULL, 'struct<a: int, b string not null>'));
+----
+List(Int32) Map("entries": non-null Struct("key": non-null Utf8, "value": Int64), unsorted) Struct("a": Int32, "b": non-null Utf8)
+
+# Casts that Arrow already does the way Spark does
+query TIR
+SELECT spark_cast(42, 'string'), spark_cast(true, 'int'), spark_cast(3, 'double');
+----
+42 1 3
+
+# Invalid and unsupported target types
+statement error Invalid spark_cast target type 'integer2': unknown type 'integer2'
+SELECT spark_cast(1, 'integer2');
+
+statement error Invalid spark_cast target type 'decimal\(39\)': decimal precision 39 is not between 1 and 38
+SELECT spark_cast(1, 'decimal(39)');
+
+statement error Invalid spark_cast target type 'array<int': expected '>'
+SELECT spark_cast(1, 'array<int');
+
+statement error Unsupported spark_cast target type 'variant': VARIANT is not supported
+SELECT spark_cast(1, 'variant');
+
+statement error spark_cast requires a string literal target type
+SELECT spark_cast(1, column1) FROM (VALUES ('int'));
+
+# Casts that are not implemented yet return an error instead of a result that
+# differs from Spark's
+# xfail spark: spark_cast does not implement this cast yet (https://github.com/apache/datafusion-spark/issues/88)
+statement error Spark-compatible cast from STRING to INT in Legacy mode is not implemented yet
+SELECT spark_cast('1', 'int');
+
+# Spark has no cast from DATE to BINARY
+statement error Spark-compatible cast from DATE to BINARY is not supported
+SELECT spark_cast(arrow_cast(1, 'Date32'), 'binary');
+
+# xfail spark: spark_cast does not implement this cast yet (https://github.com/apache/datafusion-spark/issues/88)
+statement error Spark-compatible cast from BIGINT to INT in Legacy mode is not implemented yet
+SELECT spark_cast(2147483648, 'int');

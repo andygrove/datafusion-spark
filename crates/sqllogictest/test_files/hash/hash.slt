@@ -567,6 +567,7 @@ SELECT hash([-CAST('NaN' AS FLOAT)]);
 statement ok
 CREATE TABLE hash_t AS VALUES (1, 'hello'), (NULL, 'bar'), (0, NULL);
 
+# xfail spark: VALUES integers are BIGINT in DataFusion and INT in Spark, so they hash differently (https://github.com/apache/datafusion-spark/issues/97)
 query I
 SELECT hash(column1) FROM hash_t;
 ----

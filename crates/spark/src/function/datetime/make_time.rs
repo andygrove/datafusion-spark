@@ -281,4 +281,88 @@ mod tests {
         );
         Ok(())
     }
+
+    fn invoke_array(args: Vec<ArrayRef>) -> Result<Time64NanosecondArray> {
+        let ColumnarValue::Array(array) = invoke(args)? else {
+            unreachable!("make_time returns an array")
+        };
+        Ok(array.as_primitive::<Time64NanosecondType>().clone())
+    }
+
+    fn nanos(hours: i64, minutes: i64, secs: i64) -> i64 {
+        (hours * 3_600 + minutes * 60 + secs) * 1_000_000_000
+    }
+
+    #[test]
+    fn test_sliced_arrays() -> Result<()> {
+        // The invalid fields sit outside the visible slices, so the kernel must
+        // honour each array's offset to succeed. The slices also start at
+        // different offsets, and their null bitmaps are sliced too.
+        let hours: ArrayRef = Arc::new(Int32Array::from(vec![
+            Some(99),
+            Some(1),
+            None,
+            Some(3),
+            Some(4),
+            Some(99),
+        ]));
+        let minutes: ArrayRef = Arc::new(Int32Array::from(vec![
+            Some(99),
+            Some(99),
+            Some(10),
+            Some(20),
+            None,
+            Some(40),
+            Some(99),
+        ]));
+        let secs: ArrayRef = Arc::new(
+            Decimal128Array::from(vec![
+                Some(-1),
+                Some(-1),
+                Some(-1),
+                Some(5_000_000),
+                Some(6_000_000),
+                Some(7_000_000),
+                None,
+                Some(-1),
+            ])
+            .with_precision_and_scale(16, 6)
+            .unwrap(),
+        );
+
+        let result = invoke_array(vec![
+            hours.slice(1, 4),
+            minutes.slice(2, 4),
+            secs.slice(3, 4),
+        ])?;
+        assert_eq!(
+            result,
+            Time64NanosecondArray::from(vec![Some(nanos(1, 10, 5)), None, None, None,])
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn test_empty_arrays() -> Result<()> {
+        let empty_secs: ArrayRef = Arc::new(
+            Decimal128Array::from(Vec::<i128>::new())
+                .with_precision_and_scale(16, 6)
+                .unwrap(),
+        );
+        let result = invoke_array(vec![
+            Arc::new(Int32Array::from(Vec::<i32>::new())),
+            Arc::new(Int32Array::from(Vec::<i32>::new())),
+            empty_secs,
+        ])?;
+        assert!(result.is_empty());
+
+        // An empty slice of arrays that hold invalid fields.
+        let result = invoke_array(vec![
+            int32(99).slice(1, 0),
+            int32(99).slice(0, 0),
+            secs(-1, 16, 6).slice(1, 0),
+        ])?;
+        assert!(result.is_empty());
+        Ok(())
+    }
 }
