@@ -12,14 +12,18 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-    target-branch: main
     open-pull-requests-limit: 15
+    # `datafusion-spark` is a library, so leave a requirement in Cargo.toml as
+    # it is when it already allows the new version. Raising it would force the
+    # same minimum on downstream users. Cargo.lock is still updated.
+    versioning-strategy: increase-if-necessary
     ignore:
-      # `datafusion-spark` 56.x stays on DataFusion 56 and the arrow version it
-      # uses, so their major versions change only when `main` moves to the next
-      # DataFusion major version. See dev/release/README.md#versioning.
+      # DataFusion is updated by hand. `main` follows a DataFusion release tag
+      # or branch, and moving it is a decision, not a routine update.
       - dependency-name: "datafusion*"
-        update-types: ["version-update:semver-major"]
+      # `datafusion-spark` 56.x stays on the arrow version DataFusion 56 uses,
+      # so arrow's major version changes only when `main` moves to the next
+      # DataFusion major version. See dev/release/README.md#versioning.
       - dependency-name: "arrow*"
         update-types: ["version-update:semver-major"]
     groups:
