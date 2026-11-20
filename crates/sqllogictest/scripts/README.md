@@ -97,10 +97,11 @@ statement error INVALID_PARAMETER_VALUE\.CHARSET
 SELECT encode('A'::string, 'utf-32be'::string);
 ```
 
-The operators are `<`, `<=`, `>`, `>=` and `==`, as in `spark>=4.0, <4.2`. A
+The operators are `<`, `<=`, `>`, `>=` and `==`, as in `spark>=4.0, <=4.2`. A
 record can have several comments, one line each, and the first that matches
 the Spark version applies. The runner stops with an error if it cannot read a
-version condition.
+version condition, or if a comment applies to none of the Spark versions it
+supports because no version matches it before an earlier comment does.
 
 The reason links an issue, or says what differs and why: a bug in
 datafusion-spark, a difference that comes from how the test is written, or a

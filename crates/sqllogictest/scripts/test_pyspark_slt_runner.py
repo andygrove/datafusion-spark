@@ -101,17 +101,21 @@ class ParseTest(unittest.TestCase):
     def test_xfail_spark_versions(self):
         [record] = parse(
             "# xfail spark<4.0: Spark 3.5 differs\n"
-            "# xfail spark >= 4.0, <4.2: Spark 4.0 and 4.1 differ\n"
-            "# xfail spark==4.2: Spark 4.2 differs\n"
+            "# xfail spark >= 4.0, <=4.2: Spark 4.0 to 4.2 differ\n"
             "query I\n"
             "SELECT 1\n"
         )
         reason = lambda version: getattr(record.xfail(r.version_tuple(version)), "reason", None)  # noqa: E731
         self.assertEqual(reason("3.5.9"), "Spark 3.5 differs")
-        self.assertEqual(reason("4.0.1"), "Spark 4.0 and 4.1 differ")
-        self.assertEqual(reason("4.1.0"), "Spark 4.0 and 4.1 differ")
-        self.assertEqual(reason("4.2.0"), "Spark 4.2 differs")
+        self.assertEqual(reason("4.0.1"), "Spark 4.0 to 4.2 differ")
+        self.assertEqual(reason("4.2.0"), "Spark 4.0 to 4.2 differ")
         self.assertIsNone(reason("4.3.0"))
+
+    def test_xfail_that_never_applies(self):
+        # No supported version matches the first, and the second is shadowed.
+        for markers in ("# xfail spark>=4.0, <4.2: x\n", "# xfail spark: x\n# xfail spark<4.0: y\n"):
+            with self.assertRaisesRegex(SystemExit, "never applies"):
+                parse(f"{markers}query I\nSELECT 1\n")
 
     def test_first_matching_xfail_applies(self):
         [record] = parse("# xfail spark<4.0: old\n# xfail spark: any\nquery I\nSELECT 1\n")
@@ -144,6 +148,15 @@ class TranslateTest(unittest.TestCase):
             "SELECT NULL::array<map<string, int>>": "SELECT CAST(NULL AS array<map<string, int>>)",
             "SELECT (SELECT 1)::int": "SELECT CAST((SELECT 1) AS int)",
             "SELECT 'a::b'::FLOAT8": "SELECT CAST('a::b' AS DOUBLE)",
+            # `exists` and `any` are functions here, not keywords.
+            "SELECT exists(arr, x -> x > 1)::string FROM t": "SELECT CAST(exists(arr, x -> x > 1) AS string) FROM t",
+            "SELECT any(a > 1)::string FROM t": "SELECT CAST(any(a > 1) AS string) FROM t",
+            # A field of a call or a subscript
+            "SELECT struct(1 AS x).x::string": "SELECT CAST(struct(1 AS x).x AS string)",
+            "SELECT map(1, struct(2 AS y))[1].y::string": "SELECT CAST(map(1, struct(2 AS y))[1].y AS string)",
+            # After a type other than ARRAY, MAP or STRUCT, `<` is a comparison.
+            "SELECT a::int < 5 AND b > 3 FROM t": "SELECT CAST(a AS int) < 5 AND b > 3 FROM t",
+            "SELECT a::int<b::int": "SELECT CAST(a AS int)<CAST(b AS int)",
         }
         for sql, expected in cases.items():
             self.assertEqual(r.rewrite_double_colons(r.translate(sql)), expected, sql)

@@ -221,6 +221,14 @@ def parse_slt(path: Path) -> list[Record]:
             continue
 
         record = Record(path=path, line=i + 1, kind=words[0], xfails=xfails)
+        for x in xfails:
+            # A marker that no supported version reaches would never be
+            # reported as stale, so reject it before Spark starts.
+            if all(record.xfail(v) is not x for v in SUPPORTED_VERSIONS):
+                raise SystemExit(
+                    f"error: {_display_path(path)}:{i + 1}: `{x.text}` never applies, because no "
+                    "supported Spark version matches it before an earlier marker does"
+                )
         xfails = []
         args = words[1:]
         if args and args[0] == "error":
@@ -868,8 +876,8 @@ def translate(sql: str, time_zone: str = "UTC") -> str:
 # Keywords after which a `-` is a sign, not a subtraction, and a `(` does
 # not start the arguments of a call.
 _KEYWORDS = {
-    "ALL", "AND", "ANY", "AS", "BETWEEN", "BY", "CASE", "DISTINCT", "ELSE",
-    "EXISTS", "FROM", "HAVING", "IN", "IS", "JOIN", "LIKE", "LIMIT", "NOT",
+    "ALL", "AND", "AS", "BETWEEN", "BY", "CASE", "DISTINCT", "ELSE",
+    "FROM", "HAVING", "IN", "IS", "JOIN", "LIKE", "LIMIT", "NOT",
     "ON", "OR", "RETURN", "SELECT", "THEN", "VALUES", "WHEN", "WHERE",
 }
 
@@ -966,6 +974,9 @@ def _name_start(tokens: list[tuple[str, str]], k: int) -> int:
     """The start of a possibly qualified name, such as `t.a`, that ends at tokens[k]."""
     while k >= 2 and tokens[k - 1][1] == "." and tokens[k - 2][0] in ("word", "quoted"):
         k -= 2
+    if k >= 2 and tokens[k - 1][1] == "." and tokens[k - 2][1] in (")", "]"):
+        # A field of a call or subscript, such as `struct(1 AS x).x`
+        return _operand_start(tokens[: k - 1])
     return k
 
 
@@ -975,9 +986,13 @@ def _type_end(tokens: list[tuple[str, str]], start: int) -> int:
     k = _next_significant(tokens, start)
     if k >= len(tokens) or tokens[k][0] != "word":
         raise Skip(_UNTRANSLATABLE)
+    name = tokens[k][1].upper()
     k += 1
     j = _next_significant(tokens, k)
-    if j < len(tokens) and tokens[j][1] in ("(", "<"):
+    # After any other type, `<` is a comparison, as in `a::int < 5`.
+    if j < len(tokens) and (
+        tokens[j][1] == "(" or (tokens[j][1] == "<" and name in ("ARRAY", "MAP", "STRUCT"))
+    ):
         return _matching_paren(tokens, j, _TYPE_NESTING) + 1
     return k
 
