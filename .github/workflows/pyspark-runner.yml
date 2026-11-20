@@ -23,18 +23,16 @@ jobs:
     outputs:
       runner: ${{ steps.diff.outputs.runner }}
     steps:
+      # A pull request checks out a merge commit, whose first parent is main.
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 2
       - id: diff
         env:
           EVENT: ${{ github.event_name }}
-          BASE: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          # Three dots: the changes in the pull request, not those on main since.
           if [ "$EVENT" != pull_request ] ||
-            git diff --name-only "$BASE...$HEAD_SHA" -- \
+            git diff --name-only HEAD^1 HEAD -- \
               crates/sqllogictest/scripts \
               crates/sqllogictest/test_files \
               .github/workflows/pyspark-runner.yml | grep -q .; then
@@ -91,13 +89,5 @@ jobs:
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
-        run: |
-          echo "$RESULTS"
-          for result in $RESULTS; do
-            case "$result" in
-              success | skipped) ;;
-              *) exit 1 ;;
-            esac
-          done
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
