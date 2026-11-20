@@ -4,25 +4,47 @@
 
 name: PySpark runner
 
+# The workflow runs on every pull request, so that its `PySpark runner` job
+# always reports and can be a required check. A `paths` filter would leave the
+# check pending, and block the pull request, when the paths do not change.
+# Instead the `changes` job skips the Spark jobs when nothing they test changed.
 on:
   push:
     branches: [main]
-    paths:
-      - "crates/sqllogictest/scripts/**"
-      - "crates/sqllogictest/test_files/**"
-      - ".github/workflows/pyspark-runner.yml"
   pull_request:
-    paths:
-      - "crates/sqllogictest/scripts/**"
-      - "crates/sqllogictest/test_files/**"
-      - ".github/workflows/pyspark-runner.yml"
 
 permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Check for PySpark runner changes
+    runs-on: ubuntu-latest
+    outputs:
+      runner: ${{ steps.diff.outputs.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if [ "$EVENT" != pull_request ] ||
+            git diff --name-only "$BASE" HEAD -- \
+              crates/sqllogictest/scripts \
+              crates/sqllogictest/test_files \
+              .github/workflows/pyspark-runner.yml | grep -q .; then
+            echo runner=true >> "$GITHUB_OUTPUT"
+          else
+            echo runner=false >> "$GITHUB_OUTPUT"
+          fi
+
   unit-tests:
     name: PySpark runner unit tests
+    needs: changes
+    if: needs.changes.outputs.runner == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,6 +55,8 @@ jobs:
 
   spark:
     name: Run the sqllogictests on Spark ${{ matrix.spark }}
+    needs: changes
+    if: needs.changes.outputs.runner == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -57,3 +81,21 @@ jobs:
       # Exits with status 1 if any record differs from Spark without an
       # `# xfail spark:` comment for this Spark version, or has one but now passes.
       - run: python crates/sqllogictest/scripts/pyspark_slt_runner.py
+
+  # The required check. It passes when the jobs above pass or are skipped.
+  result:
+    name: PySpark runner
+    needs: [changes, unit-tests, spark]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success | skipped) ;;
+              *) exit 1 ;;
+            esac
+          done
