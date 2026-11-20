@@ -8,14 +8,15 @@ SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one
 
 `pyspark_slt_runner.py` runs the `.slt` files in
 [`crates/sqllogictest/test_files`](../test_files)
-on Apache Spark 4.2 and reports every query where Spark's result differs from
-the expected result in the file.
+on Apache Spark and reports every query where Spark's result differs from the
+expected result in the file. It supports Spark 3.5 and 4.2.
 
 The expected results in those files come from DataFusion, and nothing else
 checks them against Spark. A difference means that DataFusion and Spark
 disagree, or that the test expects the wrong value. CI runs the runner on
-every pull request that changes an `.slt` file or the runner, and fails if it
-reports a difference that has no `# xfail spark:` comment (see
+every pull request that changes an `.slt` file or the runner, once for each
+supported Spark version, and fails if it reports a difference that has no
+`# xfail spark:` comment for that version (see
 [Known differences](#known-differences)) or a comment on a record that now
 passes.
 
@@ -29,8 +30,16 @@ python3 -m venv /tmp/pyspark-4.2
 /tmp/pyspark-4.2/bin/pip install -r crates/sqllogictest/scripts/requirements.txt
 ```
 
-The runner ignores `SPARK_HOME`, so it always uses the Spark bundled with this
-PySpark.
+For Spark 3.5, install `requirements-spark-3.5.txt` into a second virtual
+environment, and run the runner with that environment's Python:
+
+```shell
+python3 -m venv /tmp/pyspark-3.5
+/tmp/pyspark-3.5/bin/pip install -r crates/sqllogictest/scripts/requirements-spark-3.5.txt
+```
+
+The runner ignores `SPARK_HOME`, so it always uses the Spark bundled with the
+installed PySpark, and it checks that this is a supported version.
 
 ## Usage
 
@@ -78,6 +87,21 @@ SELECT round(arrow_cast(2.5, 'Decimal32(9, 1)'), 0::int);
 3.0
 ```
 
+A comparison after `spark` limits the comment to some Spark versions, which it
+compares by major and minor version. Several comparisons separated by commas
+must all hold:
+
+```text
+# xfail spark<4.0: intended: Spark 3.5 accepts any Java charset name, which Spark 4 allows only with spark.sql.legacy.javaCharsets
+statement error INVALID_PARAMETER_VALUE\.CHARSET
+SELECT encode('A'::string, 'utf-32be'::string);
+```
+
+The operators are `<`, `<=`, `>`, `>=` and `==`, as in `spark>=4.0, <4.2`. A
+record can have several comments, one line each, and the first that matches
+the Spark version applies. The runner stops with an error if it cannot read a
+version condition.
+
 The reason links an issue, or says what differs and why: a bug in
 datafusion-spark, a difference that comes from how the test is written, or a
 limitation of this runner. A marked record that differs from Spark in any way
@@ -115,6 +139,11 @@ are DataFusion's defaults. These settings in the files are passed on to Spark:
 
 Spark 4.2 parses most of the SQL as written, including `::` casts. The runner
 makes only these changes:
+
+- For Spark 3.5, which has no `::` syntax, `expr::type` becomes
+  `CAST(expr AS type)`. As in Spark 4, `::` applies to the literal, column,
+  call, subscript or parenthesized expression before it, and a minus sign
+  belongs to a number, so `-1::int` becomes `CAST(-1 AS int)`.
 
 - `CREATE TABLE` becomes `CREATE TEMPORARY VIEW`, and `DROP TABLE` becomes
   `DROP VIEW`

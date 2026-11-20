@@ -39,10 +39,12 @@ SELECT encode('Spark SQL'::string, 'utf-16'::string);
 feff0053007000610072006b002000530051004c
 
 # UTF-32BE encoding (alias rejected in Spark 4 strict mode)
+# xfail spark<4.0: intended: Spark 3.5 accepts any Java charset name, which Spark 4 allows only with spark.sql.legacy.javaCharsets
 statement error INVALID_PARAMETER_VALUE\.CHARSET
 SELECT encode('A'::string, 'utf-32be'::string);
 
 # UTF-32LE encoding (alias rejected in Spark 4 strict mode)
+# xfail spark<4.0: intended: Spark 3.5 accepts any Java charset name, which Spark 4 allows only with spark.sql.legacy.javaCharsets
 statement error INVALID_PARAMETER_VALUE\.CHARSET
 SELECT encode('AB'::string, 'utf-32le'::string);
 
@@ -59,10 +61,12 @@ SELECT encode('hello'::string, 'Utf-8'::string);
 68656c6c6f
 
 # US-ASCII: unmappable characters fail in Spark 4 strict mode
+# xfail spark<4.0: intended: Spark 3.5 replaces unmappable characters with `?`, which Spark 4 does only with spark.sql.legacy.codingErrorAction
 statement error MALFORMED_CHARACTER_CODING
 SELECT encode('é'::string, 'us-ascii'::string);
 
 # ISO-8859-1: code points above U+00FF fail in Spark 4 strict mode (Ā is U+0100)
+# xfail spark<4.0: intended: Spark 3.5 replaces unmappable characters with `?`, which Spark 4 does only with spark.sql.legacy.codingErrorAction
 statement error MALFORMED_CHARACTER_CODING
 SELECT encode('Ā'::string, 'iso-8859-1'::string);
 
@@ -87,9 +91,11 @@ SELECT encode('😀'::string, 'utf-16'::string);
 ----
 feffd83dde00
 
+# xfail spark<4.0: intended: Spark 3.5 accepts any Java charset name, which Spark 4 allows only with spark.sql.legacy.javaCharsets
 statement error INVALID_PARAMETER_VALUE\.CHARSET
 SELECT encode('😀'::string, 'utf-32be'::string);
 
+# xfail spark<4.0: intended: Spark 3.5 accepts any Java charset name, which Spark 4 allows only with spark.sql.legacy.javaCharsets
 statement error INVALID_PARAMETER_VALUE\.CHARSET
 SELECT encode('😀'::string, 'utf-32le'::string);
 
@@ -129,6 +135,7 @@ SELECT encode(X'FEFF00610073', 'utf-8'::string);
 efbfbdefbfbd00610073
 
 # Strict mode: binary input with invalid UTF-8 byte 0xFF becomes U+FFFD, which cannot be encoded in US-ASCII
+# xfail spark<4.0: intended: Spark 3.5 replaces unmappable characters with `?`, which Spark 4 does only with spark.sql.legacy.codingErrorAction
 query error \[MALFORMED_CHARACTER_CODING\] Invalid value found when performing `encode` with us-ascii SQLSTATE: 22000
 SELECT encode(X'ff', 'us-ascii'::string);
 

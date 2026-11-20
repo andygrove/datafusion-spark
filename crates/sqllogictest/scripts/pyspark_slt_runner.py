@@ -3,7 +3,7 @@
 # SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 # SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
-"""Run the datafusion-spark sqllogictest files against Apache Spark 4.2.
+"""Run the datafusion-spark sqllogictest files against Apache Spark 3.5 or 4.2.
 
 Each record in crates/sqllogictest/test_files/**/*.slt is run on a
 local PySpark session, and Spark's result is compared with the expected result
@@ -11,7 +11,7 @@ in the file. The expected results come from DataFusion, so every difference
 reported here is a query where DataFusion and Spark disagree, or where the
 test expects the wrong value.
 
-Running Spark is manual; only the unit tests run in CI. See README.md for setup.
+CI runs this on every supported Spark version. See README.md for setup.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import datetime
 import math
+import operator
 import os
 import re
 import struct
@@ -32,7 +33,8 @@ from decimal import ROUND_HALF_EVEN, Decimal, localcontext
 from pathlib import Path
 from typing import Optional
 
-SPARK_VERSION = "4.2"
+# The Spark versions this runner supports, as major.minor. CI runs every one.
+SUPPORTED_VERSIONS = ("3.5", "4.2")
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 REPO_ROOT = SCRIPT_DIR.parents[2]
@@ -44,10 +46,23 @@ LABEL = "spark"
 # A comment that marks the next record as a known difference from Spark:
 #
 #     # xfail spark: <reason>
+#     # xfail spark<4.0: <reason>
+#
+# The second form applies only to the Spark versions that match every
+# comma-separated condition, such as `>=4.0, <4.2`. A record can have several
+# markers, and the first that matches the Spark version applies.
 #
 # The Rust sqllogictest parser rejects directives it does not know, so the
 # marker is a comment, which DataFusion's runner ignores.
-_XFAIL_RE = re.compile(rf"#\s*xfail\s+{LABEL}\s*:\s*(.*\S)\s*$")
+_XFAIL_RE = re.compile(rf"#\s*xfail\s+{LABEL}\b([^:]*):\s*(.*\S)\s*$")
+_VERSION_CONDITION_RE = re.compile(r"\s*(<=|>=|==|<|>)\s*(\d+)\.(\d+)\s*")
+_COMPARISONS = {
+    "<": operator.lt,
+    "<=": operator.le,
+    ">": operator.gt,
+    ">=": operator.ge,
+    "==": operator.eq,
+}
 
 # DataFusion runs these files with ANSI mode off and no time zone (UTC), so
 # every file starts from the same Spark settings.
@@ -117,12 +132,58 @@ class Record:
     sort_mode: str = "nosort"
     expected: list[str] = field(default_factory=list)
     skip_reason: Optional[str] = None
-    # Why Spark is expected to disagree, from an `# xfail spark:` comment.
-    xfail_reason: Optional[str] = None
+    # Why Spark is expected to disagree, from `# xfail spark:` comments.
+    xfails: list[Xfail] = field(default_factory=list)
 
     @property
     def location(self) -> str:
         return f"{_display_path(self.path)}:{self.line}"
+
+    def xfail(self, spark_version: str) -> Optional[Xfail]:
+        """The first `# xfail spark` marker that applies to this Spark version."""
+        version = _version_tuple(spark_version)
+        return next((x for x in self.xfails if x.applies_to(version)), None)
+
+
+@dataclass
+class Xfail:
+    """An `# xfail spark: <reason>` comment."""
+
+    # (operator, (major, minor)) pairs that the Spark version must all match.
+    conditions: list[tuple[str, tuple[int, int]]]
+    reason: str
+    # The comment as written, for the report that asks to remove it.
+    text: str
+
+    def applies_to(self, version: tuple[int, int]) -> bool:
+        return all(_COMPARISONS[op](version, v) for op, v in self.conditions)
+
+
+def _version_tuple(version: str) -> tuple[int, int]:
+    """(major, minor) of a version such as `4.2.0`."""
+    major, minor = spark_minor_version(version).split(".")
+    return int(major), int(minor)
+
+
+def parse_xfail(line: str) -> Optional[Xfail]:
+    """Parse an `# xfail spark` comment, or return None for any other line.
+
+    Raises ValueError for a version condition this runner cannot read."""
+    m = _XFAIL_RE.match(line.strip())
+    if not m:
+        return None
+    spec, reason = m.group(1).strip(), m.group(2)
+    conditions = []
+    if spec:
+        for part in spec.split(","):
+            c = _VERSION_CONDITION_RE.fullmatch(part)
+            if not c:
+                raise ValueError(
+                    f"cannot read the Spark version condition `{spec}`. Write a "
+                    "comparison such as `<4.0` or `==3.5`, or several separated by commas"
+                )
+            conditions.append((c.group(1), (int(c.group(2)), int(c.group(3)))))
+    return Xfail(conditions, reason, line.strip())
 
 
 def parse_slt(path: Path) -> list[Record]:
@@ -130,13 +191,16 @@ def parse_slt(path: Path) -> list[Record]:
     lines = path.read_text().split("\n")
     records: list[Record] = []
     conditions: list[tuple[str, str]] = []
-    xfail_reason: Optional[str] = None
+    xfails: list[Xfail] = []
     i = 0
     while i < len(lines):
         words = lines[i].split()
-        m = _XFAIL_RE.match(lines[i].strip())
-        if m:
-            xfail_reason = m.group(1)
+        try:
+            xfail = parse_xfail(lines[i])
+        except ValueError as e:
+            raise SystemExit(f"error: {_display_path(path)}:{i + 1}: {e}")
+        if xfail:
+            xfails.append(xfail)
             i += 1
             continue
         if not words or words[0].startswith("#"):
@@ -149,12 +213,12 @@ def parse_slt(path: Path) -> list[Record]:
         if words[0] not in ("statement", "query"):
             # Directives such as `include` and `halt`, which these files do not use.
             conditions = []
-            xfail_reason = None
+            xfails = []
             i += 1
             continue
 
-        record = Record(path=path, line=i + 1, kind=words[0], xfail_reason=xfail_reason)
-        xfail_reason = None
+        record = Record(path=path, line=i + 1, kind=words[0], xfails=xfails)
+        xfails = []
         args = words[1:]
         if args and args[0] == "error":
             record.expect_error = True
@@ -194,10 +258,11 @@ def parse_slt(path: Path) -> list[Record]:
 # ---------------------------------------------------------------------------
 # Translating DataFusion SQL to Spark SQL
 #
-# Spark 4.2 parses most of these files as written, including `::` casts.
-# Only a few renames are applied here, and `arrow_cast` and `spark_cast`
-# become a CAST (see below). Anything else Spark cannot parse, and any function
-# Spark does not have (such as `arrow_typeof`), is skipped.
+# Spark 4.2 parses most of these files as written, including `::` casts, which
+# become a CAST for Spark 3.5 (see rewrite_double_colons). Only a few renames
+# are applied here, and `arrow_cast` and `spark_cast` become a CAST (see
+# below). Anything else Spark cannot parse, and any function Spark does not
+# have (such as `arrow_typeof`), is skipped.
 # ---------------------------------------------------------------------------
 
 _TOKEN_RE = re.compile(
@@ -743,8 +808,13 @@ def rewrite_casts(sql: str, time_zone: str = "UTC") -> str:
     return "".join(out)
 
 
-def translate(sql: str, time_zone: str = "UTC") -> str:
-    """Translate the parts of DataFusion's SQL that Spark spells differently."""
+def translate(sql: str, time_zone: str = "UTC", double_colon: bool = True) -> str:
+    """Translate the parts of DataFusion's SQL that Spark spells differently.
+
+    With `double_colon` False, for Spark 3.5, `expr::type` becomes a CAST.
+    """
+    if not double_colon:
+        return rewrite_double_colons(translate(sql, time_zone))
     tokens = _tokenize(rewrite_casts(sql, time_zone))
     out = []
     # The function name before each open parenthesis, to find CAST(x AS type).
@@ -788,6 +858,132 @@ def translate(sql: str, time_zone: str = "UTC") -> str:
     return "".join(out)
 
 
+# Keywords after which a `-` is a sign, not a subtraction, and a `(` does
+# not start the arguments of a call.
+_KEYWORDS = {
+    "ALL", "AND", "ANY", "AS", "BETWEEN", "BY", "CASE", "DISTINCT", "ELSE",
+    "EXISTS", "FROM", "HAVING", "IN", "IS", "JOIN", "LIKE", "LIMIT", "NOT",
+    "ON", "OR", "RETURN", "SELECT", "THEN", "VALUES", "WHEN", "WHERE",
+}
+
+
+def rewrite_double_colons(sql: str) -> str:
+    """Replace each `expr::type` with `CAST(expr AS type)`.
+
+    Spark 3.5 does not parse `::`. As in Spark 4, `::` applies to the primary
+    expression before it: a literal, a column, a call, a parenthesized
+    expression or a subscript. A sign belongs to a number literal, so
+    `-1::int` is `CAST(-1 AS int)`, but `-(1)::int` is `-CAST((1) AS int)`.
+    """
+    tokens = _tokenize(sql)
+    out: list[tuple[str, str]] = []
+    i = 0
+    while i < len(tokens):
+        if tokens[i][0] != "cast":
+            out.append(tokens[i])
+            i += 1
+            continue
+        start = _operand_start(out)
+        operand = "".join(t for _, t in out[start:]).strip()
+        del out[start:]
+        end = _type_end(tokens, i + 1)
+        type_sql = "".join(t for _, t in tokens[i + 1 : end]).strip()
+        if not operand or not type_sql:
+            raise Skip("a `::` cast this runner cannot translate")
+        out.append(("operand", f"CAST({operand} AS {type_sql})"))
+        i = end
+    return "".join(t for _, t in out)
+
+
+def _significant_before(tokens: list[tuple[str, str]], end: int) -> int:
+    """The index of the last token before `end` that is not whitespace, or -1."""
+    k = end - 1
+    while k >= 0 and tokens[k][0] in ("space", "comment"):
+        k -= 1
+    return k
+
+
+def _operand_start(tokens: list[tuple[str, str]]) -> int:
+    """The index where the primary expression that ends `tokens` starts."""
+    k = _significant_before(tokens, len(tokens))
+    if k < 0:
+        raise Skip("a `::` cast this runner cannot translate")
+    kind, text = tokens[k]
+    if kind == "other" and text in (")", "]"):
+        depth = 0
+        while k >= 0:
+            if tokens[k][0] == "other":
+                depth += _NESTING.get(tokens[k][1], 0)
+                if depth == 0:
+                    break
+            k -= 1
+        if k < 0:
+            raise Skip("unbalanced parentheses")
+        before = _significant_before(tokens, k)
+        prev = tokens[before] if before >= 0 else ("", "")
+        if text == ")" and prev[0] == "word" and prev[1].upper() not in _KEYWORDS:
+            # A call, f(...)
+            return _name_start(tokens, before)
+        if text == "]" and (prev[0] in ("word", "quoted", "string") or prev[1] in (")", "]")):
+            # A subscript, a[...], of the operand that ends before it
+            return _operand_start(tokens[: before + 1])
+        return k
+    if kind == "string":
+        before = _significant_before(tokens, k)
+        if before >= 0 and tokens[before][0] == "word" and tokens[before][1].upper() in (
+            "DATE", "TIME", "TIMESTAMP", "TIMESTAMP_NTZ", "TIMESTAMP_LTZ", "INTERVAL", "X",
+        ):
+            # A typed literal, such as DATE '2024-01-01'.
+            return before
+        return k
+    if kind == "number":
+        before = _significant_before(tokens, k)
+        if before >= 0 and tokens[before][1] == "-":
+            sign_of = _significant_before(tokens, before)
+            prev = tokens[sign_of] if sign_of >= 0 else None
+            if (
+                prev is None
+                or (prev[0] == "other" and prev[1] not in (")", "]"))
+                or (prev[0] == "word" and prev[1].upper() in _KEYWORDS)
+            ):
+                return before
+        return k
+    if kind in ("word", "quoted"):
+        return _name_start(tokens, k)
+    if kind == "operand":
+        # A cast that this function already rewrote, as in `x::int::string`.
+        return k
+    raise Skip("a `::` cast this runner cannot translate")
+
+
+def _name_start(tokens: list[tuple[str, str]], k: int) -> int:
+    """The start of a possibly qualified name, such as `t.a`, that ends at tokens[k]."""
+    while k >= 2 and tokens[k - 1][1] == "." and tokens[k - 2][0] in ("word", "quoted"):
+        k -= 2
+    return k
+
+
+def _type_end(tokens: list[tuple[str, str]], start: int) -> int:
+    """The index after the type name that starts at tokens[start], such as
+    `int`, `decimal(10, 2)` or `array<map<string, int>>`."""
+    k = _next_significant(tokens, start)
+    if k >= len(tokens) or tokens[k][0] != "word":
+        raise Skip("a `::` cast this runner cannot translate")
+    k += 1
+    j = _next_significant(tokens, k)
+    if j < len(tokens) and tokens[j][1] in ("(", "<"):
+        depth = 0
+        while j < len(tokens):
+            text = tokens[j][1]
+            if tokens[j][0] == "other":
+                depth += {"(": 1, "<": 1, ")": -1, ">": -1}.get(text, 0)
+                if depth == 0:
+                    return j + 1
+            j += 1
+        raise Skip("unbalanced parentheses")
+    return k
+
+
 _NAME = r"[A-Za-z_][A-Za-z0-9_]*"
 _CREATE_RE = re.compile(
     rf"\s*CREATE\s+(OR\s+REPLACE\s+)?(?:TABLE|VIEW)\s+(IF\s+NOT\s+EXISTS\s+)?({_NAME})\s*",
@@ -800,14 +996,14 @@ _DROP_RE = re.compile(
 _AS_RE = re.compile(r"AS\b\s*", re.IGNORECASE)
 
 
-def translate_statement(sql: str, time_zone: str = "UTC") -> str:
+def translate_statement(sql: str, time_zone: str = "UTC", double_colon: bool = True) -> str:
     """Translate a statement, turning DataFusion tables into Spark temporary views."""
     m = _DROP_RE.match(sql)
     if m:
         return f"DROP VIEW {'IF EXISTS ' if m.group(1) else ''}{m.group(2)}"
     m = _CREATE_RE.match(sql)
     if not m:
-        return translate(sql, time_zone)
+        return translate(sql, time_zone, double_colon)
     if m.group(2):
         # Spark does not allow IF NOT EXISTS on a temporary view.
         raise Skip("CREATE TABLE IF NOT EXISTS, which a Spark temporary view cannot express")
@@ -824,7 +1020,7 @@ def translate_statement(sql: str, time_zone: str = "UTC") -> str:
         raise Skip("CREATE TABLE without AS")
     query = rest[m.end() :].rstrip().rstrip(";")
     if columns is None:
-        return translate(f"{create} {name} AS {query}", time_zone)
+        return translate(f"{create} {name} AS {query}", time_zone, double_colon)
     # A newline ends a trailing `--` comment, which would hide the `)`.
     end_comment = "\n" if "--" in query else ""
     names, casts = [], []
@@ -838,6 +1034,7 @@ def translate_statement(sql: str, time_zone: str = "UTC") -> str:
         f"{create} {name} AS SELECT {', '.join(casts)} "
         f"FROM ({query}{end_comment}) AS __slt_values({', '.join(names)})",
         time_zone,
+        double_colon,
     )
 
 
@@ -1242,17 +1439,22 @@ class SparkRunner:
         except ImportError:
             raise SystemExit(f"error: PySpark is not installed. Install it with `{install}`.")
 
-        if not pyspark.__version__.startswith(SPARK_VERSION + "."):
+        if spark_minor_version(pyspark.__version__) not in SUPPORTED_VERSIONS:
+            supported = ", ".join(SUPPORTED_VERSIONS)
             raise SystemExit(
-                f"error: this runner needs PySpark {SPARK_VERSION}, found "
+                f"error: this runner needs PySpark {supported}, found "
                 f"{pyspark.__version__}. Install it with `{install}`."
             )
-        from pyspark.logger import PySparkLogger
-
-        # PySpark logs every failed query to stderr as JSON. The runner reports
-        # them itself.
-        for name in ("SQLQueryContextLogger", "DataFrameQueryContextLogger"):
-            PySparkLogger.getLogger(name).disabled = True
+        try:
+            from pyspark.logger import PySparkLogger
+        except ImportError:
+            # PySpark 3.5 has no pyspark.logger, and does not log failed queries as JSON.
+            pass
+        else:
+            # PySpark logs every failed query to stderr as JSON. The runner
+            # reports them itself.
+            for name in ("SQLQueryContextLogger", "DataFrameQueryContextLogger"):
+                PySparkLogger.getLogger(name).disabled = True
         # Removed when the runner exits.
         self._warehouse = tempfile.TemporaryDirectory(prefix="pyspark-slt-")
         self._start()
@@ -1277,6 +1479,8 @@ class SparkRunner:
         self.spark = builder.getOrCreate()
         self.spark.sparkContext.setLogLevel("FATAL")
         self.version = self.spark.version
+        # Spark 4.0 added the `expr::type` cast syntax.
+        self.double_colon = _version_tuple(self.version) >= (4, 0)
         self.time_zone = SPARK_DEFAULTS["spark.sql.session.timeZone"]
         # Set when a query runs the JVM out of memory, which leaves it unusable.
         self.broken = False
@@ -1348,6 +1552,9 @@ class SparkRunner:
             if m:
                 raise SparkError("convert", f"Spark returned a {m.group(1)} value")
             condition = _condition(e)
+            if condition == "CANNOT_PARSE_DATATYPE" and "interval" in str(e):
+                # PySpark 3.5 cannot read a schema with a CalendarIntervalType.
+                raise SparkError("convert", "Spark returned a CalendarIntervalType value")
             if condition == "UNRESOLVED_ROUTINE":
                 name = _parameter(e, "routineName") or "?"
                 raise SparkError("function", f"Spark has no function {name}")
@@ -1472,17 +1679,19 @@ def run_record(runner: SparkRunner, record: Record) -> Outcome:
 
     A difference that the comment expects becomes `xfail`, and a record that
     passes in spite of the comment becomes `xpass`, so a stale comment is
-    reported. A skipped record stays skipped.
+    reported. A skipped record stays skipped. Only a comment whose version
+    condition matches the runner's Spark version applies.
     """
     outcome = _run_record(runner, record)
-    if record.xfail_reason is None:
+    xfail = record.xfail(runner.version)
+    if xfail is None:
         return outcome
     if outcome.status in EXPECTED_TO_FAIL:
-        outcome.detail = f"{DIVERGENT[outcome.status]} ({record.xfail_reason})"
+        outcome.detail = f"{DIVERGENT[outcome.status]} ({xfail.reason})"
         outcome.status = "xfail"
     elif outcome.status == "pass":
         outcome.status = "xpass"
-        outcome.detail = record.xfail_reason
+        outcome.detail = xfail.text
     return outcome
 
 
@@ -1506,11 +1715,12 @@ def _run_record(runner: SparkRunner, record: Record) -> Outcome:
     m = _ENGINE_SPECIFIC_RE.match(record.sql)
     if m:
         return Outcome(record, "skip", f"{m.group(1).upper()} output differs between engines")
+    double_colon = getattr(runner, "double_colon", True)
     try:
         if record.kind == "statement":
-            spark_sql = translate_statement(record.sql, runner.time_zone)
+            spark_sql = translate_statement(record.sql, runner.time_zone, double_colon)
         else:
-            spark_sql = translate(record.sql, runner.time_zone)
+            spark_sql = translate(record.sql, runner.time_zone, double_colon)
     except Skip as e:
         return Outcome(record, "skip", str(e))
     if any("<slt:ignore>" in line for line in record.expected):
@@ -1587,7 +1797,7 @@ def report(outcome: Outcome, spark_version: str) -> str:
     if outcome.status == "xfail":
         return f"{location}: expected failure: {outcome.detail}"
     if outcome.status == "xpass":
-        return f"{location}: {DIVERGENT['xpass']}, remove `# xfail {LABEL}: {outcome.detail}`"
+        return f"{location}: {DIVERGENT['xpass']}, remove `{outcome.detail}`"
     parts = [f"{location}: {DIVERGENT[outcome.status]}", _indent(record.sql.split("\n"))]
     if outcome.spark_sql and outcome.spark_sql != record.sql:
         parts += ["  Spark SQL:", _indent(outcome.spark_sql.split("\n"))]
@@ -1599,6 +1809,11 @@ def report(outcome: Outcome, spark_version: str) -> str:
     else:
         parts.append(f"  {outcome.detail}")
     return "\n".join(parts)
+
+
+def spark_minor_version(version: str) -> str:
+    """The major.minor part of a version such as `4.2.0` or `4.2.0.dev1`."""
+    return ".".join(version.split(".")[:2])
 
 
 def discover(paths: list[str]) -> list[Path]:
@@ -1617,7 +1832,7 @@ def discover(paths: list[str]) -> list[Path]:
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            f"Run the datafusion-spark .slt files on Spark {SPARK_VERSION} and "
+            f"Run the datafusion-spark .slt files on Spark ({', '.join(SUPPORTED_VERSIONS)}) and "
             "report where Spark disagrees with the expected results."
         )
     )
