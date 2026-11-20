@@ -25,6 +25,7 @@ Part of the [datafusion-spark function reference](../README.md).
 - [datediff](#datediff)
 - [datepart](#datepart)
 - [dayname](#dayname)
+- [dayofweek](#dayofweek)
 - [from_utc_timestamp](#from_utc_timestamp)
 - [hour](#hour)
 - [last_day](#last_day)
@@ -281,6 +282,31 @@ Wed
 > SELECT dayname(arrow_cast('2024-05-20 23:59:59', 'Timestamp(Microsecond, None)'));
 Mon
 > SELECT dayname(NULL::DATE);
+NULL
+```
+
+## `dayofweek`
+
+Returns the day of the week as an INT from 1 (Sunday) to 7 (Saturday). This differs from `weekday`, which counts from 0 (Monday) to 6 (Sunday), and from DataFusion's `date_part('dow', ...)`, which counts from 0 (Sunday) to 6 (Saturday). DataFusion has no built-in `dayofweek`. Strings are implicitly cast to DATE. A malformed string is an error, even with ANSI mode off where Spark returns NULL. A string that Spark reads as a partial date, such as '2009' or '2009-07', is also an error, where Spark uses the first day of that year or month. Timestamps are cast to DATE first, so the time of day is ignored. A timestamp with a time zone is converted in its own time zone, not the session time zone that Spark uses. Returns NULL if the input is NULL.
+
+```sql
+dayofweek(date)
+```
+
+### Arguments
+
+- **date**: DATE, TIMESTAMP or string expression. NULL returns NULL.
+
+### Example
+
+```sql
+> SELECT dayofweek('2009-07-30'::DATE);
+5
+> SELECT dayofweek('2009-07-30');
+5
+> SELECT dayofweek(arrow_cast('2024-01-07 23:59:59', 'Timestamp(Microsecond, None)'));
+1
+> SELECT dayofweek(NULL::DATE);
 NULL
 ```
 
