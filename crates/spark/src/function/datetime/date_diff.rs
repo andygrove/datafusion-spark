@@ -124,10 +124,6 @@ impl ScalarUDFImpl for SparkDateDiff {
         args: Vec<Expr>,
         info: &SimplifyContext,
     ) -> Result<ExprSimplifyResult> {
-        let args = match NULLABILITY.simplify(self, args, info)? {
-            ExprSimplifyResult::Original(args) => args,
-            simplified => return Ok(simplified),
-        };
         let [end, start] = take_function_args(self.name(), args)?;
         let end = end.cast_to(&DataType::Date32, info.schema())?;
         let start = start.cast_to(&DataType::Date32, info.schema())?;

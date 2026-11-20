@@ -342,55 +342,21 @@ mod tests {
     }
 
     #[test]
-    fn return_field_respects_nullability() -> Result<()> {
-        let udf = SparkMakeDtInterval::new();
-
-        // All nullable inputs -> nullable output
+    fn return_field_is_always_nullable() -> Result<()> {
+        // An overflow returns NULL (#20), so the result is nullable even for
+        // non-nullable inputs
         let arg_fields = vec![
-            Arc::new(Field::new("days", DataType::Int32, true)),
-            Arc::new(Field::new("hours", DataType::Int32, true)),
-            Arc::new(Field::new("mins", DataType::Int32, true)),
-            Arc::new(Field::new("secs", DataType::Float64, true)),
-        ];
-
-        let out = udf.return_field_from_args(ReturnFieldArgs {
-            arg_fields: &arg_fields,
-            scalar_arguments: &[None, None, None, None],
-        })?;
-        assert!(out.is_nullable());
-        assert_eq!(out.data_type(), &Duration(Microsecond));
-
-        // Non-nullable inputs -> nullable output, because an overflow returns NULL (#20)
-        let non_nullable_arg_fields = vec![
             Arc::new(Field::new("days", DataType::Int32, false)),
             Arc::new(Field::new("hours", DataType::Int32, false)),
             Arc::new(Field::new("mins", DataType::Int32, false)),
             Arc::new(Field::new("secs", DataType::Float64, false)),
         ];
-
-        let out = udf.return_field_from_args(ReturnFieldArgs {
-            arg_fields: &non_nullable_arg_fields,
+        let out = SparkMakeDtInterval::new().return_field_from_args(ReturnFieldArgs {
+            arg_fields: &arg_fields,
             scalar_arguments: &[None, None, None, None],
         })?;
         assert!(out.is_nullable());
-
-        // Non-finite secs scalar is nullable too
-        let scalar_values =
-            [None, None, None, Some(ScalarValue::Float64(Some(f64::NAN)))];
-        let scalar_refs = scalar_values.iter().map(|v| v.as_ref()).collect::<Vec<_>>();
-        let out = udf.return_field_from_args(ReturnFieldArgs {
-            arg_fields: &non_nullable_arg_fields,
-            scalar_arguments: &scalar_refs,
-        })?;
-        assert!(out.is_nullable());
-
-        // A zero-arg call (defaults) is nullable too, as the rule ignores the arguments
-        let out = udf.return_field_from_args(ReturnFieldArgs {
-            arg_fields: &[],
-            scalar_arguments: &[],
-        })?;
-        assert!(out.is_nullable());
-
+        assert_eq!(out.data_type(), &Duration(Microsecond));
         Ok(())
     }
 

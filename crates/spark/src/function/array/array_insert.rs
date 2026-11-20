@@ -2,6 +2,7 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+use crate::function::functions_nested_utils::list_element_field;
 use std::sync::Arc;
 
 use arrow::array::{
@@ -100,16 +101,6 @@ impl SparkArrayInsert {
     pub fn with_legacy_negative_index(mut self, legacy_negative_index: bool) -> Self {
         self.legacy_negative_index = legacy_negative_index;
         self
-    }
-}
-
-/// The element field of a list type.
-fn list_element_field(data_type: &DataType) -> Option<&FieldRef> {
-    match data_type {
-        DataType::List(f) | DataType::LargeList(f) | DataType::FixedSizeList(f, _) => {
-            Some(f)
-        }
-        _ => None,
     }
 }
 

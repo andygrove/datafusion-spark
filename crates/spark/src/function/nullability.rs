@@ -16,8 +16,8 @@
 //! These are independent: a null-intolerant expression can still be nullable for non-NULL
 //! inputs.
 //!
-//! A function here declares both in a [`SparkNullability`] and uses it from `ScalarUDFImpl`,
-//! where [`spark_nullability!`] implements `simplify`:
+//! Every function that uses [`SparkNullability`] is null-intolerant, so it declares only the
+//! `nullable` rule, and [`spark_nullability!`] implements `simplify` from it:
 //!
 //! ```ignore
 //! const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
@@ -42,21 +42,15 @@ use datafusion_common::{Result, ScalarValue};
 use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{Expr, ExprSchemable, ReturnFieldArgs, ScalarUDFImpl, lit};
 
-/// When a function's result can be NULL: Spark's `Expression.nullable`.
+/// The nullability of a null-intolerant function: when its result can be NULL, as Spark's
+/// `Expression.nullable` declares it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) enum SparkNullable {
-    /// When any argument can be NULL: `children.exists(_.nullable)`, the default of
+pub(crate) enum SparkNullability {
+    /// Nullable when any argument is: `children.exists(_.nullable)`, the default of
     /// `UnaryExpression`, `BinaryExpression` and `TernaryExpression`.
     Children,
-    /// Always, because the function can return NULL for non-NULL arguments.
+    /// Always nullable, because the function can return NULL for non-NULL arguments.
     Always,
-}
-
-/// A function's nullability: Spark's `nullable` and `nullIntolerant`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub(crate) struct SparkNullability {
-    nullable: SparkNullable,
-    null_intolerant: bool,
 }
 
 impl SparkNullability {
@@ -64,28 +58,20 @@ impl SparkNullability {
     /// `UnaryExpression`, `BinaryExpression` or `TernaryExpression` with
     /// `nullIntolerant = true` that does not override `nullable`.
     pub(crate) const fn null_intolerant() -> Self {
-        Self::new(SparkNullable::Children, true)
+        Self::Children
     }
 
     /// A null-intolerant function that can return NULL for non-NULL arguments, so its result
     /// is always nullable. Spark overrides `nullable` to `true` for these.
     pub(crate) const fn null_intolerant_always_nullable() -> Self {
-        Self::new(SparkNullable::Always, true)
-    }
-
-    /// Declares `nullable` and `nullIntolerant` separately.
-    pub(crate) const fn new(nullable: SparkNullable, null_intolerant: bool) -> Self {
-        Self {
-            nullable,
-            null_intolerant,
-        }
+        Self::Always
     }
 
     /// Whether the result can be NULL, given the argument fields.
     pub(crate) fn nullable(&self, arg_fields: &[FieldRef]) -> bool {
-        match self.nullable {
-            SparkNullable::Children => arg_fields.iter().any(|f| f.is_nullable()),
-            SparkNullable::Always => true,
+        match self {
+            Self::Children => arg_fields.iter().any(|f| f.is_nullable()),
+            Self::Always => true,
         }
     }
 
@@ -101,9 +87,9 @@ impl SparkNullability {
 
     /// The return field of a function that computes its type in `ScalarUDFImpl::return_type`,
     /// for `ScalarUDFImpl::return_field_from_args`.
-    pub(crate) fn return_field_from_type<F: ScalarUDFImpl + ?Sized>(
+    pub(crate) fn return_field_from_type(
         &self,
-        func: &F,
+        func: &dyn ScalarUDFImpl,
         args: &ReturnFieldArgs,
     ) -> Result<FieldRef> {
         let arg_types = args
@@ -115,18 +101,18 @@ impl SparkNullability {
         Ok(self.return_field(func.name(), data_type, args.arg_fields))
     }
 
-    /// For `ScalarUDFImpl::simplify`: replaces a call to a null-intolerant function that has
-    /// a NULL literal argument with a NULL literal of its return type, as Spark's
-    /// `NullPropagation` does. Otherwise returns the arguments unchanged.
+    /// For `ScalarUDFImpl::simplify`: replaces a call that has a NULL literal argument with a
+    /// NULL literal of its return type, as Spark's `NullPropagation` does for a
+    /// null-intolerant expression. Otherwise returns the arguments unchanged.
     ///
     /// This is only an optimization: `invoke_with_args` must return NULL for such a call too.
-    pub(crate) fn simplify<F: ScalarUDFImpl + ?Sized>(
+    pub(crate) fn simplify(
         &self,
-        func: &F,
+        func: &dyn ScalarUDFImpl,
         args: Vec<Expr>,
         info: &SimplifyContext,
     ) -> Result<ExprSimplifyResult> {
-        if !self.null_intolerant || !args.iter().any(is_null_literal) {
+        if !args.iter().any(is_null_literal) {
             return Ok(ExprSimplifyResult::Original(args));
         }
         let arg_fields = args
@@ -144,7 +130,7 @@ impl SparkNullability {
             arg_fields: &arg_fields,
             scalar_arguments: &scalar_arguments,
         })?;
-        match ScalarValue::try_from(return_field.data_type()) {
+        match ScalarValue::try_new_null(return_field.data_type()) {
             Ok(null) => Ok(ExprSimplifyResult::Simplified(lit(null))),
             // A type that has no NULL `ScalarValue` is left to `invoke_with_args`
             Err(_) => Ok(ExprSimplifyResult::Original(args)),
@@ -267,14 +253,5 @@ mod tests {
             };
             assert_eq!(original, args);
         }
-    }
-
-    #[test]
-    fn test_simplify_not_null_intolerant() {
-        let args = vec![lit(ScalarValue::Utf8(None))];
-        let result = SparkNullability::new(SparkNullable::Children, false)
-            .simplify(&SparkAscii::new(), args.clone(), &schema())
-            .unwrap();
-        assert!(matches!(result, ExprSimplifyResult::Original(a) if a == args));
     }
 }

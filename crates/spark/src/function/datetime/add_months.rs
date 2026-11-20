@@ -96,10 +96,6 @@ impl ScalarUDFImpl for SparkAddMonths {
         args: Vec<Expr>,
         info: &SimplifyContext,
     ) -> Result<ExprSimplifyResult> {
-        let args = match NULLABILITY.simplify(self, args, info)? {
-            ExprSimplifyResult::Original(args) => args,
-            simplified => return Ok(simplified),
-        };
         let [date_arg, months_arg] = take_function_args("add_months", args)?;
         let interval = months_arg
             .cast_to(&DataType::Interval(IntervalUnit::YearMonth), info.schema())?;

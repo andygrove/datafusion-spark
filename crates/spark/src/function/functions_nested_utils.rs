@@ -3,6 +3,7 @@
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 use arrow::array::{Array, ArrayRef};
+use arrow::datatypes::{DataType, FieldRef};
 use datafusion_common::{Result, ScalarValue};
 use datafusion_expr::ColumnarValue;
 
@@ -36,5 +37,15 @@ where
         } else {
             result.map(ColumnarValue::Array)
         }
+    }
+}
+
+/// The element field of a list type.
+pub(crate) fn list_element_field(data_type: &DataType) -> Option<&FieldRef> {
+    match data_type {
+        DataType::List(f) | DataType::LargeList(f) | DataType::FixedSizeList(f, _) => {
+            Some(f)
+        }
+        _ => None,
     }
 }

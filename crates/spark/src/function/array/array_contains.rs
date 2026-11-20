@@ -3,6 +3,7 @@
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 use crate::function::float_normalize::normalize_floats;
+use crate::function::functions_nested_utils::list_element_field;
 use crate::function::nullability::{SparkNullability, spark_nullability};
 use arrow::array::{
     Array, AsArray, BooleanArray, BooleanBufferBuilder, GenericListArray, OffsetSizeTrait,
@@ -66,12 +67,8 @@ impl ScalarUDFImpl for SparkArrayContains {
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        let contains_null = match args.arg_fields[0].data_type() {
-            DataType::List(field)
-            | DataType::LargeList(field)
-            | DataType::FixedSizeList(field, _) => field.is_nullable(),
-            _ => true,
-        };
+        let contains_null = list_element_field(args.arg_fields[0].data_type())
+            .is_none_or(|field| field.is_nullable());
         let nullable = NULLABILITY.nullable(args.arg_fields) || contains_null;
         Ok(Arc::new(Field::new(
             self.name(),

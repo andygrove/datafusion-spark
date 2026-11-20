@@ -65,8 +65,6 @@ impl ScalarUDFImpl for MapFromArrays {
             get_element_type(keys_field.data_type())?,
             get_element_type(values_field.data_type())?,
         );
-        // Spark marks map_from_arrays as null intolerant, so the output is
-        // nullable if either input is nullable.
         Ok(NULLABILITY.return_field(self.name(), map_type, args.arg_fields))
     }
 
