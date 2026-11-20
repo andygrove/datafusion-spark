@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use crate::function::nullability::SparkNullability;
 use arrow::array::{Array, ArrayRef, GenericBinaryBuilder, OffsetSizeTrait};
 use arrow::datatypes::DataType;
 use datafusion_common::arrow::datatypes::{Field, FieldRef};
@@ -119,6 +120,9 @@ impl ScalarUDFImpl for SparkBase64 {
     }
 }
 
+/// Spark's `UnBase64` is a null-intolerant `UnaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
+
 /// Spark-compatible `unbase64` expression.
 ///
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#unbase64>
@@ -191,11 +195,15 @@ impl ScalarUDFImpl for SparkUnBase64 {
             DataType::LargeBinary => DataType::LargeBinary,
             _ => DataType::Binary,
         };
-        Ok(Arc::new(Field::new(
-            self.name(),
-            return_type,
-            str.is_nullable(),
-        )))
+        Ok(NULLABILITY.return_field(self.name(), return_type, args.arg_fields))
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

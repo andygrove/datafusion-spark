@@ -2,9 +2,8 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
-use std::sync::Arc;
-
-use arrow::datatypes::{DataType, Field, FieldRef};
+use crate::function::nullability::SparkNullability;
+use arrow::datatypes::{DataType, FieldRef};
 use datafusion_common::types::{NativeType, logical_date, logical_string};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, internal_err};
@@ -15,6 +14,9 @@ use datafusion_expr::{
     Volatility, binary_expr,
 };
 use datafusion_macros::user_doc;
+
+/// Spark's `DateDiff` is a null-intolerant `BinaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `date_diff` expression.
 ///
@@ -104,8 +106,7 @@ impl ScalarUDFImpl for SparkDateDiff {
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        let nullable = args.arg_fields.iter().any(|f| f.is_nullable());
-        Ok(Arc::new(Field::new(self.name(), DataType::Int32, nullable)))
+        Ok(NULLABILITY.return_field(self.name(), DataType::Int32, args.arg_fields))
     }
 
     fn documentation(&self) -> Option<&Documentation> {
@@ -123,6 +124,10 @@ impl ScalarUDFImpl for SparkDateDiff {
         args: Vec<Expr>,
         info: &SimplifyContext,
     ) -> Result<ExprSimplifyResult> {
+        let args = match NULLABILITY.simplify(self, args, info)? {
+            ExprSimplifyResult::Original(args) => args,
+            simplified => return Ok(simplified),
+        };
         let [end, start] = take_function_args(self.name(), args)?;
         let end = end.cast_to(&DataType::Date32, info.schema())?;
         let start = start.cast_to(&DataType::Date32, info.schema())?;

@@ -2,13 +2,18 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+use crate::function::nullability::SparkNullability;
 use arrow::array::{ArrayRef, Scalar, new_null_array};
 use arrow::compute::kernels::boolean::{and, is_not_null};
 use arrow::compute::kernels::numeric::div;
 use arrow::compute::kernels::zip::zip;
 use arrow::datatypes::DataType;
+use arrow::datatypes::FieldRef;
 use arrow::error::ArrowError;
 use datafusion_common::{Result, assert_eq_or_internal_err};
+use datafusion_expr::Expr;
+use datafusion_expr::ReturnFieldArgs;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
 };
@@ -54,6 +59,10 @@ fn spark_divide(args: &[ColumnarValue], enable_ansi_mode: bool) -> Result<Column
     Ok(ColumnarValue::Array(result))
 }
 
+/// Spark's `Divide` is null-intolerant and always nullable, because a zero divisor returns
+/// NULL when ANSI mode is off.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant_always_nullable();
+
 /// Implements Spark's `/` on operands that are not `DECIMAL`: Spark casts both
 /// sides to `DOUBLE`, and a zero divisor yields NULL unless ANSI mode is on.
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -86,6 +95,18 @@ impl ScalarUDFImpl for SparkDivide {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(DataType::Float64)
+    }
+
+    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
+        NULLABILITY.return_field_from_type(self, &args)
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn coerce_types(&self, arg_types: &[DataType]) -> Result<Vec<DataType>> {

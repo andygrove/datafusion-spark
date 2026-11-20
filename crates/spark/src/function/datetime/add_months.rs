@@ -3,9 +3,9 @@
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 use std::ops::Add;
-use std::sync::Arc;
 
-use arrow::datatypes::{DataType, Field, FieldRef, IntervalUnit};
+use crate::function::nullability::SparkNullability;
+use arrow::datatypes::{DataType, FieldRef, IntervalUnit};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, internal_err};
 use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
@@ -14,6 +14,9 @@ use datafusion_expr::{
     ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
 };
 use datafusion_macros::user_doc;
+
+/// Spark's `AddMonths` is a null-intolerant `BinaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `add_months` expression.
 ///
@@ -81,13 +84,7 @@ impl ScalarUDFImpl for SparkAddMonths {
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        let nullable = args.arg_fields.iter().any(|f| f.is_nullable());
-
-        Ok(Arc::new(Field::new(
-            self.name(),
-            DataType::Date32,
-            nullable,
-        )))
+        Ok(NULLABILITY.return_field(self.name(), DataType::Date32, args.arg_fields))
     }
 
     fn documentation(&self) -> Option<&Documentation> {
@@ -99,6 +96,10 @@ impl ScalarUDFImpl for SparkAddMonths {
         args: Vec<Expr>,
         info: &SimplifyContext,
     ) -> Result<ExprSimplifyResult> {
+        let args = match NULLABILITY.simplify(self, args, info)? {
+            ExprSimplifyResult::Original(args) => args,
+            simplified => return Ok(simplified),
+        };
         let [date_arg, months_arg] = take_function_args("add_months", args)?;
         let interval = months_arg
             .cast_to(&DataType::Interval(IntervalUnit::YearMonth), info.schema())?;

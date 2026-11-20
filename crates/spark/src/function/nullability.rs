@@ -39,18 +39,12 @@ use datafusion_expr::{Expr, ExprSchemable, ReturnFieldArgs, ScalarUDFImpl, lit};
 
 /// When a function's result can be NULL: Spark's `Expression.nullable`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[allow(
-    dead_code,
-    reason = "declared for the functions that move onto SparkNullability next (#383)"
-)]
 pub(crate) enum SparkNullable {
     /// When any argument can be NULL: `children.exists(_.nullable)`, the default of
     /// `UnaryExpression`, `BinaryExpression` and `TernaryExpression`.
     Children,
     /// Always, because the function can return NULL for non-NULL arguments.
     Always,
-    /// Never.
-    Never,
 }
 
 /// A function's nullability: Spark's `nullable` and `nullIntolerant`.
@@ -68,6 +62,12 @@ impl SparkNullability {
         Self::new(SparkNullable::Children, true)
     }
 
+    /// A null-intolerant function that can return NULL for non-NULL arguments, so its result
+    /// is always nullable. Spark overrides `nullable` to `true` for these.
+    pub(crate) const fn null_intolerant_always_nullable() -> Self {
+        Self::new(SparkNullable::Always, true)
+    }
+
     /// Declares `nullable` and `nullIntolerant` separately.
     pub(crate) const fn new(nullable: SparkNullable, null_intolerant: bool) -> Self {
         Self {
@@ -81,7 +81,6 @@ impl SparkNullability {
         match self.nullable {
             SparkNullable::Children => arg_fields.iter().any(|f| f.is_nullable()),
             SparkNullable::Always => true,
-            SparkNullable::Never => false,
         }
     }
 
@@ -93,6 +92,22 @@ impl SparkNullability {
         arg_fields: &[FieldRef],
     ) -> FieldRef {
         Arc::new(Field::new(name, data_type, self.nullable(arg_fields)))
+    }
+
+    /// The return field of a function that computes its type in `ScalarUDFImpl::return_type`,
+    /// for `ScalarUDFImpl::return_field_from_args`.
+    pub(crate) fn return_field_from_type<F: ScalarUDFImpl + ?Sized>(
+        &self,
+        func: &F,
+        args: &ReturnFieldArgs,
+    ) -> Result<FieldRef> {
+        let arg_types = args
+            .arg_fields
+            .iter()
+            .map(|f| f.data_type().clone())
+            .collect::<Vec<_>>();
+        let data_type = func.return_type(&arg_types)?;
+        Ok(self.return_field(func.name(), data_type, args.arg_fields))
     }
 
     /// For `ScalarUDFImpl::simplify`: replaces a call to a null-intolerant function that has
@@ -124,8 +139,11 @@ impl SparkNullability {
             arg_fields: &arg_fields,
             scalar_arguments: &scalar_arguments,
         })?;
-        let null = ScalarValue::try_from(return_field.data_type())?;
-        Ok(ExprSimplifyResult::Simplified(lit(null)))
+        match ScalarValue::try_from(return_field.data_type()) {
+            Ok(null) => Ok(ExprSimplifyResult::Simplified(lit(null))),
+            // A type that has no NULL `ScalarValue` is left to `invoke_with_args`
+            Err(_) => Ok(ExprSimplifyResult::Original(args)),
+        }
     }
 }
 
@@ -159,11 +177,10 @@ mod tests {
     }
 
     #[test]
-    fn test_nullable_always_and_never() {
-        let always = SparkNullability::new(SparkNullable::Always, true);
+    fn test_nullable_always() {
+        let always = SparkNullability::null_intolerant_always_nullable();
+        assert!(always.nullable(&[]));
         assert!(always.nullable(&fields(&[false])));
-        let never = SparkNullability::new(SparkNullable::Never, false);
-        assert!(!never.nullable(&fields(&[true])));
     }
 
     #[test]

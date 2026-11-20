@@ -14,12 +14,20 @@ use arrow::array::{Array, ArrayRef, Float64Array};
 use arrow::compute::binary;
 use arrow::datatypes::DataType;
 
+use crate::function::nullability::SparkNullability;
+use arrow::datatypes::FieldRef;
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue};
+use datafusion_expr::Expr;
+use datafusion_expr::ReturnFieldArgs;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
 };
 use datafusion_functions::math::power::PowerFunc;
+
+/// Spark's `Pow` is a null-intolerant `BinaryMathExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible implementation of `pow` / `power`.
 ///
@@ -68,6 +76,18 @@ impl ScalarUDFImpl for SparkPow {
 
     fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
         self.inner.return_type(arg_types)
+    }
+
+    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
+        NULLABILITY.return_field_from_type(self, &args)
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

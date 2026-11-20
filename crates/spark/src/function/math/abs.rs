@@ -3,7 +3,7 @@
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 use arrow::array::*;
-use arrow::datatypes::{DataType, Field, FieldRef};
+use arrow::datatypes::{DataType, FieldRef};
 use arrow::error::ArrowError;
 use datafusion_common::{DataFusionError, Result, ScalarValue, internal_err};
 use datafusion_expr::{
@@ -17,10 +17,16 @@ use datafusion_macros::user_doc;
 use std::sync::Arc;
 
 use crate::function::error_utils::ARITHMETIC_OVERFLOW_ERROR;
+use crate::function::nullability::SparkNullability;
+use datafusion_expr::Expr;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 
 fn arithmetic_overflow_error() -> ArrowError {
     ArrowError::ComputeError(ARITHMETIC_OVERFLOW_ERROR.to_string())
 }
+
+/// Spark's `Abs` is a null-intolerant `UnaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `abs` expression.
 ///
@@ -82,11 +88,16 @@ impl ScalarUDFImpl for SparkAbs {
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        let input_field = &args.arg_fields[0];
-        let out_dt = input_field.data_type().clone();
-        let out_nullable = input_field.is_nullable();
+        let data_type = args.arg_fields[0].data_type().clone();
+        Ok(NULLABILITY.return_field(self.name(), data_type, args.arg_fields))
+    }
 
-        Ok(Arc::new(Field::new(self.name(), out_dt, out_nullable)))
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn documentation(&self) -> Option<&Documentation> {
@@ -239,6 +250,7 @@ pub fn spark_abs(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow::datatypes::Field;
     use arrow::datatypes::i256;
 
     macro_rules! eval_array_legacy_mode {

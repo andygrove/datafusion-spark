@@ -4,20 +4,29 @@
 
 use std::sync::Arc;
 
+use crate::function::nullability::SparkNullability;
 use arrow::array::{Array, Int64Array};
 use arrow::datatypes::DataType;
 use arrow::datatypes::DataType::{Int32, Int64};
+use arrow::datatypes::FieldRef;
 use datafusion_common::cast::as_int32_array;
 use datafusion_common::types::logical_int32;
 use datafusion_common::{
     DataFusionError, Result, ScalarValue, exec_err, utils::take_function_args,
 };
+use datafusion_expr::Expr;
+use datafusion_expr::ReturnFieldArgs;
 use datafusion_expr::Signature;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     Coercion, ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl,
     TypeSignatureClass, Volatility,
 };
 use datafusion_macros::user_doc;
+
+/// Spark's `Factorial` is null-intolerant and always nullable, because a value outside 0 to
+/// 20 returns NULL.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant_always_nullable();
 
 /// Spark-compatible `factorial` expression.
 ///
@@ -79,6 +88,18 @@ impl ScalarUDFImpl for SparkFactorial {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(Int64)
+    }
+
+    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
+        NULLABILITY.return_field_from_type(self, &args)
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

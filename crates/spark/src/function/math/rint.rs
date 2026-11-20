@@ -4,13 +4,18 @@
 
 use std::sync::Arc;
 
+use crate::function::nullability::SparkNullability;
 use arrow::array::{Array, ArrayRef, AsArray};
 use arrow::compute::cast;
 use arrow::datatypes::DataType::{
     Float32, Float64, Int8, Int16, Int32, Int64, UInt8, UInt16, UInt32, UInt64,
 };
+use arrow::datatypes::FieldRef;
 use arrow::datatypes::{DataType, Float32Type, Float64Type};
 use datafusion_common::{Result, assert_eq_or_internal_err, exec_err};
+use datafusion_expr::Expr;
+use datafusion_expr::ReturnFieldArgs;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::sort_properties::{ExprProperties, SortProperties};
 use datafusion_expr::{
     ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
@@ -18,6 +23,9 @@ use datafusion_expr::{
 };
 use datafusion_functions::utils::make_scalar_function;
 use datafusion_macros::user_doc;
+
+/// Spark's `Rint` is a null-intolerant `UnaryMathExpression`, which is always nullable.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant_always_nullable();
 
 /// Spark-compatible `rint` expression.
 ///
@@ -69,6 +77,18 @@ impl ScalarUDFImpl for SparkRint {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(Float64)
+    }
+
+    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
+        NULLABILITY.return_field_from_type(self, &args)
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn documentation(&self) -> Option<&Documentation> {

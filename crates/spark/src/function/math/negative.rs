@@ -2,18 +2,26 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+use crate::function::nullability::SparkNullability;
 use arrow::array::types::*;
 use arrow::array::*;
+use arrow::datatypes::FieldRef;
 use arrow::datatypes::{DataType, IntervalDayTime, IntervalMonthDayNano, IntervalUnit};
 use bigdecimal::num_traits::WrappingNeg;
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue, exec_err, not_impl_err};
+use datafusion_expr::Expr;
+use datafusion_expr::ReturnFieldArgs;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     TypeSignature, Volatility,
 };
 use datafusion_macros::user_doc;
 use std::sync::Arc;
+
+/// Spark's `UnaryMinus` is a null-intolerant `UnaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `negative` expression.
 ///
@@ -85,6 +93,18 @@ impl ScalarUDFImpl for SparkNegative {
 
     fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
         Ok(arg_types[0].clone())
+    }
+
+    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
+        NULLABILITY.return_field_from_type(self, &args)
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn documentation(&self) -> Option<&Documentation> {

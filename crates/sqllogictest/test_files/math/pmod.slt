@@ -560,3 +560,11 @@ query R
 SELECT pmod(-7.2, 3.0) as pmod_scalar_4;
 ----
 1.7999999999999998
+
+# pmod is null-intolerant, as in Spark: a NULL argument makes every row NULL
+query II
+SELECT pmod(column1, NULL::int), pmod(NULL::int, column1)
+FROM VALUES (7::int), (NULL::int);
+----
+NULL NULL
+NULL NULL

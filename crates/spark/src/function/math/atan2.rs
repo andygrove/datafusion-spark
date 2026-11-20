@@ -4,17 +4,25 @@
 
 use std::sync::Arc;
 
+use crate::function::nullability::SparkNullability;
 use arrow::array::{ArrayRef, AsArray, Float64Array};
 use arrow::compute::kernels::arity::binary;
+use arrow::datatypes::FieldRef;
 use arrow::datatypes::{DataType, Float64Type};
 use datafusion_common::Result;
 use datafusion_common::utils::take_function_args;
+use datafusion_expr::Expr;
+use datafusion_expr::ReturnFieldArgs;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
 use datafusion_macros::user_doc;
+
+/// Spark's `Atan2` is a null-intolerant `BinaryMathExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `atan2` expression.
 ///
@@ -78,6 +86,18 @@ impl ScalarUDFImpl for SparkAtan2 {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(DataType::Float64)
+    }
+
+    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
+        NULLABILITY.return_field_from_type(self, &args)
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn documentation(&self) -> Option<&Documentation> {

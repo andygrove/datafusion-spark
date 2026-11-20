@@ -7,6 +7,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use super::timezone::TimeZoneRules;
+use crate::function::nullability::SparkNullability;
 use arrow::array::{
     Array, ArrayRef, AsArray, BooleanArray, PrimitiveBuilder, StringArrayType,
     new_empty_array,
@@ -20,6 +21,8 @@ use arrow::record_batch::RecordBatch;
 use datafusion_common::types::{NativeType, logical_string};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, exec_datafusion_err, exec_err, internal_err};
+use datafusion_expr::Expr;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     Coercion, ColumnarValue, Documentation, ExpressionPlacement, ReturnFieldArgs,
     ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
@@ -27,6 +30,9 @@ use datafusion_expr::{
 use datafusion_functions::utils::make_scalar_function;
 use datafusion_macros::user_doc;
 use datafusion_physical_expr_common::physical_expr::PhysicalExpr;
+
+/// Spark's `FromUTCTimestamp` is a null-intolerant `BinaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `from_utc_timestamp` expression.
 ///
@@ -113,13 +119,16 @@ impl ScalarUDFImpl for SparkFromUtcTimestamp {
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        let nullable = args.arg_fields.iter().any(|f| f.is_nullable());
+        let data_type = args.arg_fields[0].data_type().clone();
+        Ok(NULLABILITY.return_field(self.name(), data_type, args.arg_fields))
+    }
 
-        Ok(Arc::new(Field::new(
-            self.name(),
-            args.arg_fields[0].data_type().clone(),
-            nullable,
-        )))
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use crate::function::nullability::SparkNullability;
 use arrow::array::{ArrayRef, AsArray, Int32Array};
 use arrow::datatypes::{
     DataType, FieldRef, Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type, UInt16Type,
@@ -11,12 +12,17 @@ use arrow::datatypes::{
 };
 use datafusion_common::cast::as_boolean_array;
 use datafusion_common::{Result, internal_err, plan_err};
+use datafusion_expr::Expr;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     TypeSignature, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
 use datafusion_macros::user_doc;
+
+/// Spark's `BitwiseCount` is a null-intolerant `UnaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `bit_count` expression.
 ///
@@ -91,13 +97,15 @@ impl ScalarUDFImpl for SparkBitCount {
         &self,
         args: datafusion_expr::ReturnFieldArgs,
     ) -> Result<FieldRef> {
-        use arrow::datatypes::Field;
-        // bit_count returns Int32 with the same nullability as the input
-        Ok(Arc::new(Field::new(
-            args.arg_fields[0].name(),
-            DataType::Int32,
-            args.arg_fields[0].is_nullable(),
-        )))
+        Ok(NULLABILITY.return_field(self.name(), DataType::Int32, args.arg_fields))
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn documentation(&self) -> Option<&Documentation> {

@@ -4,6 +4,7 @@
 
 use std::sync::Arc;
 
+use crate::function::nullability::SparkNullability;
 use arrow::array::{ArrayRef, BooleanArray, Scalar, new_null_array};
 use arrow::compute::kernels::cast::{CastOptions, cast, cast_with_options};
 use arrow::compute::kernels::numeric::add_wrapping;
@@ -13,9 +14,13 @@ use arrow::compute::kernels::{
     numeric::{neg, rem},
     zip::zip,
 };
+use arrow::datatypes::FieldRef;
 use arrow::datatypes::{DECIMAL128_MAX_PRECISION, DataType};
 use arrow::error::ArrowError;
 use datafusion_common::{Result, ScalarValue, assert_eq_or_internal_err, exec_err};
+use datafusion_expr::Expr;
+use datafusion_expr::ReturnFieldArgs;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     Coercion, ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
     TypeSignatureClass, Volatility, binary::decimal_coercion,
@@ -192,6 +197,10 @@ pub fn spark_pmod(
     Ok(ColumnarValue::Array(result))
 }
 
+/// Spark's `Remainder` and `Pmod` are null-intolerant and always nullable, because a zero
+/// divisor returns NULL when ANSI mode is off.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant_always_nullable();
+
 /// SparkMod implements the Spark-compatible modulo function
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct SparkMod {
@@ -231,6 +240,18 @@ impl ScalarUDFImpl for SparkMod {
         // Return the same type as the first argument for simplicity
         // Arrow's rem function handles type promotion internally
         Ok(arg_types[0].clone())
+    }
+
+    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
+        NULLABILITY.return_field_from_type(self, &args)
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
@@ -296,6 +317,18 @@ impl ScalarUDFImpl for SparkPmod {
             (DataType::Null, other) | (other, DataType::Null) => Ok(other.clone()),
             _ => Ok(arg_types[0].clone()),
         }
+    }
+
+    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
+        NULLABILITY.return_field_from_type(self, &args)
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

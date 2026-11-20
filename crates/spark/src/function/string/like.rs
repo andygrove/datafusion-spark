@@ -2,11 +2,14 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+use crate::function::nullability::SparkNullability;
 use arrow::array::ArrayRef;
 use arrow::compute::like;
-use arrow::datatypes::{DataType, Field, FieldRef};
+use arrow::datatypes::{DataType, FieldRef};
 use datafusion_common::{Result, exec_err, internal_err};
 use datafusion_expr::ColumnarValue;
+use datafusion_expr::Expr;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     Volatility,
@@ -14,6 +17,9 @@ use datafusion_expr::{
 use datafusion_functions::utils::make_scalar_function;
 use datafusion_macros::user_doc;
 use std::sync::Arc;
+
+/// Spark's `Like` is a null-intolerant `BinaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `like` expression.
 ///
@@ -80,12 +86,15 @@ impl ScalarUDFImpl for SparkLike {
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        let nullable = args.arg_fields.iter().any(|f| f.is_nullable());
-        Ok(Arc::new(Field::new(
-            self.name(),
-            DataType::Boolean,
-            nullable,
-        )))
+        Ok(NULLABILITY.return_field(self.name(), DataType::Boolean, args.arg_fields))
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
@@ -109,6 +118,7 @@ mod tests {
     use crate::function::utils::test::test_scalar_function;
     use arrow::array::{Array, BooleanArray};
     use arrow::datatypes::DataType::Boolean;
+    use arrow::datatypes::Field;
     use datafusion_common::ScalarValue;
 
     macro_rules! test_like_string_invoke {

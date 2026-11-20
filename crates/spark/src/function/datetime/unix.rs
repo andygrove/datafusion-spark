@@ -4,6 +4,7 @@
 
 use std::sync::{Arc, LazyLock};
 
+use crate::function::nullability::SparkNullability;
 use arrow::datatypes::{DataType, Field, FieldRef, Int64Type, TimeUnit};
 use datafusion_common::cast::as_int64_array;
 use datafusion_common::types::logical_date;
@@ -16,6 +17,9 @@ use datafusion_expr::{
     ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
 };
 use datafusion_macros::user_doc;
+
+/// Spark's `UnixDate` is a null-intolerant `UnaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `unix_date` expression.
 ///
@@ -74,8 +78,7 @@ impl ScalarUDFImpl for SparkUnixDate {
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        let nullable = args.arg_fields[0].is_nullable();
-        Ok(Arc::new(Field::new(self.name(), DataType::Int32, nullable)))
+        Ok(NULLABILITY.return_field(self.name(), DataType::Int32, args.arg_fields))
     }
 
     fn documentation(&self) -> Option<&Documentation> {
@@ -91,6 +94,10 @@ impl ScalarUDFImpl for SparkUnixDate {
         args: Vec<Expr>,
         info: &SimplifyContext,
     ) -> Result<ExprSimplifyResult> {
+        let args = match NULLABILITY.simplify(self, args, info)? {
+            ExprSimplifyResult::Original(args) => args,
+            simplified => return Ok(simplified),
+        };
         let [date] = take_function_args(self.name(), args)?;
         Ok(ExprSimplifyResult::Simplified(
             date.cast_to(&DataType::Date32, info.schema())?

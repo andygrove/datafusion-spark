@@ -4,21 +4,29 @@
 
 use std::sync::Arc;
 
+use crate::function::nullability::SparkNullability;
 use arrow::array::{
     Array, ArrayRef, AsArray, DurationMicrosecondBuilder, PrimitiveArray,
 };
 use arrow::datatypes::TimeUnit::Microsecond;
-use arrow::datatypes::{DataType, Field, FieldRef, Float64Type, Int32Type};
+use arrow::datatypes::{DataType, FieldRef, Float64Type, Int32Type};
 use datafusion_common::types::{NativeType, logical_float64, logical_int32};
 use datafusion_common::{
     DataFusionError, Result, ScalarValue, internal_err, plan_datafusion_err,
 };
+use datafusion_expr::Expr;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     Coercion, ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs,
     ScalarUDFImpl, Signature, TypeSignature, TypeSignatureClass, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
 use datafusion_macros::user_doc;
+
+/// Spark's `MakeDTInterval` is a null-intolerant `QuaternaryExpression` that is nullable
+/// when an argument is, but here an overflow returns NULL (#20), so the result is always
+/// nullable.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant_always_nullable();
 
 /// Spark-compatible `make_dt_interval` expression.
 ///
@@ -130,24 +138,19 @@ impl ScalarUDFImpl for SparkMakeDtInterval {
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        let has_non_finite_secs = args
-            .scalar_arguments
-            .get(3)
-            .and_then(|arg| {
-                arg.map(|scalar| match scalar {
-                    ScalarValue::Float64(Some(v)) => !v.is_finite(),
-                    ScalarValue::Float32(Some(v)) => !v.is_finite(),
-                    _ => false,
-                })
-            })
-            .unwrap_or(false);
-        let nullable =
-            has_non_finite_secs || args.arg_fields.iter().any(|f| f.is_nullable());
-        Ok(Arc::new(Field::new(
+        Ok(NULLABILITY.return_field(
             self.name(),
             DataType::Duration(Microsecond),
-            nullable,
-        )))
+            args.arg_fields,
+        ))
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
@@ -284,6 +287,7 @@ mod tests {
     use datafusion_common::internal_datafusion_err;
 
     use super::*;
+    use arrow::datatypes::Field;
 
     fn run_make_dt_interval(arrs: Vec<ArrayRef>) -> Result<ArrayRef> {
         make_dt_interval_kernel(&arrs)
@@ -364,7 +368,7 @@ mod tests {
         assert!(out.is_nullable());
         assert_eq!(out.data_type(), &Duration(Microsecond));
 
-        // Non-nullable inputs -> non-nullable output
+        // Non-nullable inputs -> nullable output, because an overflow returns NULL (#20)
         let non_nullable_arg_fields = vec![
             Arc::new(Field::new("days", DataType::Int32, false)),
             Arc::new(Field::new("hours", DataType::Int32, false)),
@@ -376,9 +380,9 @@ mod tests {
             arg_fields: &non_nullable_arg_fields,
             scalar_arguments: &[None, None, None, None],
         })?;
-        assert!(!out.is_nullable());
+        assert!(out.is_nullable());
 
-        // Non-finite secs scalar should force nullable even if fields are non-nullable
+        // Non-finite secs scalar is nullable too
         let scalar_values =
             [None, None, None, Some(ScalarValue::Float64(Some(f64::NAN)))];
         let scalar_refs = scalar_values.iter().map(|v| v.as_ref()).collect::<Vec<_>>();
@@ -388,12 +392,12 @@ mod tests {
         })?;
         assert!(out.is_nullable());
 
-        // Zero-arg call (defaults) should also be non-nullable
+        // A zero-arg call (defaults) is nullable too, as the rule ignores the arguments
         let out = udf.return_field_from_args(ReturnFieldArgs {
             arg_fields: &[],
             scalar_arguments: &[],
         })?;
-        assert!(!out.is_nullable());
+        assert!(out.is_nullable());
 
         Ok(())
     }

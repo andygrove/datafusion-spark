@@ -9,16 +9,23 @@ use crate::function::map::utils::{
     get_list_offsets, get_list_values, map_from_keys_values_offsets_nulls,
     map_type_from_key_value_types,
 };
+use crate::function::nullability::SparkNullability;
 use arrow::array::{Array, ArrayRef, NullBufferBuilder, StructArray};
 use arrow::buffer::NullBuffer;
 use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, exec_err, internal_err};
+use datafusion_expr::Expr;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
+
+/// Spark's `MapFromEntries` is a null-intolerant `UnaryExpression`. It is also nullable
+/// when an entry can be NULL.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `map_from_entries` expression
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#map_from_entries>
@@ -83,9 +90,18 @@ impl ScalarUDFImpl for MapFromEntries {
         }?;
 
         let map_type = map_type_from_key_value_types(keys_type, values_type);
-        let nullable = entries_field.is_nullable() || entries_element_field.is_nullable();
+        let nullable =
+            NULLABILITY.nullable(args.arg_fields) || entries_element_field.is_nullable();
 
         Ok(Arc::new(Field::new(self.name(), map_type, nullable)))
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

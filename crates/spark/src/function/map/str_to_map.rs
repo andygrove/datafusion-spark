@@ -9,7 +9,7 @@ use arrow::array::{
     Array, ArrayRef, MapBuilder, MapFieldNames, StringArrayType, StringBuilder,
 };
 use arrow::buffer::NullBuffer;
-use arrow::datatypes::{DataType, Field, FieldRef};
+use arrow::datatypes::{DataType, FieldRef};
 use datafusion_common::cast::{
     as_large_string_array, as_string_array, as_string_view_array,
 };
@@ -21,9 +21,15 @@ use datafusion_expr::{
 
 use crate::config::map_last_value_wins;
 use crate::function::map::utils::map_type_from_key_value_types;
+use crate::function::nullability::SparkNullability;
+use datafusion_expr::Expr;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 
 const DEFAULT_PAIR_DELIM: &str = ",";
 const DEFAULT_KV_DELIM: &str = ":";
+
+/// Spark's `StringToMap` is a null-intolerant `TernaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `str_to_map` expression
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#str_to_map>
@@ -83,9 +89,16 @@ impl ScalarUDFImpl for SparkStrToMap {
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        let nullable = args.arg_fields.iter().any(|f| f.is_nullable());
         let map_type = map_type_from_key_value_types(&DataType::Utf8, &DataType::Utf8);
-        Ok(Arc::new(Field::new(self.name(), map_type, nullable)))
+        Ok(NULLABILITY.return_field(self.name(), map_type, args.arg_fields))
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

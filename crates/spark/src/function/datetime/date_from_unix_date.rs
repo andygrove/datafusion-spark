@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use arrow::array::{Array, Date32Array};
-use arrow::datatypes::{DataType, Field, FieldRef};
+use arrow::datatypes::{DataType, FieldRef};
 use datafusion_common::cast::as_int32_array;
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue, internal_err};
@@ -16,6 +16,12 @@ use datafusion_expr::{
 use datafusion_macros::user_doc;
 
 use super::date_part_name::int32_coercion;
+use crate::function::nullability::SparkNullability;
+use datafusion_expr::Expr;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
+
+/// Spark's `DateFromUnixDate` is a null-intolerant `UnaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `date_from_unix_date` expression.
 ///
@@ -81,12 +87,15 @@ impl ScalarUDFImpl for SparkDateFromUnixDate {
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        let nullable = args.arg_fields[0].is_nullable();
-        Ok(Arc::new(Field::new(
-            self.name(),
-            DataType::Date32,
-            nullable,
-        )))
+        Ok(NULLABILITY.return_field(self.name(), DataType::Date32, args.arg_fields))
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn documentation(&self) -> Option<&Documentation> {

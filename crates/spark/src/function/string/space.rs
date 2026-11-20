@@ -2,19 +2,27 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
+use crate::function::nullability::SparkNullability;
 use arrow::array::{
     Array, ArrayRef, DictionaryArray, Int32Array, StringArray, StringBuilder,
     as_dictionary_array,
 };
+use arrow::datatypes::FieldRef;
 use arrow::datatypes::{DataType, Int32Type};
 use datafusion_common::cast::as_int32_array;
 use datafusion_common::{Result, ScalarValue, exec_err};
+use datafusion_expr::Expr;
+use datafusion_expr::ReturnFieldArgs;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     Volatility,
 };
 use datafusion_macros::user_doc;
 use std::sync::Arc;
+
+/// Spark's `StringSpace` is a null-intolerant `UnaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `space` expression.
 ///
@@ -84,6 +92,18 @@ impl ScalarUDFImpl for SparkSpace {
             _ => DataType::Utf8,
         };
         Ok(return_type)
+    }
+
+    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
+        NULLABILITY.return_field_from_type(self, &args)
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {

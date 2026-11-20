@@ -175,3 +175,11 @@ true
 NULL
 NULL
 false
+
+# contains is null-intolerant, as in Spark: a NULL argument makes every row NULL
+query BB
+SELECT contains(column1, NULL::string), contains(NULL::string, column1)
+FROM VALUES ('Spark SQL'::string), (NULL::string);
+----
+NULL NULL
+NULL NULL

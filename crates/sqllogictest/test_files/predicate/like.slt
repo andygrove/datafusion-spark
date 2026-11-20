@@ -69,3 +69,11 @@ query B
 SELECT like('Spark'::string, NULL::string);
 ----
 NULL
+
+# like is null-intolerant, as in Spark: a NULL argument makes every row NULL
+query BB
+SELECT column1 LIKE NULL::string, like(column1, NULL::string)
+FROM VALUES ('Spark SQL'::string), (NULL::string);
+----
+NULL NULL
+NULL NULL

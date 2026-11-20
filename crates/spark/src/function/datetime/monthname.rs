@@ -2,10 +2,8 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
-use std::sync::Arc;
-
 use arrow::compute::DatePart;
-use arrow::datatypes::{DataType, Field, FieldRef};
+use arrow::datatypes::{DataType, FieldRef};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, internal_err};
 use datafusion_expr::{
@@ -15,6 +13,9 @@ use datafusion_expr::{
 use datafusion_macros::user_doc;
 
 use super::date_part_name::{date_part_name, date_signature};
+use crate::function::nullability::SparkNullability;
+use datafusion_expr::Expr;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 
 const MONTH_NAMES: [&str; 12] = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -23,6 +24,9 @@ const MONTH_NAMES: [&str; 12] = [
 fn month_number_to_name(month: i32) -> Option<&'static str> {
     MONTH_NAMES.get((month - 1) as usize).copied()
 }
+
+/// Spark's `MonthName` is a null-intolerant `UnaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `monthname` expression (Spark 4.0+).
 ///
@@ -85,8 +89,15 @@ impl ScalarUDFImpl for SparkMonthName {
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        let nullable = args.arg_fields.iter().any(|f| f.is_nullable());
-        Ok(Arc::new(Field::new(self.name(), DataType::Utf8, nullable)))
+        Ok(NULLABILITY.return_field(self.name(), DataType::Utf8, args.arg_fields))
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn documentation(&self) -> Option<&Documentation> {

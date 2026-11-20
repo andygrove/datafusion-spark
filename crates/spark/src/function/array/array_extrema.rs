@@ -5,6 +5,7 @@
 //! Spark-compatible `array_max` and `array_min`.
 
 use crate::function::float_normalize::normalize_array;
+use crate::function::nullability::SparkNullability;
 use crate::function::type_coercion::{is_orderable, spark_sql_type};
 use arrow::array::{
     Array, ArrayRef, ArrowPrimitiveType, AsArray, GenericListArray, OffsetSizeTrait,
@@ -18,6 +19,9 @@ use arrow::datatypes::{
 };
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue, exec_err, plan_err};
+use datafusion_expr::Expr;
+use datafusion_expr::ReturnFieldArgs;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     Volatility,
@@ -25,6 +29,10 @@ use datafusion_expr::{
 use datafusion_macros::user_doc;
 use std::cmp::Ordering;
 use std::sync::Arc;
+
+/// Spark's `ArrayMax` and `ArrayMin` are null-intolerant and always nullable, because an
+/// empty array returns NULL.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant_always_nullable();
 
 /// Spark-compatible `array_max` expression.
 ///
@@ -80,6 +88,18 @@ impl ScalarUDFImpl for SparkArrayMax {
 
     fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
         element_type(self.name(), arg_types)
+    }
+
+    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
+        NULLABILITY.return_field_from_type(self, &args)
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn coerce_types(&self, arg_types: &[DataType]) -> Result<Vec<DataType>> {
@@ -149,6 +169,18 @@ impl ScalarUDFImpl for SparkArrayMin {
 
     fn return_type(&self, arg_types: &[DataType]) -> Result<DataType> {
         element_type(self.name(), arg_types)
+    }
+
+    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
+        NULLABILITY.return_field_from_type(self, &args)
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn coerce_types(&self, arg_types: &[DataType]) -> Result<Vec<DataType>> {

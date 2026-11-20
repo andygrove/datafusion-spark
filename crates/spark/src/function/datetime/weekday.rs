@@ -2,19 +2,23 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
-use std::sync::Arc;
-
+use crate::function::nullability::SparkNullability;
 use arrow::array::AsArray;
 use arrow::compute::{DatePart, date_part};
-use arrow::datatypes::{DataType, Field, FieldRef, Int32Type};
+use arrow::datatypes::{DataType, FieldRef, Int32Type};
 use datafusion_common::types::{NativeType, logical_date};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue, internal_err};
+use datafusion_expr::Expr;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     Coercion, ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs,
     ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
 };
 use datafusion_macros::user_doc;
+
+/// Spark's `WeekDay` is a null-intolerant `UnaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `weekday` expression.
 ///
@@ -79,8 +83,15 @@ impl ScalarUDFImpl for SparkWeekDay {
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        let nullable = args.arg_fields.iter().any(|f| f.is_nullable());
-        Ok(Arc::new(Field::new(self.name(), DataType::Int32, nullable)))
+        Ok(NULLABILITY.return_field(self.name(), DataType::Int32, args.arg_fields))
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn documentation(&self) -> Option<&Documentation> {
@@ -113,6 +124,8 @@ impl ScalarUDFImpl for SparkWeekDay {
 mod tests {
     use super::*;
     use arrow::array::{Date32Array, Int32Array};
+    use arrow::datatypes::Field;
+    use std::sync::Arc;
 
     #[test]
     fn test_weekday_return_field_nullability_matches_input() {

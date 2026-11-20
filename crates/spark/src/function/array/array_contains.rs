@@ -3,17 +3,25 @@
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 use crate::function::float_normalize::normalize_floats;
+use crate::function::nullability::SparkNullability;
 use arrow::array::{
     Array, AsArray, BooleanArray, BooleanBufferBuilder, GenericListArray, OffsetSizeTrait,
 };
 use arrow::buffer::{BooleanBuffer, NullBuffer};
-use arrow::datatypes::DataType;
+use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion_common::{Result, exec_err};
+use datafusion_expr::Expr;
+use datafusion_expr::ReturnFieldArgs;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
 };
 use datafusion_functions_nested::array_has::array_has_udf;
 use std::sync::Arc;
+
+/// Spark's `ArrayContains` is a null-intolerant `BinaryExpression`. It is also nullable
+/// when the array can hold NULL elements.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `array_contains` function.
 ///
@@ -57,6 +65,29 @@ impl ScalarUDFImpl for SparkArrayContains {
 
     fn return_type(&self, _: &[DataType]) -> Result<DataType> {
         Ok(DataType::Boolean)
+    }
+
+    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
+        let contains_null = match args.arg_fields[0].data_type() {
+            DataType::List(field)
+            | DataType::LargeList(field)
+            | DataType::FixedSizeList(field, _) => field.is_nullable(),
+            _ => true,
+        };
+        let nullable = NULLABILITY.nullable(args.arg_fields) || contains_null;
+        Ok(Arc::new(Field::new(
+            self.name(),
+            DataType::Boolean,
+            nullable,
+        )))
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn invoke_with_args(&self, mut args: ScalarFunctionArgs) -> Result<ColumnarValue> {

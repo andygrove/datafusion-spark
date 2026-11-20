@@ -166,3 +166,11 @@ SELECT atan2(a, b) FROM (VALUES (0.0::double, 1.0::double), (1.0::double, 1.0::d
 0.7853981633974483
 NULL
 3.141592653589793
+
+# atan2 is null-intolerant, as in Spark: a NULL argument makes every row NULL
+query RR
+SELECT atan2(column1, NULL::double), atan2(NULL::double, column1)
+FROM VALUES (1.0::double), (NULL::double);
+----
+NULL NULL
+NULL NULL

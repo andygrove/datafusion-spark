@@ -3,6 +3,7 @@
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 use crate::function::float_normalize::normalize_array;
+use crate::function::nullability::SparkNullability;
 use crate::function::type_coercion::{
     is_orderable, spark_sql_type, struct_field_types_match, tightest_common_type,
 };
@@ -11,15 +12,22 @@ use arrow::array::{
 };
 use arrow::buffer::{NullBuffer, ScalarBuffer};
 use arrow::compute::SortOptions;
+use arrow::datatypes::FieldRef;
 use arrow::datatypes::{DataType, Field};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue, exec_err, plan_err};
+use datafusion_expr::Expr;
+use datafusion_expr::ReturnFieldArgs;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     Volatility,
 };
 use datafusion_macros::user_doc;
 use std::sync::Arc;
+
+/// Spark's `ArrayPosition` is a null-intolerant `BinaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `array_position` expression.
 ///
@@ -83,6 +91,18 @@ impl ScalarUDFImpl for SparkArrayPosition {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(DataType::Int64)
+    }
+
+    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
+        NULLABILITY.return_field_from_type(self, &args)
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn coerce_types(&self, arg_types: &[DataType]) -> Result<Vec<DataType>> {

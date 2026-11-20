@@ -4,18 +4,29 @@
 
 use std::sync::Arc;
 
+use crate::function::nullability::SparkNullability;
 use arrow::array::{Array, ArrayRef, IntervalMonthDayNanoBuilder, PrimitiveArray};
 use arrow::datatypes::DataType::Interval;
+use arrow::datatypes::FieldRef;
 use arrow::datatypes::IntervalUnit::MonthDayNano;
 use arrow::datatypes::{DataType, IntervalMonthDayNano};
 use datafusion_common::types::{NativeType, logical_float64, logical_int32};
 use datafusion_common::{DataFusionError, Result, ScalarValue, plan_datafusion_err};
+use datafusion_expr::Expr;
+use datafusion_expr::ReturnFieldArgs;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     Coercion, ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     TypeSignature, TypeSignatureClass, Volatility,
 };
 use datafusion_functions::utils::make_scalar_function;
 use datafusion_macros::user_doc;
+
+/// Spark's `MakeInterval` is null-intolerant. It is always nullable when ANSI mode is off,
+/// because an overflow returns NULL, and nullable when an argument is when ANSI mode is on.
+/// ANSI mode is not known in `return_field_from_args`, so the result is always nullable
+/// here.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant_always_nullable();
 
 /// Spark-compatible `make_interval` expression.
 ///
@@ -154,6 +165,18 @@ impl ScalarUDFImpl for SparkMakeInterval {
 
     fn return_type(&self, _arg_types: &[DataType]) -> Result<DataType> {
         Ok(Interval(MonthDayNano))
+    }
+
+    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
+        NULLABILITY.return_field_from_type(self, &args)
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
