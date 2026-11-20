@@ -11,7 +11,7 @@
 use std::env;
 use std::fs::File;
 use std::io::BufReader;
-use std::path::{Path, absolute};
+use std::path::Path;
 use std::process::ExitCode;
 use std::sync::Arc;
 
@@ -134,7 +134,7 @@ async fn main() -> ExitCode {
 
 async fn main_inner() -> Result<()> {
     env_logger::init();
-    let mut args = Args::parse();
+    let args = Args::parse();
 
     if !args.quiet {
         println!(
@@ -144,11 +144,16 @@ async fn main_inner() -> Result<()> {
         );
     }
 
+    // Open every script before running any of them, so a file that cannot be opened
+    // fails before an earlier script has run. Opening them before changing to the
+    // data directory also keeps `-f` and `-r` paths relative to where the CLI was
+    // started.
+    let scripts = open_files(if args.repl_mode() {
+        &args.rc
+    } else {
+        &args.file
+    })?;
     if let Some(path) = &args.data_path {
-        // `-f` and `-r` paths are relative to where the CLI was started, not to
-        // the data directory.
-        args.file = absolute_paths(&args.file)?;
-        args.rc = absolute_paths(&args.rc)?;
         env::set_current_dir(Path::new(path))?;
     }
 
@@ -183,16 +188,11 @@ async fn main_inner() -> Result<()> {
         instrumented_registry,
     };
 
+    exec_files(&ctx, scripts, &print_options).await?;
     if args.repl_mode() {
-        if !args.rc.is_empty() {
-            exec_files(&ctx, &args.rc, &print_options).await?;
-        }
         return exec::exec_from_repl(&ctx, &mut print_options)
             .await
             .map_err(|e| DataFusionError::External(Box::new(e)));
-    }
-    if !args.file.is_empty() {
-        exec_files(&ctx, &args.file, &print_options).await?;
     }
     if !args.command.is_empty() {
         exec::exec_from_commands(&ctx, args.command.clone(), &print_options).await?;
@@ -200,30 +200,26 @@ async fn main_inner() -> Result<()> {
     Ok(())
 }
 
-/// Makes each path absolute, leaving the names of stdin as they are.
-fn absolute_paths(paths: &[String]) -> Result<Vec<String>> {
+/// Opens each file. Unlike `exec::exec_from_files`, which panics, a file that cannot
+/// be opened is an error.
+fn open_files(paths: &[String]) -> Result<Vec<File>> {
     paths
         .iter()
         .map(|path| {
-            if is_stdin_location(path) {
-                return Ok(path.clone());
-            }
-            Ok(absolute(path)?.to_string_lossy().into_owned())
+            File::open(path).map_err(|e| {
+                DataFusionError::Execution(format!("Cannot open file '{path}': {e}"))
+            })
         })
         .collect()
 }
 
-/// Runs the SQL in each file in turn. Unlike `exec::exec_from_files`, which panics,
-/// a file that cannot be opened is an error.
+/// Runs the SQL in each file in turn.
 async fn exec_files(
     ctx: &SessionContext,
-    files: &[String],
+    files: Vec<File>,
     print_options: &PrintOptions,
 ) -> Result<()> {
-    for path in files {
-        let file = File::open(path).map_err(|e| {
-            DataFusionError::Execution(format!("Cannot open file '{path}': {e}"))
-        })?;
+    for file in files {
         exec::exec_from_lines(ctx, &mut BufReader::new(file), print_options).await?;
     }
     Ok(())
