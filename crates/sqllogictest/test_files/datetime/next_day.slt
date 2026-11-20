@@ -92,12 +92,12 @@ NULL
 # arithmetic, rather than panicking. Cast the Date32 result to Int32 to assert
 # the epoch day directly (these dates are past the printable range).
 query I
-SELECT unix_date(next_day(date_from_unix_date(95026236), 'Mon'::string));
+SELECT arrow_cast(next_day(date_from_unix_date(95026236), 'Mon'::string), 'Int32');
 ----
 95026243
 
 query I
-SELECT unix_date(next_day(date_from_unix_date(95026230), 'Tue'::string));
+SELECT arrow_cast(next_day(date_from_unix_date(95026230), 'Tue'::string), 'Int32');
 ----
 95026237
 

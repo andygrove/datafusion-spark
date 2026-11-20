@@ -878,85 +878,85 @@ SELECT format_string('Upper: %S', NULL::STRING);
 ----
 Upper: NULL
 
-## NULL with integer format using arrow_cast
+## NULL with integer format
 query T
 SELECT format_string('Integer: %d', NULL::INT);
 ----
 Integer: null
 
-## NULL with hex format (lowercase) using arrow_cast
+## NULL with hex format (lowercase)
 query T
 SELECT format_string('Hex: %x', NULL::INT);
 ----
 Hex: null
 
-## NULL with hex format (uppercase) using arrow_cast
+## NULL with hex format (uppercase)
 query T
 SELECT format_string('Hex: %X', NULL::INT);
 ----
 Hex: NULL
 
-## NULL with octal format using arrow_cast
+## NULL with octal format
 query T
 SELECT format_string('Octal: %o', NULL::INT);
 ----
 Octal: null
 
-## NULL with float format using arrow_cast
+## NULL with float format
 query T
 SELECT format_string('Float: %f', NULL::DOUBLE);
 ----
 Float: null
 
-## NULL with float and precision using arrow_cast
+## NULL with float and precision
 query T
 SELECT format_string('Float: %.2f', NULL::DOUBLE);
 ----
 Float: nu
 
-## NULL with scientific notation (lowercase) using arrow_cast
+## NULL with scientific notation (lowercase)
 query T
 SELECT format_string('Scientific: %e', NULL::DOUBLE);
 ----
 Scientific: null
 
-## NULL with scientific notation (uppercase) using arrow_cast
+## NULL with scientific notation (uppercase)
 query T
 SELECT format_string('Scientific: %E', NULL::DOUBLE);
 ----
 Scientific: NULL
 
-## NULL with compact float (lowercase) using arrow_cast
+## NULL with compact float (lowercase)
 query T
 SELECT format_string('Compact: %g', NULL::DOUBLE);
 ----
 Compact: null
 
-## NULL with compact float and precision (lowercase) using arrow_cast
+## NULL with compact float and precision (lowercase)
 query T
 SELECT format_string('Float: %.3g', NULL::DOUBLE);
 ----
 Float: nul
 
-## NULL with compact float (uppercase) using arrow_cast
+## NULL with compact float (uppercase)
 query T
 SELECT format_string('Compact: %G', NULL::DOUBLE);
 ----
 Compact: NULL
 
-## NULL with compact float and precision (uppercase) using arrow_cast
+## NULL with compact float and precision (uppercase)
 query T
 SELECT format_string('Float: %.3G', NULL::DOUBLE);
 ----
 Float: NUL
 
-## NULL with hex float (lowercase) using arrow_cast
+## NULL with hex float (lowercase)
 query T
 SELECT format_string('Hex float: %a', NULL::DOUBLE);
 ----
 Hex float: null
 
-## NULL with hex float (uppercase) using arrow_cast
+## NULL with hex float (uppercase)
 query T
 SELECT format_string('Hex float: %A', NULL::DOUBLE);
 ----
@@ -968,25 +968,25 @@ Hex float: NULL
 # ----
 # Float: nu
 
-## NULL with boolean format (lowercase) using arrow_cast
+## NULL with boolean format (lowercase)
 query T
 SELECT format_string('Bool: %b', NULL::BOOLEAN);
 ----
 Bool: false
 
-## NULL with boolean format (uppercase) using arrow_cast
+## NULL with boolean format (uppercase)
 query T
 SELECT format_string('Bool: %B', NULL::BOOLEAN);
 ----
 Bool: FALSE
 
-## NULL with character format (lowercase) using arrow_cast
+## NULL with character format (lowercase)
 query T
 SELECT format_string('Char: %c', NULL::INT);
 ----
 Char: null
 
-## NULL with character format (uppercase) using arrow_cast
+## NULL with character format (uppercase)
 query T
 SELECT format_string('Char: %C', NULL::INT);
 ----
@@ -1052,25 +1052,25 @@ SELECT format_string('Month: %tB', arrow_cast(NULL, 'Timestamp(ns)'));
 ----
 Month: null
 
-## NULL with decimal format using arrow_cast
+## NULL with decimal format
 query T
 SELECT format_string('Decimal: %f', NULL::DECIMAL(10, 2));
 ----
 Decimal: null
 
-## NULL Int8 with string format using arrow_cast
+## NULL Int8 with string format
 query T
 SELECT format_string('Value: %s', NULL::TINYINT);
 ----
 Value: null
 
-## NULL Int16 with string format using arrow_cast
+## NULL Int16 with string format
 query T
 SELECT format_string('Value: %s', NULL::SMALLINT);
 ----
 Value: null
 
-## NULL Int64 with string format using arrow_cast
+## NULL Int64 with string format
 query T
 SELECT format_string('Value: %s', NULL::BIGINT);
 ----
@@ -1100,13 +1100,13 @@ SELECT format_string('Value: %s', arrow_cast(NULL, 'UInt64'));
 ----
 Value: null
 
-## NULL Float32 with string format using arrow_cast
+## NULL Float32 with string format
 query T
 SELECT format_string('Value: %s', NULL::FLOAT);
 ----
 Value: null
 
-## NULL Float64 with string format using arrow_cast
+## NULL Float64 with string format
 query T
 SELECT format_string('Value: %s', NULL::DOUBLE);
 ----
@@ -1118,7 +1118,7 @@ SELECT format_string('Value: %s', arrow_cast(NULL, 'Timestamp(ns)'));
 ----
 Value: null
 
-## NULL Date32 with string format using arrow_cast
+## NULL Date32 with string format
 query T
 SELECT format_string('Value: %s', NULL::DATE);
 ----
@@ -1130,7 +1130,7 @@ SELECT format_string('Value: %s', arrow_cast(NULL, 'Date64'));
 ----
 Value: null
 
-## NULL Decimal128 with string format using arrow_cast
+## NULL Decimal128 with string format
 query T
 SELECT format_string('Value: %s', NULL::DECIMAL(10, 2));
 ----
