@@ -30,9 +30,11 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
+          # Three dots: the changes in the pull request, not those on main since.
           if [ "$EVENT" != pull_request ] ||
-            git diff --name-only "$BASE" HEAD -- \
+            git diff --name-only "$BASE...$HEAD_SHA" -- \
               crates/sqllogictest/scripts \
               crates/sqllogictest/test_files \
               .github/workflows/pyspark-runner.yml | grep -q .; then

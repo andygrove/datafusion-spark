@@ -144,7 +144,6 @@ makes only these changes:
   `CAST(expr AS type)`. As in Spark 4, `::` applies to the literal, column,
   call, subscript or parenthesized expression before it, and a minus sign
   belongs to a number, so `-1::int` becomes `CAST(-1 AS int)`.
-
 - `CREATE TABLE` becomes `CREATE TEMPORARY VIEW`, and `DROP TABLE` becomes
   `DROP VIEW`
 - PostgreSQL type names that Spark does not accept are renamed, for example
