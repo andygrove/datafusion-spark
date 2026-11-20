@@ -4,15 +4,11 @@
 
 use std::sync::Arc;
 
-use crate::function::nullability::SparkNullability;
+use crate::function::nullability::{SparkNullability, spark_nullability};
 use arrow::array::{ArrowNativeTypeOp, AsArray, Decimal128Array};
-use arrow::datatypes::FieldRef;
 use arrow::datatypes::{DataType, Decimal128Type, Float32Type, Float64Type, Int64Type};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue, exec_err};
-use datafusion_expr::Expr;
-use datafusion_expr::ReturnFieldArgs;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     Volatility,
@@ -98,17 +94,7 @@ impl ScalarUDFImpl for SparkCeil {
         }
     }
 
-    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        NULLABILITY.return_field_from_type(self, &args)
-    }
-
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY, return_type);
 
     fn aliases(&self) -> &[String] {
         &self.aliases

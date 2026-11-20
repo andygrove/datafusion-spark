@@ -2,18 +2,14 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
-use crate::function::nullability::SparkNullability;
+use crate::function::nullability::{SparkNullability, spark_nullability};
 use arrow::array::{ArrayRef, Scalar, new_null_array};
 use arrow::compute::kernels::boolean::{and, is_not_null};
 use arrow::compute::kernels::numeric::div;
 use arrow::compute::kernels::zip::zip;
 use arrow::datatypes::DataType;
-use arrow::datatypes::FieldRef;
 use arrow::error::ArrowError;
 use datafusion_common::{Result, assert_eq_or_internal_err};
-use datafusion_expr::Expr;
-use datafusion_expr::ReturnFieldArgs;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, Volatility,
 };
@@ -97,17 +93,7 @@ impl ScalarUDFImpl for SparkDivide {
         Ok(DataType::Float64)
     }
 
-    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        NULLABILITY.return_field_from_type(self, &args)
-    }
-
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY, return_type);
 
     fn coerce_types(&self, arg_types: &[DataType]) -> Result<Vec<DataType>> {
         assert_eq_or_internal_err!(

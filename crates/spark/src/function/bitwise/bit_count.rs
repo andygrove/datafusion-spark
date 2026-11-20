@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use crate::function::nullability::SparkNullability;
+use crate::function::nullability::{SparkNullability, spark_nullability};
 use arrow::array::{ArrayRef, AsArray, Int32Array};
 use arrow::datatypes::{
     DataType, FieldRef, Int8Type, Int16Type, Int32Type, Int64Type, UInt8Type, UInt16Type,
@@ -12,8 +12,6 @@ use arrow::datatypes::{
 };
 use datafusion_common::cast::as_boolean_array;
 use datafusion_common::{Result, internal_err, plan_err};
-use datafusion_expr::Expr;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     TypeSignature, Volatility,
@@ -100,13 +98,7 @@ impl ScalarUDFImpl for SparkBitCount {
         Ok(NULLABILITY.return_field(self.name(), DataType::Int32, args.arg_fields))
     }
 
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY);
 
     fn documentation(&self) -> Option<&Documentation> {
         self.doc()

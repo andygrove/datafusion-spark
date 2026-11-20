@@ -4,16 +4,12 @@
 
 use std::sync::Arc;
 
-use crate::function::nullability::SparkNullability;
+use crate::function::nullability::{SparkNullability, spark_nullability};
 use arrow::array::{ArrayRef, AsArray, Float64Array};
 use arrow::compute::kernels::arity::binary;
-use arrow::datatypes::FieldRef;
 use arrow::datatypes::{DataType, Float64Type};
 use datafusion_common::Result;
 use datafusion_common::utils::take_function_args;
-use datafusion_expr::Expr;
-use datafusion_expr::ReturnFieldArgs;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     Volatility,
@@ -87,17 +83,7 @@ impl ScalarUDFImpl for SparkHypot {
         Ok(DataType::Float64)
     }
 
-    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        NULLABILITY.return_field_from_type(self, &args)
-    }
-
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY, return_type);
 
     fn documentation(&self) -> Option<&Documentation> {
         self.doc()

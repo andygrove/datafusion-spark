@@ -16,19 +16,24 @@
 //! These are independent: a null-intolerant expression can still be nullable for non-NULL
 //! inputs.
 //!
-//! A function here declares both in a [`SparkNullability`] and uses it from `ScalarUDFImpl`:
+//! A function here declares both in a [`SparkNullability`] and uses it from `ScalarUDFImpl`,
+//! where [`spark_nullability!`] implements `simplify`:
 //!
 //! ```ignore
 //! const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 //!
-//! fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-//!     Ok(NULLABILITY.return_field(self.name(), DataType::Int32, args.arg_fields))
-//! }
+//! impl ScalarUDFImpl for SparkAscii {
+//!     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
+//!         Ok(NULLABILITY.return_field(self.name(), DataType::Int32, args.arg_fields))
+//!     }
 //!
-//! fn simplify(&self, args: Vec<Expr>, info: &SimplifyContext) -> Result<ExprSimplifyResult> {
-//!     NULLABILITY.simplify(self, args, info)
+//!     spark_nullability!(NULLABILITY);
 //! }
 //! ```
+//!
+//! A function that computes its type in `return_type` uses
+//! `spark_nullability!(NULLABILITY, return_type)`, which also implements
+//! `return_field_from_args`.
 
 use std::sync::Arc;
 
@@ -146,6 +151,37 @@ impl SparkNullability {
         }
     }
 }
+
+/// Implements `ScalarUDFImpl` methods from a function's [`SparkNullability`], inside its
+/// `impl ScalarUDFImpl` block:
+///
+/// - `spark_nullability!(NULLABILITY)` implements `simplify` with
+///   [`SparkNullability::simplify`].
+/// - `spark_nullability!(NULLABILITY, return_type)` also implements `return_field_from_args`
+///   with [`SparkNullability::return_field_from_type`], for a function that computes its type
+///   in `return_type`.
+macro_rules! spark_nullability {
+    ($nullability:expr) => {
+        fn simplify(
+            &self,
+            args: Vec<datafusion_expr::Expr>,
+            info: &datafusion_expr::simplify::SimplifyContext,
+        ) -> datafusion_common::Result<datafusion_expr::simplify::ExprSimplifyResult> {
+            $nullability.simplify(self, args, info)
+        }
+    };
+    ($nullability:expr, return_type) => {
+        $crate::function::nullability::spark_nullability!($nullability);
+
+        fn return_field_from_args(
+            &self,
+            args: datafusion_expr::ReturnFieldArgs,
+        ) -> datafusion_common::Result<arrow::datatypes::FieldRef> {
+            $nullability.return_field_from_type(self, &args)
+        }
+    };
+}
+pub(crate) use spark_nullability;
 
 fn is_null_literal(expr: &Expr) -> bool {
     matches!(expr, Expr::Literal(value, _) if value.is_null())

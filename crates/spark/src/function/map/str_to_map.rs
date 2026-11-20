@@ -21,9 +21,7 @@ use datafusion_expr::{
 
 use crate::config::map_last_value_wins;
 use crate::function::map::utils::map_type_from_key_value_types;
-use crate::function::nullability::SparkNullability;
-use datafusion_expr::Expr;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
+use crate::function::nullability::{SparkNullability, spark_nullability};
 
 const DEFAULT_PAIR_DELIM: &str = ",";
 const DEFAULT_KV_DELIM: &str = ":";
@@ -93,13 +91,7 @@ impl ScalarUDFImpl for SparkStrToMap {
         Ok(NULLABILITY.return_field(self.name(), map_type, args.arg_fields))
     }
 
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY);
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         let last_value_wins = map_last_value_wins(&args.config_options);

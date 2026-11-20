@@ -20,11 +20,7 @@ use sha2::{self, Digest};
 use std::sync::Arc;
 
 use crate::function::implicit_cast::{SparkInputType, SparkInputTypes};
-use crate::function::nullability::SparkNullability;
-use arrow::datatypes::FieldRef;
-use datafusion_expr::Expr;
-use datafusion_expr::ReturnFieldArgs;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
+use crate::function::nullability::{SparkNullability, spark_nullability};
 
 /// Spark's `Sha2` is null-intolerant and always nullable, because an unsupported bit length
 /// returns NULL.
@@ -99,17 +95,7 @@ impl ScalarUDFImpl for SparkSha2 {
         Ok(DataType::Utf8)
     }
 
-    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        NULLABILITY.return_field_from_type(self, &args)
-    }
-
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY, return_type);
 
     fn documentation(&self) -> Option<&Documentation> {
         self.doc()

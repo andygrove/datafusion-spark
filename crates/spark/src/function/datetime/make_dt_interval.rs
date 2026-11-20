@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use crate::function::nullability::SparkNullability;
+use crate::function::nullability::{SparkNullability, spark_nullability};
 use arrow::array::{
     Array, ArrayRef, AsArray, DurationMicrosecondBuilder, PrimitiveArray,
 };
@@ -14,8 +14,6 @@ use datafusion_common::types::{NativeType, logical_float64, logical_int32};
 use datafusion_common::{
     DataFusionError, Result, ScalarValue, internal_err, plan_datafusion_err,
 };
-use datafusion_expr::Expr;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     Coercion, ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs,
     ScalarUDFImpl, Signature, TypeSignature, TypeSignatureClass, Volatility,
@@ -145,13 +143,7 @@ impl ScalarUDFImpl for SparkMakeDtInterval {
         ))
     }
 
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY);
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         if args.args.is_empty() {

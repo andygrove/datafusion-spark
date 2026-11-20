@@ -16,9 +16,7 @@ use datafusion_expr::{
 use datafusion_macros::user_doc;
 
 use super::date_part_name::int32_coercion;
-use crate::function::nullability::SparkNullability;
-use datafusion_expr::Expr;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
+use crate::function::nullability::{SparkNullability, spark_nullability};
 
 const ARITHMETIC_OVERFLOW_ERROR: &str = r#"[ARITHMETIC_OVERFLOW] overflow. If necessary set "spark.sql.ansi.enabled" to "false" to bypass this error. SQLSTATE: 22003"#;
 
@@ -110,13 +108,7 @@ impl ScalarUDFImpl for SparkMakeDate {
         Ok(NULLABILITY.return_field(self.name(), DataType::Date32, args.arg_fields))
     }
 
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY);
 
     fn documentation(&self) -> Option<&Documentation> {
         self.doc()

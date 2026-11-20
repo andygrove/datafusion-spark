@@ -7,14 +7,12 @@ use crate::function::map::utils::{
     get_element_type, get_list_offsets, get_list_values,
     map_from_keys_values_offsets_nulls, map_type_from_key_value_types,
 };
-use crate::function::nullability::SparkNullability;
+use crate::function::nullability::{SparkNullability, spark_nullability};
 use arrow::array::{Array, ArrayRef, NullArray};
 use arrow::compute::kernels::cast;
 use arrow::datatypes::{DataType, FieldRef};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, internal_err};
-use datafusion_expr::Expr;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     Volatility,
@@ -72,13 +70,7 @@ impl ScalarUDFImpl for MapFromArrays {
         Ok(NULLABILITY.return_field(self.name(), map_type, args.arg_fields))
     }
 
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY);
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         let last_value_wins = map_last_value_wins(&args.config_options);

@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use crate::function::nullability::SparkNullability;
+use crate::function::nullability::{SparkNullability, spark_nullability};
 use arrow::array::{ArrayRef, BooleanArray, Scalar, new_null_array};
 use arrow::compute::kernels::cast::{CastOptions, cast, cast_with_options};
 use arrow::compute::kernels::numeric::add_wrapping;
@@ -14,13 +14,9 @@ use arrow::compute::kernels::{
     numeric::{neg, rem},
     zip::zip,
 };
-use arrow::datatypes::FieldRef;
 use arrow::datatypes::{DECIMAL128_MAX_PRECISION, DataType};
 use arrow::error::ArrowError;
 use datafusion_common::{Result, ScalarValue, assert_eq_or_internal_err, exec_err};
-use datafusion_expr::Expr;
-use datafusion_expr::ReturnFieldArgs;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     Coercion, ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
     TypeSignatureClass, Volatility, binary::decimal_coercion,
@@ -242,17 +238,7 @@ impl ScalarUDFImpl for SparkMod {
         Ok(arg_types[0].clone())
     }
 
-    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        NULLABILITY.return_field_from_type(self, &args)
-    }
-
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY, return_type);
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         spark_mod(&args.args, args.config_options.execution.enable_ansi_mode)
@@ -319,17 +305,7 @@ impl ScalarUDFImpl for SparkPmod {
         }
     }
 
-    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        NULLABILITY.return_field_from_type(self, &args)
-    }
-
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY, return_type);
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         spark_pmod(

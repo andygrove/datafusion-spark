@@ -11,14 +11,12 @@ use datafusion_macros::user_doc;
 use std::sync::Arc;
 
 use datafusion_common::{Result, ScalarValue, cast::as_int64_array, exec_err};
-use datafusion_expr::Expr;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
     Signature, Volatility,
 };
 
-use crate::function::nullability::SparkNullability;
+use crate::function::nullability::{SparkNullability, spark_nullability};
 
 /// Spark's `Chr` is a null-intolerant `UnaryExpression`.
 const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
@@ -91,13 +89,7 @@ impl ScalarUDFImpl for CharFunc {
         Ok(NULLABILITY.return_field(self.name(), Utf8, args.arg_fields))
     }
 
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY);
 }
 
 /// Returns the ASCII character having the binary equivalent to the input expression.

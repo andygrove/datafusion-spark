@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use crate::function::nullability::SparkNullability;
+use crate::function::nullability::{SparkNullability, spark_nullability};
 use arrow::array::{ArrayRef, ArrowPrimitiveType, AsArray, Int32Array, PrimitiveArray};
 use arrow::compute;
 use arrow::datatypes::{
@@ -16,8 +16,6 @@ use datafusion_common::types::{
 };
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, internal_err};
-use datafusion_expr::Expr;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     Coercion, ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs,
     ScalarUDFImpl, Signature, TypeSignature, TypeSignatureClass, Volatility,
@@ -363,13 +361,7 @@ impl ScalarUDFImpl for SparkBitShift {
         Ok(NULLABILITY.return_field(self.name(), data_type, args.arg_fields))
     }
 
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY);
 
     fn documentation(&self) -> Option<&Documentation> {
         match self.bit_shift_type {

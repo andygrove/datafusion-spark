@@ -2,15 +2,13 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
-use crate::function::nullability::SparkNullability;
+use crate::function::nullability::{SparkNullability, spark_nullability};
 use arrow::array::cast::AsArray;
 use arrow::array::types::Decimal128Type;
 use arrow::array::{ArrowNativeTypeOp, Decimal128Array, Int64Array};
 use arrow::compute::kernels::arity::unary;
 use arrow::datatypes::{DataType, FieldRef};
 use datafusion_common::{DataFusionError, ScalarValue, exec_err, internal_err};
-use datafusion_expr::Expr;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
     Signature, Volatility,
@@ -105,13 +103,7 @@ impl ScalarUDFImpl for SparkFloor {
         Ok(NULLABILITY.return_field(self.name(), return_type, args.arg_fields))
     }
 
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> datafusion_common::Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY);
 
     fn documentation(&self) -> Option<&Documentation> {
         self.doc()

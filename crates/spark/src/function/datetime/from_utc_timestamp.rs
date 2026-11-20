@@ -7,7 +7,7 @@ use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 use super::timezone::TimeZoneRules;
-use crate::function::nullability::SparkNullability;
+use crate::function::nullability::{SparkNullability, spark_nullability};
 use arrow::array::{
     Array, ArrayRef, AsArray, BooleanArray, PrimitiveBuilder, StringArrayType,
     new_empty_array,
@@ -21,8 +21,6 @@ use arrow::record_batch::RecordBatch;
 use datafusion_common::types::{NativeType, logical_string};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, exec_datafusion_err, exec_err, internal_err};
-use datafusion_expr::Expr;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     Coercion, ColumnarValue, Documentation, ExpressionPlacement, ReturnFieldArgs,
     ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
@@ -123,13 +121,7 @@ impl ScalarUDFImpl for SparkFromUtcTimestamp {
         Ok(NULLABILITY.return_field(self.name(), data_type, args.arg_fields))
     }
 
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY);
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         make_scalar_function(spark_from_utc_timestamp, vec![])(&args.args)

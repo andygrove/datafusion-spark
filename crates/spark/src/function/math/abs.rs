@@ -17,9 +17,7 @@ use datafusion_macros::user_doc;
 use std::sync::Arc;
 
 use crate::function::error_utils::ARITHMETIC_OVERFLOW_ERROR;
-use crate::function::nullability::SparkNullability;
-use datafusion_expr::Expr;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
+use crate::function::nullability::{SparkNullability, spark_nullability};
 
 fn arithmetic_overflow_error() -> ArrowError {
     ArrowError::ComputeError(ARITHMETIC_OVERFLOW_ERROR.to_string())
@@ -92,13 +90,7 @@ impl ScalarUDFImpl for SparkAbs {
         Ok(NULLABILITY.return_field(self.name(), data_type, args.arg_fields))
     }
 
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY);
 
     fn documentation(&self) -> Option<&Documentation> {
         self.doc()

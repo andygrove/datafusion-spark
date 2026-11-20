@@ -18,9 +18,7 @@ use datafusion_common::cast::{
 use datafusion_common::utils::take_function_args;
 use datafusion_functions::utils::make_scalar_function;
 
-use crate::function::nullability::SparkNullability;
-use datafusion_expr::Expr;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
+use crate::function::nullability::{SparkNullability, spark_nullability};
 use std::sync::Arc;
 
 /// Spark's `IsValidUTF8` is null-intolerant and always nullable.
@@ -96,13 +94,7 @@ impl ScalarUDFImpl for SparkIsValidUtf8 {
         Ok(NULLABILITY.return_field(self.name(), DataType::Boolean, args.arg_fields))
     }
 
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY);
 
     fn documentation(&self) -> Option<&Documentation> {
         self.doc()

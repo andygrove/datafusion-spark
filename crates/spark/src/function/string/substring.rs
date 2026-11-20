@@ -14,8 +14,6 @@ use datafusion_common::types::{
     NativeType, logical_int32, logical_int64, logical_string,
 };
 use datafusion_common::{Result, exec_err};
-use datafusion_expr::Expr;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{Coercion, Documentation, ReturnFieldArgs, TypeSignatureClass};
 use datafusion_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
@@ -25,7 +23,7 @@ use datafusion_functions::unicode::substr::{enable_ascii_fast_path, get_true_sta
 use datafusion_functions::utils::make_scalar_function;
 use datafusion_macros::user_doc;
 
-use crate::function::nullability::SparkNullability;
+use crate::function::nullability::{SparkNullability, spark_nullability};
 
 /// Spark's `Substring` is a null-intolerant `TernaryExpression`.
 const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
@@ -155,13 +153,7 @@ impl ScalarUDFImpl for SparkSubstring {
         ))
     }
 
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY);
 }
 
 fn spark_substring(args: &[ArrayRef]) -> Result<ArrayRef> {

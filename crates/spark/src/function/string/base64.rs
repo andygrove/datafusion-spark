@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use crate::function::nullability::SparkNullability;
+use crate::function::nullability::{SparkNullability, spark_nullability};
 use arrow::array::{Array, ArrayRef, GenericBinaryBuilder, OffsetSizeTrait};
 use arrow::datatypes::DataType;
 use datafusion_common::arrow::datatypes::{Field, FieldRef};
@@ -198,13 +198,7 @@ impl ScalarUDFImpl for SparkUnBase64 {
         Ok(NULLABILITY.return_field(self.name(), return_type, args.arg_fields))
     }
 
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY);
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         make_scalar_function(spark_unbase64, vec![])(&args.args)

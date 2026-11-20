@@ -5,11 +5,10 @@
 use std::str::from_utf8_unchecked;
 use std::sync::Arc;
 
-use crate::function::nullability::SparkNullability;
+use crate::function::nullability::{SparkNullability, spark_nullability};
 use arrow::array::{Array, ArrayAccessor, ArrayRef, StringArray, StringBuilder};
 use arrow::buffer::{Buffer, OffsetBuffer};
 use arrow::datatypes::DataType;
-use arrow::datatypes::FieldRef;
 use arrow::{
     array::{as_dictionary_array, as_largestring_array, as_string_array},
     datatypes::Int32Type,
@@ -24,9 +23,6 @@ use datafusion_common::{
     cast::{as_binary_array, as_fixed_size_binary_array, as_int64_array},
     exec_datafusion_err, exec_err,
 };
-use datafusion_expr::Expr;
-use datafusion_expr::ReturnFieldArgs;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     Coercion, ColumnarValue, Documentation, EncodingPreservation, ScalarFunctionArgs,
     ScalarUDFImpl, Signature, TypeSignature, TypeSignatureClass, Volatility,
@@ -118,20 +114,7 @@ impl ScalarUDFImpl for SparkHex {
         })
     }
 
-    fn return_field_from_args(
-        &self,
-        args: ReturnFieldArgs,
-    ) -> datafusion_common::Result<FieldRef> {
-        NULLABILITY.return_field_from_type(self, &args)
-    }
-
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> datafusion_common::Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY, return_type);
 
     fn invoke_with_args(
         &self,

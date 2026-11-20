@@ -13,9 +13,7 @@ use datafusion_expr::{
 use datafusion_macros::user_doc;
 
 use super::date_part_name::{date_part_name, date_signature};
-use crate::function::nullability::SparkNullability;
-use datafusion_expr::Expr;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
+use crate::function::nullability::{SparkNullability, spark_nullability};
 
 const MONTH_NAMES: [&str; 12] = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
@@ -92,13 +90,7 @@ impl ScalarUDFImpl for SparkMonthName {
         Ok(NULLABILITY.return_field(self.name(), DataType::Utf8, args.arg_fields))
     }
 
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY);
 
     fn documentation(&self) -> Option<&Documentation> {
         self.doc()

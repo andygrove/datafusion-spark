@@ -14,13 +14,9 @@ use arrow::array::{Array, ArrayRef, Float64Array};
 use arrow::compute::binary;
 use arrow::datatypes::DataType;
 
-use crate::function::nullability::SparkNullability;
-use arrow::datatypes::FieldRef;
+use crate::function::nullability::{SparkNullability, spark_nullability};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue};
-use datafusion_expr::Expr;
-use datafusion_expr::ReturnFieldArgs;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
 };
@@ -78,17 +74,7 @@ impl ScalarUDFImpl for SparkPow {
         self.inner.return_type(arg_types)
     }
 
-    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        NULLABILITY.return_field_from_type(self, &args)
-    }
-
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY, return_type);
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         // Only Float64 × Float64 needs the Spark override.

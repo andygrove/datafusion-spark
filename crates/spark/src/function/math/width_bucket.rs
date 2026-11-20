@@ -27,15 +27,11 @@ use datafusion_expr::{
 use datafusion_functions::utils::make_scalar_function;
 use datafusion_macros::user_doc;
 
-use crate::function::nullability::SparkNullability;
+use crate::function::nullability::{SparkNullability, spark_nullability};
 use arrow::array::{Int64Array, Int64Builder};
-use arrow::datatypes::FieldRef;
 use arrow::datatypes::TimeUnit::Microsecond;
 use datafusion_expr::Coercion;
-use datafusion_expr::Expr;
-use datafusion_expr::ReturnFieldArgs;
 use datafusion_expr::Volatility::Immutable;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 
 /// Spark's `WidthBucket` is null-intolerant and always nullable, because invalid bounds or
 /// bucket counts return NULL.
@@ -164,17 +160,7 @@ impl ScalarUDFImpl for SparkWidthBucket {
         Ok(Int64)
     }
 
-    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        NULLABILITY.return_field_from_type(self, &args)
-    }
-
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY, return_type);
 
     fn documentation(&self) -> Option<&Documentation> {
         self.doc()

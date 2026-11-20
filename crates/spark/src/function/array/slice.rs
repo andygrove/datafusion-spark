@@ -9,8 +9,6 @@ use datafusion_common::utils::ListCoercion;
 use datafusion_common::{
     Result, ScalarValue, exec_err, internal_err, utils::take_function_args,
 };
-use datafusion_expr::Expr;
-use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ArrayFunctionArgument, ArrayFunctionSignature, ColumnarValue, Documentation,
     ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
@@ -20,7 +18,7 @@ use datafusion_functions_nested::extract::array_slice_udf;
 use datafusion_macros::user_doc;
 use std::sync::Arc;
 
-use crate::function::nullability::SparkNullability;
+use crate::function::nullability::{SparkNullability, spark_nullability};
 
 /// Spark's `Slice` is a null-intolerant `TernaryExpression`.
 const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
@@ -111,13 +109,7 @@ impl ScalarUDFImpl for SparkSlice {
         Ok(NULLABILITY.return_field("slice", data_type, args.arg_fields))
     }
 
-    fn simplify(
-        &self,
-        args: Vec<Expr>,
-        info: &SimplifyContext,
-    ) -> Result<ExprSimplifyResult> {
-        NULLABILITY.simplify(self, args, info)
-    }
+    spark_nullability!(NULLABILITY);
 
     fn documentation(&self) -> Option<&Documentation> {
         self.doc()
