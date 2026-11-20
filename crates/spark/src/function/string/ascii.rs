@@ -2,11 +2,11 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
-use std::sync::Arc;
-
-use arrow::datatypes::{DataType, Field, FieldRef};
+use arrow::datatypes::{DataType, FieldRef};
 use datafusion_common::types::{NativeType, logical_string};
 use datafusion_common::{Result, internal_err};
+use datafusion_expr::Expr;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     Coercion, ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs,
     ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
@@ -14,6 +14,11 @@ use datafusion_expr::{
 use datafusion_functions::string::ascii::ascii;
 use datafusion_functions::utils::make_scalar_function;
 use datafusion_macros::user_doc;
+
+use crate::function::nullability::SparkNullability;
+
+/// Spark's `Ascii` is a null-intolerant `UnaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `ascii` expression.
 ///
@@ -81,10 +86,15 @@ impl ScalarUDFImpl for SparkAscii {
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        // ascii returns an Int32 value
-        // The result is nullable only if any of the input arguments is nullable
-        let nullable = args.arg_fields.iter().any(|f| f.is_nullable());
-        Ok(Arc::new(Field::new("ascii", DataType::Int32, nullable)))
+        Ok(NULLABILITY.return_field(self.name(), DataType::Int32, args.arg_fields))
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn documentation(&self) -> Option<&Documentation> {
@@ -99,6 +109,8 @@ impl ScalarUDFImpl for SparkAscii {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow::datatypes::Field;
+    use std::sync::Arc;
 
     #[test]
     fn test_return_field_nullable_input() {

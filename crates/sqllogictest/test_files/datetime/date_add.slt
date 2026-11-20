@@ -80,3 +80,11 @@ SELECT date_add('2024-01-01', 1::INT);
 # xfail spark: An integer literal is BIGINT here and INT in Spark (https://github.com/apache/datafusion-spark/issues/97)
 statement error Failed to coerce arguments to satisfy a call to 'date_add' function
 SELECT date_add(DATE '2024-01-01', 1);
+
+# date_add is null-intolerant, as in Spark: a NULL argument makes every row NULL
+query D
+SELECT date_add(column1, NULL::int)
+FROM VALUES (DATE '2024-01-01'), (NULL);
+----
+NULL
+NULL

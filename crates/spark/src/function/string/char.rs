@@ -6,15 +6,22 @@ use arrow::array::ArrayRef;
 use arrow::array::GenericStringBuilder;
 use arrow::datatypes::DataType::Int64;
 use arrow::datatypes::DataType::Utf8;
-use arrow::datatypes::{DataType, Field, FieldRef};
+use arrow::datatypes::{DataType, FieldRef};
 use datafusion_macros::user_doc;
 use std::sync::Arc;
 
 use datafusion_common::{Result, ScalarValue, cast::as_int64_array, exec_err};
+use datafusion_expr::Expr;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
     Signature, Volatility,
 };
+
+use crate::function::nullability::SparkNullability;
+
+/// Spark's `Chr` is a null-intolerant `UnaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `char` expression.
 ///
@@ -81,8 +88,15 @@ impl ScalarUDFImpl for CharFunc {
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        let nullable = args.arg_fields.iter().any(|f| f.is_nullable());
-        Ok(Arc::new(Field::new(self.name(), Utf8, nullable)))
+        Ok(NULLABILITY.return_field(self.name(), Utf8, args.arg_fields))
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 }
 

@@ -8,12 +8,14 @@ use arrow::array::{
     StringViewBuilder,
 };
 use arrow::datatypes::DataType;
-use datafusion_common::arrow::datatypes::{Field, FieldRef};
+use datafusion_common::arrow::datatypes::FieldRef;
 use datafusion_common::cast::as_int64_array;
 use datafusion_common::types::{
     NativeType, logical_int32, logical_int64, logical_string,
 };
 use datafusion_common::{Result, exec_err};
+use datafusion_expr::Expr;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{Coercion, Documentation, ReturnFieldArgs, TypeSignatureClass};
 use datafusion_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
@@ -22,7 +24,11 @@ use datafusion_expr::{
 use datafusion_functions::unicode::substr::{enable_ascii_fast_path, get_true_start_end};
 use datafusion_functions::utils::make_scalar_function;
 use datafusion_macros::user_doc;
-use std::sync::Arc;
+
+use crate::function::nullability::SparkNullability;
+
+/// Spark's `Substring` is a null-intolerant `TernaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `substring` expression
 /// <https://spark.apache.org/docs/latest/api/sql/index.html#substring>
@@ -142,14 +148,19 @@ impl ScalarUDFImpl for SparkSubstring {
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs<'_>) -> Result<FieldRef> {
-        // Spark semantics: substring returns NULL if ANY input is NULL
-        let nullable = args.arg_fields.iter().any(|f| f.is_nullable());
-
-        Ok(Arc::new(Field::new(
+        Ok(NULLABILITY.return_field(
             "substring",
             args.arg_fields[0].data_type().clone(),
-            nullable,
-        )))
+            args.arg_fields,
+        ))
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 }
 

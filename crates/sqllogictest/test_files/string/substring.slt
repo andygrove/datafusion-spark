@@ -360,3 +360,24 @@ FROM VALUES
 NULL NULL
 NULL NULL
 NULL NULL
+
+# substring is null-intolerant, as in Spark: a NULL argument makes every row NULL
+query TT
+SELECT substring(column1, NULL::int), substring(column1, 2::int, NULL::int)
+FROM VALUES ('Spark SQL'::string), (NULL::string);
+----
+NULL NULL
+NULL NULL
+
+# The simplifier replaces a call with a NULL literal argument with a NULL literal, as
+# Spark's NullPropagation does. Without the simplifier the call is planned as written.
+skipif evaluate
+query TT
+EXPLAIN SELECT substring(column1, NULL::int) FROM VALUES ('Spark SQL'::string);
+----
+logical_plan
+01)Projection: Utf8View(NULL) AS substring(column1,NULL)
+02)--Values: (Utf8View("Spark SQL") AS Utf8("Spark SQL"))
+physical_plan
+01)ProjectionExec: expr=[NULL as substring(column1,NULL)]
+02)--DataSourceExec: partitions=1, partition_sizes=[1]

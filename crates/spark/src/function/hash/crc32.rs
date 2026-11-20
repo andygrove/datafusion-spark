@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use arrow::array::{ArrayRef, Int64Array};
-use arrow::datatypes::{DataType, Field, FieldRef};
+use arrow::datatypes::{DataType, FieldRef};
 use crc32fast::Hasher;
 use datafusion_common::cast::{
     as_binary_array, as_binary_view_array, as_fixed_size_binary_array,
@@ -22,6 +22,13 @@ use datafusion_functions::utils::make_scalar_function;
 use datafusion_macros::user_doc;
 
 use crate::function::implicit_cast::{SparkInputType, SparkInputTypes};
+use datafusion_expr::Expr;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
+
+use crate::function::nullability::SparkNullability;
+
+/// Spark's `Crc32` is a null-intolerant `UnaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `crc32` expression.
 ///
@@ -91,8 +98,15 @@ impl ScalarUDFImpl for SparkCrc32 {
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        let nullable = args.arg_fields.iter().any(|f| f.is_nullable());
-        Ok(Arc::new(Field::new(self.name(), DataType::Int64, nullable)))
+        Ok(NULLABILITY.return_field(self.name(), DataType::Int64, args.arg_fields))
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 
     fn documentation(&self) -> Option<&Documentation> {
@@ -147,6 +161,7 @@ fn spark_crc32(args: &[ArrayRef]) -> Result<ArrayRef> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow::datatypes::Field;
 
     #[test]
     fn test_crc32_nullability() -> Result<()> {

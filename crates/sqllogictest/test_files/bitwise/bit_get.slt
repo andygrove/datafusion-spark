@@ -85,3 +85,11 @@ query I
 SELECT bit_get(11, 3::bigint);
 ----
 1
+
+# bit_get is null-intolerant, as in Spark: a NULL argument makes every row NULL
+query I
+SELECT bit_get(column1, NULL::int)
+FROM VALUES (11), (NULL);
+----
+NULL
+NULL

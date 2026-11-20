@@ -5,8 +5,10 @@
 use arrow::array::{
     Array, ArrayRef, AsArray, BinaryArrayType, PrimitiveArray, StringArrayType,
 };
-use arrow::datatypes::{DataType, Field, FieldRef, Int32Type};
+use arrow::datatypes::{DataType, FieldRef, Int32Type};
 use datafusion_common::exec_err;
+use datafusion_expr::Expr;
+use datafusion_expr::simplify::{ExprSimplifyResult, SimplifyContext};
 use datafusion_expr::{
     ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
     Signature, Volatility,
@@ -14,6 +16,11 @@ use datafusion_expr::{
 use datafusion_functions::utils::make_scalar_function;
 use datafusion_macros::user_doc;
 use std::sync::Arc;
+
+use crate::function::nullability::SparkNullability;
+
+/// Spark's `Length` is a null-intolerant `UnaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `length` expression.
 ///
@@ -109,9 +116,16 @@ impl ScalarUDFImpl for SparkLengthFunc {
         &self,
         args: ReturnFieldArgs,
     ) -> datafusion_common::Result<FieldRef> {
-        let nullable = args.arg_fields.iter().any(|f| f.is_nullable());
         // spark length always returns Int32
-        Ok(Arc::new(Field::new(self.name(), DataType::Int32, nullable)))
+        Ok(NULLABILITY.return_field(self.name(), DataType::Int32, args.arg_fields))
+    }
+
+    fn simplify(
+        &self,
+        args: Vec<Expr>,
+        info: &SimplifyContext,
+    ) -> datafusion_common::Result<ExprSimplifyResult> {
+        NULLABILITY.simplify(self, args, info)
     }
 }
 
@@ -214,6 +228,7 @@ mod tests {
     use crate::function::utils::test::test_scalar_function;
     use arrow::array::Int32Array;
     use arrow::datatypes::DataType::Int32;
+    use arrow::datatypes::Field;
     use datafusion_common::{Result, ScalarValue};
 
     macro_rules! test_spark_length_string {
