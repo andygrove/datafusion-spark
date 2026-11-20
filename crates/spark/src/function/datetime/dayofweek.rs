@@ -332,17 +332,17 @@ mod tests {
     #[test]
     fn date64_outside_the_date32_range() {
         let ms = |days: i64| days * MILLISECONDS_PER_DAY;
-        let first_after = i64::from(i32::MAX) + 1;
-        let last_before = i64::from(i32::MIN) - 1;
-        let values = vec![-1, ms(first_after), ms(last_before), i64::MAX, i64::MIN];
-        let expected: Vec<i32> = [-1, first_after, last_before]
-            .into_iter()
-            .chain([i64::MAX, i64::MIN].map(|ms| ms.div_euclid(MILLISECONDS_PER_DAY)))
-            .map(day_of_week)
-            .collect();
-        // One day after i32::MAX (a Friday) and one day before i32::MIN (a
-        // Tuesday).
-        assert_eq!(expected[..3], [4, 7, 2]);
+        let values = vec![
+            -1,
+            ms(i64::from(i32::MAX) + 1),
+            ms(i64::from(i32::MIN) - 1),
+            i64::MAX,
+            i64::MIN,
+        ];
+        // 1969-12-31 is a Wednesday. One day after i32::MAX is a Saturday and
+        // one day before i32::MIN is a Monday. i64::MAX and i64::MIN floor to
+        // epoch days 106751991167 and -106751991168, which are both Sundays.
+        let expected = [4, 7, 2, 1, 1];
 
         let plain = invoke_array(Arc::new(Date64Array::from(values.clone())));
         assert_eq!(plain.null_count(), 0);

@@ -141,18 +141,6 @@ SELECT dayofweek(d) FROM (VALUES
 2
 4
 
-skipif spark
-query I
-SELECT dayofweek(d) FROM (VALUES
-  (arrow_cast(arrow_cast(185542587187200000, 'Date64'), 'Dictionary(Int32, Date64)')),
-  (arrow_cast(arrow_cast(-185542587273600000, 'Date64'), 'Dictionary(Int32, Date64)')),
-  (arrow_cast(arrow_cast(-1, 'Date64'), 'Dictionary(Int32, Date64)'))
-) AS t(d);
-----
-7
-2
-4
-
 # With ANSI mode on, Spark raises CAST_INVALID_INPUT for a malformed string
 statement ok
 set datafusion.execution.enable_ansi_mode = true;
@@ -205,7 +193,10 @@ set datafusion.execution.time_zone = 'America/New_York';
 statement ok
 reset datafusion.execution.time_zone;
 
-# A dictionary-encoded date column (DataFusion only: Spark has no dictionary type)
+# A dictionary-encoded date column is accepted. Coercion unpacks it to Date32
+# before the function runs, so this checks coercion. The unit tests in
+# dayofweek.rs cover the function's own dictionary path. DataFusion only,
+# since Spark has no dictionary type.
 skipif spark
 query IT
 SELECT dayofweek(d), arrow_typeof(dayofweek(d)) FROM (VALUES
