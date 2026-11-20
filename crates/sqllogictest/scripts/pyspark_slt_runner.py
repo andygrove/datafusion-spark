@@ -1852,6 +1852,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     files = discover(args.paths)
     if not files:
         raise SystemExit("error: no .slt files found")
+    # Report a malformed `# xfail spark` comment before Spark starts.
+    for path in files:
+        parse_slt(path)
 
     # Keep the output complete when it is piped to a file and the run dies.
     sys.stdout.reconfigure(line_buffering=True)
