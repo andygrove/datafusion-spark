@@ -18,23 +18,18 @@ updates:
     # same minimum on downstream users. Cargo.lock is still updated.
     versioning-strategy: increase-if-necessary
     ignore:
-      # DataFusion is updated by hand. `main` follows a DataFusion release tag
-      # or branch, and moving it is a decision, not a routine update.
+      # DataFusion and arrow are updated by hand. `main` follows a DataFusion
+      # release tag or branch and stays on the arrow version that DataFusion
+      # uses, so moving either is a decision, not a routine update. See
+      # dev/release/README.md#versioning.
       - dependency-name: "datafusion*"
-      # `datafusion-spark` 56.x stays on the arrow version DataFusion 56 uses,
-      # so arrow's major version changes only when `main` moves to the next
-      # DataFusion major version. See dev/release/README.md#versioning.
       - dependency-name: "arrow*"
-        update-types: ["version-update:semver-major"]
     groups:
       # Minor and patch updates of everything else go in one pull request.
       all-other-cargo-deps:
         applies-to: version-updates
         patterns:
           - "*"
-        exclude-patterns:
-          - "datafusion*"
-          - "arrow*"
         update-types:
           - minor
           - patch
