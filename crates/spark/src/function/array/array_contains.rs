@@ -184,8 +184,29 @@ fn mask_with_list_nulls(
 mod tests {
     use super::*;
     use arrow::array::{FixedSizeListArray, Float64Array};
-    use arrow::datatypes::Field;
     use datafusion_common::ScalarValue;
+
+    fn return_field_nullable(array_nullable: bool, element_nullable: bool) -> bool {
+        let element = Arc::new(Field::new("item", DataType::Int64, element_nullable));
+        let arg_fields = [
+            Arc::new(Field::new("a", DataType::List(element), array_nullable)),
+            Arc::new(Field::new("v", DataType::Int64, false)),
+        ];
+        SparkArrayContains::new()
+            .return_field_from_args(ReturnFieldArgs {
+                arg_fields: &arg_fields,
+                scalar_arguments: &[None, None],
+            })
+            .unwrap()
+            .is_nullable()
+    }
+
+    #[test]
+    fn return_field_is_nullable_when_the_array_can_hold_nulls() {
+        assert!(!return_field_nullable(false, false));
+        assert!(return_field_nullable(true, false));
+        assert!(return_field_nullable(false, true));
+    }
 
     #[test]
     fn zero_width_fixed_size_list_keeps_its_row() {
