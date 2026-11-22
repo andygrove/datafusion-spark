@@ -2,18 +2,18 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
-use crate::function::nullability::{SparkNullability, spark_nullability};
-use arrow::array::AsArray;
-use arrow::compute::{DatePart, date_part};
-use arrow::datatypes::{DataType, FieldRef, Int32Type};
+use arrow::datatypes::{DataType, FieldRef};
 use datafusion_common::types::{NativeType, logical_date};
 use datafusion_common::utils::take_function_args;
-use datafusion_common::{Result, ScalarValue, internal_err};
+use datafusion_common::{Result, internal_err};
 use datafusion_expr::{
     Coercion, ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs,
     ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
 };
 use datafusion_macros::user_doc;
+
+use super::dayofweek::{epoch_day_field, week_day};
+use crate::function::nullability::{SparkNullability, spark_nullability};
 
 /// Spark's `WeekDay` is a null-intolerant `UnaryExpression`.
 const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
@@ -92,31 +92,16 @@ impl ScalarUDFImpl for SparkWeekDay {
 
     fn invoke_with_args(&self, args: ScalarFunctionArgs) -> Result<ColumnarValue> {
         let [arg] = take_function_args(self.name(), args.args)?;
-        match arg {
-            ColumnarValue::Scalar(scalar) => {
-                if scalar.is_null() {
-                    return Ok(ColumnarValue::Scalar(ScalarValue::Int32(None)));
-                }
-                let arr = scalar.to_array_of_size(1)?;
-                // `DayOfWeekMonday0` returns 0..=6 with Monday = 0, which
-                // matches Spark `weekday` semantics exactly.
-                let weekday_arr = date_part(&arr, DatePart::DayOfWeekMonday0)?;
-                let value = weekday_arr.as_primitive::<Int32Type>().value(0);
-                Ok(ColumnarValue::Scalar(ScalarValue::Int32(Some(value))))
-            }
-            ColumnarValue::Array(arr) => {
-                let weekday_arr = date_part(&arr, DatePart::DayOfWeekMonday0)?;
-                Ok(ColumnarValue::Array(weekday_arr))
-            }
-        }
+        epoch_day_field(self.name(), arg, week_day)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use arrow::array::{Date32Array, Int32Array};
-    use arrow::datatypes::Field;
+    use arrow::array::{AsArray, Date32Array, Int32Array};
+    use arrow::datatypes::{Field, Int32Type};
+    use datafusion_common::ScalarValue;
     use std::sync::Arc;
 
     #[test]

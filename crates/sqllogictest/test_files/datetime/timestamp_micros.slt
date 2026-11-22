@@ -8,7 +8,134 @@
 # For more information, please see:
 #   https://github.com/apache/datafusion/issues/15914
 
-## Original Query: SELECT timestamp_micros(1230219000123123);
-## PySpark 3.5.5 Result: {'timestamp_micros(1230219000123123)': datetime.datetime(2008, 12, 25, 7, 30, 0, 123123), 'typeof(timestamp_micros(1230219000123123))': 'timestamp', 'typeof(1230219000123123)': 'bigint'}
-#query
-#SELECT timestamp_micros(1230219000123123::bigint);
+# Expected results verified against Apache Spark 4.2.0.
+
+# Microseconds are measured from the UTC epoch, including negative values.
+query PPPP
+SELECT timestamp_micros(0::BIGINT), timestamp_micros(-1::BIGINT),
+  timestamp_micros(1230219000123123::BIGINT), timestamp_micros(-1230219000123123::BIGINT);
+----
+1970-01-01T00:00:00Z 1969-12-31T23:59:59.999999Z 2008-12-25T15:30:00.123123Z 1931-01-07T08:29:59.876877Z
+
+# All Spark signed integer types are accepted and widened without rescaling.
+query PPPP
+SELECT timestamp_micros(1::TINYINT) AS tiny, timestamp_micros(1::SMALLINT) AS small,
+  timestamp_micros(1::INT) AS integer_value, timestamp_micros(1::BIGINT) AS big;
+----
+1970-01-01T00:00:00.000001Z 1970-01-01T00:00:00.000001Z 1970-01-01T00:00:00.000001Z 1970-01-01T00:00:00.000001Z
+
+query PP
+SELECT timestamp_micros(NULL) AS untyped_null, timestamp_micros(NULL::BIGINT) AS typed_null;
+----
+NULL NULL
+
+# Column input exercises physical execution in both SLT modes.
+query PI
+SELECT timestamp_micros(x), unix_micros(timestamp_micros(x))
+FROM (VALUES (-1::BIGINT), (0::BIGINT), (1::BIGINT), (NULL::BIGINT)) AS t(x);
+----
+1969-12-31T23:59:59.999999Z -1
+1970-01-01T00:00:00Z 0
+1970-01-01T00:00:00.000001Z 1
+NULL NULL
+
+query PPP
+SELECT timestamp_micros(a), timestamp_micros(b), timestamp_micros(c)
+FROM (VALUES ((-128)::TINYINT, (-32768)::SMALLINT, (-2147483648)::INT)) AS t(a, b, c);
+----
+1969-12-31T23:59:59.999872Z 1969-12-31T23:59:59.967232Z 1969-12-31T23:24:12.516352Z
+
+# Both ends of the i64 range are valid. Round-trip rather than format these
+# timestamps, whose years exceed the calendar/formatter range.
+query I
+SELECT unix_micros(timestamp_micros(x))
+FROM (VALUES ((-9223372036854775808)::BIGINT), (9223372036854775807::BIGINT)) AS t(x);
+----
+-9223372036854775808
+9223372036854775807
+
+query I
+SELECT unix_micros(timestamp_micros(arrow_cast(x, 'Dictionary(Int32, Int64)')))
+FROM (VALUES (-1::BIGINT), (1::BIGINT), (NULL::BIGINT)) AS t(x);
+----
+-1
+1
+NULL
+
+# ExpectsInputTypes rejects non-integer arguments rather than casting them.
+query error The first parameter of `timestamp_micros` requires the "INTEGRAL" type, however it has the type "DOUBLE".
+SELECT timestamp_micros(1.0::DOUBLE);
+
+query error DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE
+SELECT timestamp_micros(1.0::FLOAT);
+
+query error DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE
+SELECT timestamp_micros(1.0::DECIMAL(10, 1));
+
+query error DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE
+SELECT timestamp_micros('1');
+
+query error DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE
+SELECT timestamp_micros(true);
+
+# ANSI mode does not change the accepted input types or range.
+statement ok
+SET datafusion.execution.enable_ansi_mode = true;
+
+query error DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE
+SELECT timestamp_micros('1');
+
+query II
+SELECT unix_micros(timestamp_micros((-9223372036854775808)::BIGINT)),
+  unix_micros(timestamp_micros(9223372036854775807::BIGINT));
+----
+-9223372036854775808 9223372036854775807
+
+statement ok
+SET datafusion.execution.enable_ansi_mode = false;
+
+# Session time zone affects display, not the stored epoch count.
+statement ok
+SET datafusion.execution.time_zone = 'America/Los_Angeles';
+
+query PP
+SELECT timestamp_micros(1230219000123123::BIGINT), timestamp_micros(-1230219000123123::BIGINT);
+----
+2008-12-25T07:30:00.123123-08:00 1931-01-07T00:29:59.876877-08:00
+
+# Across the spring daylight saving transition, UTC values remain unchanged.
+query PI
+SELECT timestamp_micros(x), unix_micros(timestamp_micros(x))
+FROM (VALUES (1710064799999999::BIGINT), (1710064800000000::BIGINT)) AS t(x);
+----
+2024-03-10T01:59:59.999999-08:00 1710064799999999
+2024-03-10T03:00:00-07:00 1710064800000000
+
+statement ok
+SET datafusion.execution.time_zone = 'UTC';
+
+# Check the Arrow return type without relying on Spark's type display.
+query T
+SELECT arrow_typeof(timestamp_micros(0::BIGINT));
+----
+Timestamp(µs, "UTC")
+
+# Arrow unsigned types through UInt32 widen losslessly to BIGINT.
+query III
+SELECT unix_micros(timestamp_micros(arrow_cast(255, 'UInt8'))),
+  unix_micros(timestamp_micros(arrow_cast(65535, 'UInt16'))),
+  unix_micros(timestamp_micros(arrow_cast(4294967295, 'UInt32')));
+----
+255 65535 4294967295
+
+query I
+SELECT unix_micros(timestamp_micros(arrow_cast(x, 'Dictionary(Int32, UInt32)')))
+FROM (VALUES (0::BIGINT), (4294967295::BIGINT), (NULL::BIGINT)) AS t(x);
+----
+0
+4294967295
+NULL
+
+# UInt64's full range cannot be represented by the timestamp's signed count.
+query error DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE
+SELECT timestamp_micros(arrow_cast(1, 'UInt64'));

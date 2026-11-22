@@ -41,7 +41,7 @@ NULL
 
 ## `url_decode`
 
-Decodes a string in `application/x-www-form-urlencoded` format, the inverse of `url_encode`. DataFusion has no built-in `url_decode`. `+` becomes a space and each `%XX` escape becomes the byte it encodes, and the bytes are read as UTF-8. A `%` that is not followed by two hex digits, or bytes that are not valid UTF-8, are an error; use `try_url_decode` to get NULL instead. Returns NULL if the input is NULL.
+Decodes a string in `application/x-www-form-urlencoded` format, the inverse of `url_encode`. DataFusion has no built-in `url_decode`. `+` becomes a space and each `%XX` escape becomes the byte it encodes, and the bytes are read as UTF-8, with U+FFFD for bytes that are not valid UTF-8. A `%` that is not followed by two hex digits is an error; use `try_url_decode` to get NULL instead. Returns NULL if the input is NULL.
 
 ```sql
 url_decode(str)
