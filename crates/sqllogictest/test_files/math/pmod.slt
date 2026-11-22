@@ -568,3 +568,22 @@ FROM VALUES (7::int), (NULL::int);
 ----
 NULL NULL
 NULL NULL
+
+# A NULL literal argument gives NULL, as in Spark, with a non-NULL value in the other argument
+query I
+SELECT pmod(7::int, NULL::int);
+----
+NULL
+
+# The simplifier replaces a call with a NULL literal argument with a NULL literal, as
+# Spark's NullPropagation does. Without the simplifier the call is planned as written.
+skipif evaluate
+query TT
+EXPLAIN SELECT pmod(column1, NULL::int) FROM VALUES (7::int);
+----
+logical_plan
+01)Projection: Int32(NULL) AS pmod(column1,NULL)
+02)--Values: (Int32(7) AS Int64(7))
+physical_plan
+01)ProjectionExec: expr=[NULL as pmod(column1,NULL)]
+02)--DataSourceExec: partitions=1, partition_sizes=[1]

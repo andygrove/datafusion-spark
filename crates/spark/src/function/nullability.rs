@@ -254,4 +254,146 @@ mod tests {
             assert_eq!(original, args);
         }
     }
+
+    /// The return field of `func` for arguments of `types`, where only the argument at
+    /// `nullable_arg` (if any) is nullable.
+    fn return_field_of(
+        func: &dyn ScalarUDFImpl,
+        types: &[DataType],
+        nullable_arg: Option<usize>,
+    ) -> FieldRef {
+        let arg_fields = types
+            .iter()
+            .enumerate()
+            .map(|(i, t)| {
+                Arc::new(Field::new(
+                    format!("a{i}"),
+                    t.clone(),
+                    nullable_arg == Some(i),
+                ))
+            })
+            .collect::<Vec<_>>();
+        let scalar_arguments = vec![None; types.len()];
+        func.return_field_from_args(ReturnFieldArgs {
+            arg_fields: &arg_fields,
+            scalar_arguments: &scalar_arguments,
+        })
+        .unwrap()
+    }
+
+    /// Functions that moved to [`SparkNullability`], with the nullability Spark declares.
+    /// A function with `always_nullable` can return NULL for non-NULL arguments. Any other
+    /// is nullable only when an argument is.
+    #[test]
+    fn test_return_field_nullability_of_null_intolerant_functions() {
+        use crate::function::array::array_position::SparkArrayPosition;
+        use crate::function::array::array_remove::SparkArrayRemove;
+        use crate::function::bitwise::bit_count::SparkBitCount;
+        use crate::function::datetime::dayofweek::SparkDayOfWeek;
+        use crate::function::datetime::extract::{SparkHour, SparkMinute, SparkSecond};
+        use crate::function::datetime::make_dt_interval::SparkMakeDtInterval;
+        use crate::function::datetime::timestamp_micros::SparkTimestampMicros;
+        use crate::function::datetime::weekday::SparkWeekDay;
+        use crate::function::math::atan2::SparkAtan2;
+        use crate::function::math::floor::SparkFloor;
+        use crate::function::math::hex::SparkHex;
+        use crate::function::math::hypot::SparkHypot;
+        use crate::function::math::negative::SparkNegative;
+        use crate::function::math::pow::SparkPow;
+        use crate::function::math::trigonometry::{SparkCsc, SparkSec};
+        use crate::function::string::contains::SparkContains;
+        use crate::function::string::make_valid_utf8::SparkMakeValidUtf8;
+        use crate::function::string::soundex::SparkSoundex;
+        use crate::function::string::space::SparkSpace;
+
+        let list = DataType::List(Arc::new(Field::new("item", DataType::Int64, false)));
+        let timestamp =
+            DataType::Timestamp(arrow::datatypes::TimeUnit::Microsecond, None);
+        let int32 = DataType::Int32;
+        let int64 = DataType::Int64;
+        let float64 = DataType::Float64;
+        let utf8 = DataType::Utf8;
+
+        // (function, argument types, always nullable)
+        let cases: Vec<(Box<dyn ScalarUDFImpl>, Vec<DataType>, bool)> = vec![
+            // Nullable only when an argument is. Several of these were reported as
+            // always nullable before they moved to `SparkNullability`
+            (
+                Box::new(SparkArrayPosition::new()),
+                vec![list.clone(), int64.clone()],
+                false,
+            ),
+            (
+                Box::new(SparkArrayRemove::new()),
+                vec![list, int64.clone()],
+                false,
+            ),
+            (
+                Box::new(SparkAtan2::new()),
+                vec![float64.clone(), float64.clone()],
+                false,
+            ),
+            (
+                Box::new(SparkContains::new()),
+                vec![utf8.clone(), utf8.clone()],
+                false,
+            ),
+            (Box::new(SparkHex::new()), vec![int64.clone()], false),
+            (Box::new(SparkHour::new()), vec![timestamp.clone()], false),
+            (Box::new(SparkMinute::new()), vec![timestamp.clone()], false),
+            (Box::new(SparkSecond::new()), vec![timestamp], false),
+            (
+                Box::new(SparkHypot::new()),
+                vec![float64.clone(), float64.clone()],
+                false,
+            ),
+            (Box::new(SparkNegative::new()), vec![int32.clone()], false),
+            (
+                Box::new(SparkPow::new()),
+                vec![float64.clone(), float64.clone()],
+                false,
+            ),
+            (Box::new(SparkSoundex::new()), vec![utf8.clone()], false),
+            (Box::new(SparkSpace::new()), vec![int32.clone()], false),
+            (Box::new(SparkBitCount::new()), vec![int32.clone()], false),
+            (
+                Box::new(SparkDayOfWeek::new()),
+                vec![DataType::Date32],
+                false,
+            ),
+            (Box::new(SparkWeekDay::new()), vec![DataType::Date32], false),
+            (
+                Box::new(SparkTimestampMicros::new()),
+                vec![int64.clone()],
+                false,
+            ),
+            // Nullable even for non-nullable arguments: `floor` and `csc` are
+            // `UnaryMathExpression`s, and an invalid value gives NULL in the others
+            (Box::new(SparkFloor::new()), vec![float64.clone()], true),
+            (Box::new(SparkCsc::new()), vec![float64.clone()], true),
+            (Box::new(SparkSec::new()), vec![float64.clone()], true),
+            (Box::new(SparkMakeValidUtf8::new()), vec![utf8], true),
+            (
+                Box::new(SparkMakeDtInterval::new()),
+                vec![int32.clone(), int32.clone(), int32, float64],
+                true,
+            ),
+        ];
+
+        for (func, types, always_nullable) in &cases {
+            let name = func.name();
+            assert_eq!(
+                return_field_of(func.as_ref(), types, None).is_nullable(),
+                *always_nullable,
+                "{name} with no nullable argument"
+            );
+            for nullable_arg in 0..types.len() {
+                assert!(
+                    return_field_of(func.as_ref(), types, Some(nullable_arg))
+                        .is_nullable(),
+                    "{name} with argument {nullable_arg} nullable"
+                );
+            }
+        }
+    }
 }

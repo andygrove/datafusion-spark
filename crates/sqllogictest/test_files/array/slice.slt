@@ -153,3 +153,29 @@ FROM VALUES (array(1, 2, 3)), (NULL);
 ----
 NULL NULL
 NULL NULL
+
+# NULL wins over an invalid start (0 is otherwise an error), as in Spark, whose
+# TernaryExpression returns NULL before it validates the arguments
+query ?
+SELECT slice(array(1, 2, 3), 0::int, NULL::int);
+----
+NULL
+
+query ?
+SELECT slice(column1, 0::int, NULL::int) FROM VALUES (array(1, 2, 3));
+----
+NULL
+
+# The simplifier replaces a call with a NULL literal argument with a NULL literal, as
+# Spark's NullPropagation does. Without the simplifier the call is planned as written.
+# The EXPLAIN output shows a NULL list as an empty value, the value query above shows NULL.
+skipif evaluate
+query TT
+EXPLAIN SELECT slice(column1, 0::int, NULL::int) FROM VALUES (array(1, 2, 3));
+----
+logical_plan
+01)Projection: List() AS slice(column1,Int64(0),NULL)
+02)--Values: (List([1, 2, 3]) AS array(Int64(1),Int64(2),Int64(3)))
+physical_plan
+01)ProjectionExec: expr=[ as slice(column1,Int64(0),NULL)]
+02)--DataSourceExec: partitions=1, partition_sizes=[1]
