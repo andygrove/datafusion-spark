@@ -46,7 +46,8 @@
 //! * one accessor per function (for example `function::hash::sha2()`) returning the UDF
 //!
 //! Not every Spark function is implemented yet; coverage is growing. The
-//! [`datafusion-spark` epic] tracks progress.
+//! [`datafusion-spark` epic] tracks progress. The [function reference] lists
+//! the documented functions with their descriptions, arguments and examples.
 //!
 //! # Semantics and caveats
 //!
@@ -71,6 +72,7 @@
 //! [Apache DataFusion]: https://datafusion.apache.org/
 //! [Apache DataFusion Comet]: https://datafusion.apache.org/comet/
 //! [`datafusion-spark` epic]: https://github.com/apache/datafusion/issues/15914
+//! [function reference]: https://github.com/apache/datafusion-spark/blob/main/docs/functions/README.md
 //!
 //! # Example: using all function packages
 //!

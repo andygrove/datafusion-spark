@@ -10,5 +10,249 @@
 
 ## Original Query: SELECT greatest(10, 9, 2, 4, 3);
 ## PySpark 3.5.5 Result: {'greatest(10, 9, 2, 4, 3)': 10, 'typeof(greatest(10, 9, 2, 4, 3))': 'int', 'typeof(10)': 'int', 'typeof(9)': 'int', 'typeof(2)': 'int', 'typeof(4)': 'int', 'typeof(3)': 'int'}
-#query
-#SELECT greatest(10::int, 9::int, 2::int, 4::int, 3::int);
+query I
+SELECT greatest(10::int, 9::int, 2::int, 4::int, 3::int);
+----
+10
+
+# NULLs are skipped; the result is NULL only if every argument is NULL
+query III
+SELECT greatest(1::int, NULL::int, 3::int), greatest(NULL::int, 2::int), greatest(NULL::int, NULL::int);
+----
+3 2 NULL
+
+query ?
+SELECT greatest(NULL, NULL);
+----
+NULL
+
+# Integers widen to the widest integer type
+query I
+SELECT greatest(1::tinyint, 2::smallint);
+----
+2
+
+query T
+SELECT arrow_typeof(greatest(1::tinyint, 2::smallint));
+----
+Int16
+
+query I
+SELECT greatest(1::int, 3000000000::bigint);
+----
+3000000000
+
+# An integer and a DOUBLE widen to DOUBLE
+query R
+SELECT greatest(1::int, 2.5::double);
+----
+2.5
+
+query T
+SELECT arrow_typeof(greatest(1::int, 2.5::double));
+----
+Float64
+
+# NaN is greater than every other value, including Infinity
+query RRR
+SELECT greatest('NaN'::double, 'Infinity'::double), greatest(1::double, 'NaN'::double), greatest('-Infinity'::double, NULL::double);
+----
+NaN NaN -Infinity
+
+query R
+SELECT greatest('NaN'::float, 1::float);
+----
+NaN
+
+# -0.0 equals 0.0 and the first of equal values wins. The sign of a zero shows in its string
+# form, which starts with '-' only for -0.0.
+query BB
+SELECT CAST(greatest('-0.0'::double, 0.0::double) AS STRING) LIKE '-%', CAST(greatest(0.0::double, '-0.0'::double) AS STRING) LIKE '-%';
+----
+true false
+
+# Decimals
+query R
+SELECT greatest(1.5::decimal(2,1), 2::int);
+----
+2.0
+
+query T
+SELECT arrow_typeof(greatest(1.5::decimal(2,1), 2::int));
+----
+Decimal128(11, 1)
+
+query T
+SELECT arrow_typeof(greatest(1::decimal(5,2), 1::bigint));
+----
+Decimal128(22, 2)
+
+query T
+SELECT arrow_typeof(greatest(1::decimal(38,10), 1::decimal(38,0)));
+----
+Decimal128(38, 0)
+
+# The fractional digits that do not fit are rounded away
+query R
+SELECT greatest(1.5::decimal(38,10), 1::decimal(38,0));
+----
+2
+
+query R
+SELECT greatest(1::decimal(38,10), '12345678901234567890123456789'::decimal(38,0));
+----
+12345678901234567890123456789
+
+# A decimal and a DOUBLE widen to DOUBLE
+query R
+SELECT greatest(1.5::decimal(2,1), 2.5::double);
+----
+2.5
+
+query T
+SELECT arrow_typeof(greatest(1.5::decimal(2,1), 2.5::double));
+----
+Float64
+
+# Strings
+query TTT
+SELECT greatest('abc', 'abd', 'ab'), greatest('a', 'b', NULL), greatest('', 'a');
+----
+abd b a
+
+# Booleans
+query B
+SELECT greatest(true, false);
+----
+true
+
+# Binary
+query ?
+SELECT greatest(X'01', X'0102');
+----
+0102
+
+# Dates and timestamps; a date and a timestamp widen to the timestamp
+query D
+SELECT greatest(DATE '2024-01-01', DATE '2023-12-31', NULL::date);
+----
+2024-01-01
+
+query P
+SELECT greatest(DATE '2024-01-01', TIMESTAMP '2023-01-01 10:00:00');
+----
+2024-01-01T00:00:00
+
+query P
+SELECT greatest(TIMESTAMP '2024-01-01 10:00:00', TIMESTAMP '2024-01-01 10:00:01');
+----
+2024-01-01T10:00:01
+
+# Arrays compare element by element and then by length, a NULL element is smaller than any
+# value, and elements widen
+query ??
+SELECT greatest(array(1, 2), array(1, 2, 3)), greatest(array(1, NULL), array(1, 0));
+----
+[1, 2, 3] [1, 0]
+
+query ?
+SELECT greatest(array(1), array(1.5::double));
+----
+[1.5]
+
+query ?
+SELECT greatest(array('NaN'::double), array(1::double));
+----
+[NaN]
+
+# Structs compare field by field
+query ?
+SELECT greatest(named_struct('a', 1, 'b', 2), named_struct('a', 1, 'b', 3));
+----
+{a: 1, b: 3}
+
+# Columns
+statement ok
+CREATE TABLE t AS VALUES
+  (1::int, 2::int, 'NaN'::double, 1::double, 'b'),
+  (5::int, NULL::int, -1::double, NULL::double, 'a'),
+  (NULL::int, NULL::int, NULL::double, NULL::double, NULL),
+  (NULL::int, 7::int, 'Infinity'::double, 'NaN'::double, 'c');
+
+query IIRRT
+SELECT greatest(column1, column2), greatest(column1, 3::int, column2), greatest(column3, column4), greatest(column3, 0::double), greatest(column5, 'b') FROM t;
+----
+2 3 NaN NaN b
+5 5 -1 0 b
+NULL 3 NULL 0 b
+7 7 NaN Infinity c
+
+# A constant first argument, followed by columns. A NULL constant is skipped.
+query IIIR
+SELECT greatest(3::int, column1), greatest(NULL::int, column1), greatest(NULL::int, column1, column2), greatest(0::double, column3) FROM t;
+----
+3 1 2 NaN
+5 5 5 0
+3 NULL NULL 0
+3 NULL 7 Infinity
+
+statement ok
+DROP TABLE t;
+
+# Errors
+
+# At least two arguments
+query error \[WRONG_NUM_ARGS\.WITHOUT_SUGGESTION\] The `greatest` requires > 1 parameters but the actual number is 1\. Please, refer to 'https://spark\.apache\.org/docs/latest/sql-ref-functions\.html' for a fix\. SQLSTATE: 42605
+SELECT greatest(1::int);
+
+query error
+SELECT greatest();
+
+# Strings are not promoted
+query error \[DATATYPE_MISMATCH\.DATA_DIFF_TYPES\] Input to `greatest` should all be the same type, but it's \["INT", "STRING"\]\. SQLSTATE: 42K09
+SELECT greatest(1::int, 'a');
+
+query error \[DATATYPE_MISMATCH\.DATA_DIFF_TYPES\] Input to `greatest` should all be the same type, but it's \["DATE", "STRING"\]
+SELECT greatest(DATE '2024-01-01', '2025-01-01');
+
+query error \[DATATYPE_MISMATCH\.DATA_DIFF_TYPES\] Input to `greatest` should all be the same type, but it's \["BOOLEAN", "INT"\]
+SELECT greatest(true, 1::int);
+
+query error \[DATATYPE_MISMATCH\.DATA_DIFF_TYPES\]
+SELECT greatest(array(1), 1::int);
+
+query error \[DATATYPE_MISMATCH\.DATA_DIFF_TYPES\]
+SELECT greatest(named_struct('a', 1), named_struct('b', 1));
+
+# Maps cannot be ordered
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `greatest` does not support ordering on type "MAP<INT, INT>"\. SQLSTATE: 42K09
+SELECT greatest(map(1::int, 2::int), map(1::int, 3::int));
+
+# Intervals cannot be ordered
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `greatest` does not support ordering on type "INTERVAL"\. SQLSTATE: 42K09
+SELECT greatest(make_interval(1), make_interval(2));
+
+query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `greatest` does not support ordering on type "ARRAY<INTERVAL>"\. SQLSTATE: 42K09
+SELECT greatest(array(make_interval(1)), array(make_interval(2)));
+
+# An integer and a FLOAT widen to FLOAT with ANSI mode off, and to DOUBLE with it on
+query T
+SELECT arrow_typeof(greatest(1::int, 2.5::float));
+----
+Float32
+
+statement ok
+set datafusion.execution.enable_ansi_mode = true;
+
+query T
+SELECT arrow_typeof(greatest(1::int, 2.5::float));
+----
+Float64
+
+query R
+SELECT greatest(1::bigint, 2.5::float);
+----
+2.5
+
+statement ok
+set datafusion.execution.enable_ansi_mode = false;

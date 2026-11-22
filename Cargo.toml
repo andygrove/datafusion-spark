@@ -4,7 +4,7 @@
 
 [workspace]
 resolver = "2"
-members = ["crates/spark", "crates/sqllogictest"]
+members = ["crates/docgen", "crates/spark", "crates/sqllogictest"]
 
 [workspace.package]
 authors = ["Apache DataFusion <dev@datafusion.apache.org>"]

@@ -34,6 +34,19 @@ github:
     main:
       required_pull_request_reviews:
         required_approving_review_count: 1
+      # Job names from .github/workflows. The PySpark runner jobs are left out
+      # because they only run when their paths change, and a required check
+      # that does not run blocks the pull request.
+      required_status_checks:
+        contexts:
+          - "cargo fmt"
+          - "cargo clippy"
+          - "cargo check features"
+          - "cargo test"
+          - "cargo doc"
+          - "Run sqllogictests"
+          - "Apache RAT"
+          - "ASF allowlist check"
   pull_requests:
     # enable updating head branches of pull requests
     allow_update_branch: true

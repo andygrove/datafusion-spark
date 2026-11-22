@@ -14,15 +14,18 @@ mod date_part_name;
 pub mod date_sub;
 pub mod date_trunc;
 pub mod dayname;
+pub mod dayofweek;
 pub mod extract;
 pub mod from_utc_timestamp;
 pub mod last_day;
+pub mod make_date;
 pub mod make_dt_interval;
 pub mod make_interval;
 pub mod make_time;
 pub mod monthname;
 pub mod next_day;
 pub mod time_trunc;
+pub mod timestamp_micros;
 pub(crate) mod timezone;
 pub mod to_utc_timestamp;
 pub mod trunc;
@@ -44,6 +47,7 @@ make_udf_function!(date_part::SparkDatePart, date_part);
 make_udf_function!(date_sub::SparkDateSub, date_sub);
 make_udf_function!(date_trunc::SparkDateTrunc, date_trunc);
 make_udf_function!(dayname::SparkDayName, dayname);
+make_udf_function!(dayofweek::SparkDayOfWeek, dayofweek);
 make_udf_function!(
     from_utc_timestamp::SparkFromUtcTimestamp,
     from_utc_timestamp
@@ -52,12 +56,14 @@ make_udf_function!(extract::SparkHour, hour);
 make_udf_function!(extract::SparkMinute, minute);
 make_udf_function!(extract::SparkSecond, second);
 make_udf_function!(last_day::SparkLastDay, last_day);
+make_udf_function!(make_date::SparkMakeDate, make_date);
 make_udf_function!(make_dt_interval::SparkMakeDtInterval, make_dt_interval);
 make_udf_function!(make_interval::SparkMakeInterval, make_interval);
 make_udf_function!(make_time::SparkMakeTime, make_time);
 make_udf_function!(monthname::SparkMonthName, monthname);
 make_udf_function!(next_day::SparkNextDay, next_day);
 make_udf_function!(time_trunc::SparkTimeTrunc, time_trunc);
+make_udf_function!(timestamp_micros::SparkTimestampMicros, timestamp_micros);
 make_udf_function!(to_utc_timestamp::SparkToUtcTimestamp, to_utc_timestamp);
 make_udf_function!(trunc::SparkTrunc, trunc);
 make_udf_function!(unix::SparkUnixDate, unix_date);
@@ -113,6 +119,11 @@ pub mod expr_fn {
         arg1
     ));
     export_functions!((
+        make_date,
+        "Creates a date from `year`, `month` and `day` fields.",
+        year month day
+    ));
+    export_functions!((
         make_dt_interval,
         "Make a day time interval from given days, hours, mins and secs (return type is actually a Duration(Microsecond))",
          days hours mins secs
@@ -120,6 +131,11 @@ pub mod expr_fn {
     export_functions!((
         dayname,
         "Returns the three-letter abbreviated day name from a date.",
+        arg1
+    ));
+    export_functions!((
+        dayofweek,
+        "Returns the day of the week for date/timestamp as an integer where Sunday = 1, Monday = 2, ..., Saturday = 7.",
         arg1
     ));
     export_functions!((
@@ -180,6 +196,11 @@ pub mod expr_fn {
         ts tz
     ));
     export_functions!((
+        timestamp_micros,
+        "Creates a timestamp from microseconds since the UTC epoch.",
+        microseconds
+    ));
+    export_functions!((
         to_utc_timestamp,
         "Interpret a given timestamp `ts` in timezone `tz` and then convert it to UTC timezone.",
         ts tz
@@ -221,9 +242,11 @@ pub fn functions() -> Vec<Arc<ScalarUDF>> {
         date_sub(),
         date_trunc(),
         dayname(),
+        dayofweek(),
         from_utc_timestamp(),
         hour(),
         last_day(),
+        make_date(),
         make_dt_interval(),
         make_interval(),
         make_time(),
@@ -232,6 +255,7 @@ pub fn functions() -> Vec<Arc<ScalarUDF>> {
         next_day(),
         second(),
         time_trunc(),
+        timestamp_micros(),
         to_utc_timestamp(),
         trunc(),
         unix_date(),
