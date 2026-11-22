@@ -258,6 +258,12 @@ signature as a defect only when it accepts or rejects the wrong types.
 against Spark's `nullable`. A function that reports non-nullable while Spark
 can return NULL produces wrong plans, not merely wrong values: downstream
 optimizer rules will fold away null checks that were load-bearing.
+A function that is null-intolerant in Spark (`nullIntolerant`, or the
+`NullIntolerant` mixin in 3.5) should declare `SparkNullability` and use
+`spark_nullability!` rather than hand-roll `is_nullable()`. Pick `null_intolerant()`
+when Spark takes `nullable` from its children and
+`null_intolerant_always_nullable()` when it overrides `nullable` to `true`. See
+"Nullability" in `CONTRIBUTING.md` and `crates/spark/src/function/nullability.rs`.
 
 **Null propagation.** Does every input-null combination return what Spark
 returns? Check the order in which nullness and validity are tested. Spark

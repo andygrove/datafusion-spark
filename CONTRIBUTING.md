@@ -28,6 +28,43 @@ crate.** This is because downstream users such as Comet rely on DataFusion for p
 execution, and not logical planning/optimization. That means if a function doesn't
 have a physical implementation (`invoke_with_args()`) it is not usable by Comet.
 
+### Nullability
+
+A function that is null-intolerant in Spark (`nullIntolerant` is true, `NullIntolerant`
+before Spark 4.0), which includes most `UnaryExpression`, `BinaryExpression` and
+`TernaryExpression` functions, should declare a `SparkNullability` and use
+`spark_nullability!` (see `function/nullability.rs`) instead of hand-rolling
+`is_nullable()` in `return_field_from_args()` and `simplify()`:
+
+```rust
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
+
+impl ScalarUDFImpl for SparkAscii {
+    fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
+        Ok(NULLABILITY.return_field(self.name(), DataType::Int32, args.arg_fields))
+    }
+
+    spark_nullability!(NULLABILITY);
+}
+```
+
+- Use `SparkNullability::null_intolerant()` when Spark takes `nullable` from its children
+  (`children.exists(_.nullable)`), and `null_intolerant_always_nullable()` when Spark
+  overrides `nullable` to `true`, such as every `UnaryMathExpression` and a function that
+  returns NULL for an invalid value.
+- `spark_nullability!(NULLABILITY)` implements `simplify()`, which replaces a call that has
+  a NULL literal argument with a typed NULL literal, as Spark's `NullPropagation` does.
+  `invoke_with_args()` must still return NULL for NULL arguments, and it must do so before
+  it validates the other arguments, as Spark does.
+- `spark_nullability!(NULLABILITY, return_type)` also implements `return_field_from_args()`
+  by calling `return_type()`. Use it only when `return_type()` computes the type from the
+  argument types. If a function's `return_type()` is `internal_err!` only, because its type
+  needs the argument fields, scalar arguments or the config, implement
+  `return_field_from_args()` yourself with `NULLABILITY.return_field(...)` and use the
+  one-argument form of the macro.
+- A function that is nullable for another reason, such as an array that can hold NULL
+  elements, combines `NULLABILITY.nullable(args.arg_fields)` with that rule.
+
 ### Supported types
 
 The functions in this crate need only support input types available to Spark; that
