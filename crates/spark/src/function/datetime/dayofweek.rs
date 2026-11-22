@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use arrow::array::{Array, ArrayRef, AsArray, Int32Array};
 use arrow::compute::cast;
-use arrow::datatypes::{DataType, Date32Type, Date64Type, Field, FieldRef};
+use arrow::datatypes::{DataType, Date32Type, Date64Type, FieldRef};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue, exec_err, internal_err};
 use datafusion_expr::{
@@ -16,6 +16,10 @@ use datafusion_expr::{
 use datafusion_macros::user_doc;
 
 use super::date_part_name::date_signature;
+use crate::function::nullability::{SparkNullability, spark_nullability};
+
+/// Spark's `DayOfWeek` is a null-intolerant `GetDateField`, a `UnaryExpression`.
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 const MILLISECONDS_PER_DAY: i64 = 86_400_000;
 
@@ -181,9 +185,10 @@ impl ScalarUDFImpl for SparkDayOfWeek {
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        let nullable = args.arg_fields.iter().any(|f| f.is_nullable());
-        Ok(Arc::new(Field::new(self.name(), DataType::Int32, nullable)))
+        Ok(NULLABILITY.return_field(self.name(), DataType::Int32, args.arg_fields))
     }
+
+    spark_nullability!(NULLABILITY);
 
     fn documentation(&self) -> Option<&Documentation> {
         self.doc()
@@ -199,7 +204,7 @@ impl ScalarUDFImpl for SparkDayOfWeek {
 mod tests {
     use super::*;
     use arrow::array::{Date32Array, Date64Array, DictionaryArray};
-    use arrow::datatypes::Int32Type;
+    use arrow::datatypes::{Field, Int32Type};
     use datafusion_common::config::ConfigOptions;
 
     fn invoke(arg: ColumnarValue, rows: usize) -> Result<ColumnarValue> {

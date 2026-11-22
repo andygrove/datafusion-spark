@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use arrow::datatypes::{DataType, Field, FieldRef, TimeUnit};
+use arrow::datatypes::{DataType, FieldRef, TimeUnit};
 use datafusion_common::config::ConfigOptions;
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, internal_err, plan_err};
@@ -15,6 +15,11 @@ use datafusion_expr::{
 use datafusion_macros::user_doc;
 
 use crate::function::implicit_cast::{SparkInputType, SparkInputTypes};
+use crate::function::nullability::{SparkNullability, spark_nullability};
+
+/// Spark's `MicrosToTimestamp` is a null-intolerant `UnaryExpression` (an
+/// `IntegralToTimestampBase`).
+const NULLABILITY: SparkNullability = SparkNullability::null_intolerant();
 
 /// Spark-compatible `timestamp_micros` expression.
 ///
@@ -101,13 +106,15 @@ impl ScalarUDFImpl for SparkTimestampMicros {
     }
 
     fn return_field_from_args(&self, args: ReturnFieldArgs) -> Result<FieldRef> {
-        let [input] = take_function_args(self.name(), args.arg_fields)?;
-        Ok(Arc::new(Field::new(
+        let [_] = take_function_args(self.name(), args.arg_fields)?;
+        Ok(NULLABILITY.return_field(
             self.name(),
             DataType::Timestamp(TimeUnit::Microsecond, Some(Arc::clone(&self.timezone))),
-            input.is_nullable(),
-        )))
+            args.arg_fields,
+        ))
     }
+
+    spark_nullability!(NULLABILITY);
 
     fn with_updated_config(&self, config: &ConfigOptions) -> Option<ScalarUDF> {
         Some(ScalarUDF::from(Self::new_with_config(config)))
@@ -131,6 +138,7 @@ impl ScalarUDFImpl for SparkTimestampMicros {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use arrow::datatypes::Field;
 
     #[test]
     fn return_field_tracks_session_timezone_and_input_nullability() -> Result<()> {
