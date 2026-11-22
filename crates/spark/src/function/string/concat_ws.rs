@@ -175,6 +175,10 @@ fn only_separator(sep: &ColumnarValue) -> Result<ColumnarValue> {
 }
 
 fn spark_concat_ws(args: &[ColumnarValue], num_rows: usize) -> Result<ColumnarValue> {
+    // With only scalar arguments `values_to_arrays` returns one-row arrays, so
+    // compute that one row and return it as a scalar.
+    let all_scalar = args.iter().all(|a| matches!(a, ColumnarValue::Scalar(_)));
+    let num_rows = if all_scalar { 1 } else { num_rows };
     let arrays = ColumnarValue::values_to_arrays(args)?;
     let sep_view = StringView::try_new(&arrays[0])?;
     let arg_views: Vec<ArgView> = arrays[1..]
@@ -201,7 +205,13 @@ fn spark_concat_ws(args: &[ColumnarValue], num_rows: usize) -> Result<ColumnarVa
         builder.append_value("");
     }
 
-    Ok(ColumnarValue::Array(Arc::new(builder.finish()) as ArrayRef))
+    let array = Arc::new(builder.finish()) as ArrayRef;
+    if all_scalar {
+        return Ok(ColumnarValue::Scalar(ScalarValue::try_from_array(
+            &array, 0,
+        )?));
+    }
+    Ok(ColumnarValue::Array(array))
 }
 
 /// Typed view over a string array that downcasts once and exposes

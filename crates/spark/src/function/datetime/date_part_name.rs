@@ -2,15 +2,15 @@
 // SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 // SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
-//! Shared code for `dayname` and `monthname`, which map one [`DatePart`] of a
-//! date to a name.
+//! Shared code for the date functions: the argument coercions, and the
+//! [`DatePart`] to name mapping that `dayname` and `monthname` use.
 
 use std::sync::Arc;
 
 use arrow::array::{AsArray, StringArray};
 use arrow::compute::{DatePart, date_part};
 use arrow::datatypes::Int32Type;
-use datafusion_common::types::{NativeType, logical_date, logical_string};
+use datafusion_common::types::{NativeType, logical_date, logical_int32, logical_string};
 use datafusion_common::{Result, ScalarValue};
 use datafusion_expr::{
     Coercion, ColumnarValue, Signature, TypeSignatureClass, Volatility,
@@ -31,6 +31,25 @@ pub(super) fn date_signature() -> Signature {
             NativeType::Date,
         )],
         Volatility::Immutable,
+    )
+}
+
+/// One INT argument. Spark implicitly casts other numeric and string types to
+/// INT, and DataFusion types bare integer literals as BIGINT. The cast is
+/// DataFusion's, which errors in cases where Spark with ANSI mode off returns a
+/// value or NULL (see <https://github.com/apache/datafusion-spark/issues/88>). A
+/// stopgap until input types are declared and coerced in one place
+/// (<https://github.com/apache/datafusion-spark/issues/346>).
+pub(super) fn int32_coercion() -> Coercion {
+    Coercion::new_implicit(
+        TypeSignatureClass::Native(logical_int32()),
+        vec![
+            TypeSignatureClass::Integer,
+            TypeSignatureClass::Float,
+            TypeSignatureClass::Decimal,
+            TypeSignatureClass::Native(logical_string()),
+        ],
+        NativeType::Int32,
     )
 }
 

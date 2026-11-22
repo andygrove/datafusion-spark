@@ -51,3 +51,20 @@ jobs:
         run: cargo check --no-default-features -p datafusion-spark
       - name: Check datafusion-spark (core)
         run: cargo check --no-default-features --features core -p datafusion-spark
+
+  function-docs:
+    name: function docs up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+      - run: dev/update_function_docs.sh
+      - name: Check docs/functions is up to date
+        run: |
+          if [ -n "$(git status --porcelain -- docs/functions)" ]; then
+            git status --porcelain -- docs/functions
+            git diff -- docs/functions
+            echo "docs/functions is out of date. Run dev/update_function_docs.sh and commit the result."
+            exit 1
+          fi

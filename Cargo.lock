@@ -1655,6 +1655,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "datafusion-spark-docgen"
+version = "56.0.0"
+dependencies = [
+ "datafusion-expr",
+ "datafusion-spark 56.0.0",
+]
+
+[[package]]
 name = "datafusion-spark-sqllogictest"
 version = "56.0.0"
 dependencies = [

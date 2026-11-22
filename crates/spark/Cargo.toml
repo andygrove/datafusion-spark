@@ -110,6 +110,10 @@ name = "from_utc_timestamp"
 
 [[bench]]
 harness = false
+name = "dayofweek"
+
+[[bench]]
+harness = false
 name = "stack"
 
 [[bench]]
@@ -119,3 +123,7 @@ name = "array_extrema"
 [[bench]]
 harness = false
 name = "array_remove"
+
+[[bench]]
+harness = false
+name = "greatest_least"

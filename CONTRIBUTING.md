@@ -44,6 +44,10 @@ details.
   `inputTypes` with `SparkInputTypes` (`function/implicit_cast.rs`), which supplies `signature()`,
   `coerce_types()` and `with_updated_config()` with Spark's errors and ANSI rules. See `sha2`. It
   only chooses the target types, so the cast that then runs is not yet Spark's.
+- **Checked input types.** When the expression uses `ExpectsInputTypes` without implicit casts,
+  use `SparkInputTypes::check_only`. It shares the declared-type validation and Spark errors,
+  accepts untyped NULLs, and unwraps dictionaries. Widen accepted inputs separately when the
+  execution kernel needs a common representation. See `timestamp_micros`.
 - **Common type of several arguments.** When Spark finds one type for several arguments, as
   `array_position` does, call the rules in `function/type_coercion.rs` (for example
   `tightest_common_type()`) from `coerce_types()`.
@@ -103,6 +107,16 @@ impl ScalarUDFImpl for SparkMyFunc {
 
 See `sha2` (`crates/spark/src/function/hash/sha2.rs`) and `substring`
 (`crates/spark/src/function/string/substring.rs`) for complete examples.
+
+The function reference in [`docs/functions`](docs/functions/README.md) is generated from these
+attributes, with one page per function category. After adding or changing a function's documentation, regenerate it and commit the
+result (CI checks that it is up to date):
+
+```shell
+dev/update_function_docs.sh
+```
+
+The script also lists, on stderr, the functions that don't implement `documentation()` yet.
 
 ## Testing Guidelines
 
