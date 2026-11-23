@@ -2,18 +2,213 @@
 # SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
 # SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
-# This file was originally created by a porting script from:
-#   https://github.com/lakehq/sail/tree/43b6ed8221de5c4c4adbedbb267ae1351158b43c/crates/sail-spark-connect/tests/gold_data/function
-# This file is part of the implementation of the datafusion-spark function library.
-# For more information, please see:
-#   https://github.com/apache/datafusion/issues/15914
+# Tests for Spark-compatible make_date
+# Reference: https://spark.apache.org/docs/latest/api/sql/index.html#make_date
+# Expected values verified with pyspark==4.2.0, with spark.sql.ansi.enabled both
+# false and true.
+# Known divergences are captured as commented-out queries below.
 
-## Original Query: SELECT make_date(2013, 7, 15);
-## PySpark 3.5.5 Result: {'make_date(2013, 7, 15)': datetime.date(2013, 7, 15), 'typeof(make_date(2013, 7, 15))': 'date', 'typeof(2013)': 'int', 'typeof(7)': 'int', 'typeof(15)': 'int'}
-#query
-#SELECT make_date(2013::int, 7::int, 15::int);
+query D
+SELECT make_date(2013::int, 7::int, 15::int);
+----
+2013-07-15
 
-## Original Query: SELECT make_date(2019, 7, NULL);
-## PySpark 3.5.5 Result: {'make_date(2019, 7, NULL)': None, 'typeof(make_date(2019, 7, NULL))': 'date', 'typeof(2019)': 'int', 'typeof(7)': 'int', 'typeof(NULL)': 'void'}
-#query
-#SELECT make_date(2019::int, 7::int, NULL::void);
+query T
+SELECT arrow_typeof(make_date(2013::int, 7::int, 15::int));
+----
+Date32
+
+# NULL in any argument returns NULL
+query DDDD
+SELECT make_date(2019::int, 7::int, NULL), make_date(NULL, 7::int, 1::int),
+  make_date(2019::int, NULL::int, 1::int), make_date(2024::int, 13::int, NULL);
+----
+NULL NULL NULL NULL
+
+# Leap years follow the proleptic Gregorian rules
+query DDD
+SELECT make_date(2024, 2, 29), make_date(2000, 2, 29), make_date(1970, 1, 1);
+----
+2024-02-29 2000-02-29 1970-01-01
+
+# Invalid dates return NULL when ANSI mode is off
+query DDDDDDDDDD
+SELECT make_date(2023, 2, 29), make_date(1900, 2, 29), make_date(2023, 2, 30),
+  make_date(2023, 4, 31), make_date(2023, 13, 1), make_date(2023, 0, 1),
+  make_date(2023, 6, 0), make_date(2023, 6, 32), make_date(1000000000, 1, 1),
+  make_date(-1000000000, 1, 1);
+----
+NULL NULL NULL NULL NULL NULL NULL NULL NULL NULL
+
+# Years outside 0001-9999 are accepted; year 0 is 1 BC
+# `unix_date` has no `invoke_with_args` yet, so this is skipped in evaluate mode
+# (https://github.com/apache/datafusion-spark/issues/306).
+skipif evaluate
+query IIIIII
+SELECT unix_date(make_date(0, 1, 1)), unix_date(make_date(-1, 1, 1)),
+  unix_date(make_date(300000, 6, 15)), unix_date(make_date(300000, 2, 29)),
+  unix_date(make_date(5881580, 7, 11)), unix_date(make_date(-5877641, 6, 23));
+----
+-719528 -719893 108853388 108853281 2147483647 -2147483648
+
+# A valid date outside the DATE range raises ARITHMETIC_OVERFLOW in both modes
+query error \[ARITHMETIC_OVERFLOW\] overflow
+SELECT make_date(5881580, 7, 12);
+
+query error \[ARITHMETIC_OVERFLOW\] overflow
+SELECT make_date(-5877641, 6, 22);
+
+query error \[ARITHMETIC_OVERFLOW\] overflow
+SELECT make_date(999999999, 12, 31);
+
+# Array inputs
+statement ok
+CREATE TABLE ymd AS VALUES
+  (2024, 1, 31),
+  (2023, 2, 29),
+  (NULL, 1, 1),
+  (2020, 2, 29),
+  (2024, NULL, 1),
+  (2024, 13, 1);
+
+query D
+SELECT make_date(column1::int, column2::int, column3::int) FROM ymd;
+----
+2024-01-31
+NULL
+NULL
+2020-02-29
+NULL
+NULL
+
+# Mixed array and scalar inputs
+query D
+SELECT make_date(column1::int, 2, 29) FROM ymd;
+----
+2024-02-29
+NULL
+NULL
+2020-02-29
+2024-02-29
+2024-02-29
+
+# Other integer types are cast to INT
+query D
+SELECT make_date(arrow_cast(24, 'Int8'), arrow_cast(1, 'Int16'), arrow_cast(1, 'Int64'));
+----
+0024-01-01
+
+# Floating-point and decimal inputs are truncated toward zero
+query DD
+SELECT make_date(2024.7::DOUBLE, 1.9::DOUBLE, 1) AS d1, make_date(2024.7::DECIMAL(5, 1), 1.9::DECIMAL(2, 1), 1) AS d2;
+----
+2024-01-01 2024-01-01
+
+# Strings are cast to INT
+query D
+SELECT make_date('2024', '2', '3');
+----
+2024-02-03
+
+# With ANSI mode off, Spark's cast to INT returns a value or NULL where DataFusion's errors
+
+# xfail spark: Spark returns NULL for a malformed string, DataFusion's cast errors (https://github.com/apache/datafusion-spark/issues/88)
+query error Cannot cast string 'abc' to value of Int32 type
+SELECT make_date('abc', '2', '3');
+
+# xfail spark: Spark truncates a string with a fractional part, giving 2024-01-01, DataFusion's cast errors (https://github.com/apache/datafusion-spark/issues/88)
+query error Cannot cast string '2024\.7' to value of Int32 type
+SELECT make_date('2024.7', '1', '1');
+
+# xfail spark: Spark wraps an out-of-range BIGINT to INT, an invalid year, so NULL, DataFusion's cast errors (https://github.com/apache/datafusion-spark/issues/88)
+query error Can't cast value 3000000000 to type Int32
+SELECT make_date(3000000000, 1, 1);
+
+# xfail spark: Spark casts NaN to 0, giving 0000-01-01, DataFusion's cast errors (https://github.com/apache/datafusion-spark/issues/88)
+query error Can't cast value NaN to type Int32
+SELECT CAST(make_date(CAST('NaN' AS DOUBLE), 1, 1) AS STRING);
+
+# xfail spark: Spark saturates an out-of-range DOUBLE to 2147483647, an invalid year, so NULL, DataFusion's cast errors (https://github.com/apache/datafusion-spark/issues/88)
+query error Can't cast value inf to type Int32
+SELECT make_date(CAST('Infinity' AS DOUBLE), 1, 1);
+
+# xfail spark: Spark saturates an out-of-range DOUBLE to 2147483647, an invalid year, so NULL, DataFusion's cast errors (https://github.com/apache/datafusion-spark/issues/88)
+query error Can't cast value 10000000000\.0 to type Int32
+SELECT make_date(CAST(1e10 AS DOUBLE), 1, 1);
+
+# xfail spark: Spark wraps an out-of-range DECIMAL like a BIGINT (toLong.toInt), so 4294969320 gives 2024-01-01, DataFusion's cast errors (https://github.com/apache/datafusion-spark/issues/88)
+query error value of 4294969320 is out of range Int32
+SELECT make_date(CAST(4294969320 AS DECIMAL(20,0)), 1, 1);
+
+# xfail spark: Spark wraps an out-of-range DECIMAL like a BIGINT (toLong.toInt), to 1215752191, an invalid year, so NULL, DataFusion's cast errors (https://github.com/apache/datafusion-spark/issues/88)
+query error value of 99999999999 is out of range Int32
+SELECT make_date(CAST(99999999999 AS DECIMAL(20,0)), 1, 1);
+
+# BOOLEAN is not accepted
+query error
+SELECT make_date(true, 1, 1);
+
+# Invalid dates raise DATETIME_FIELD_OUT_OF_BOUNDS under ANSI mode, with the
+# message from java.time.LocalDate.of
+statement ok
+set datafusion.execution.enable_ansi_mode = true;
+
+query D
+SELECT make_date(2024, 2, 29);
+----
+2024-02-29
+
+query D
+SELECT make_date(2019, 7, NULL);
+----
+NULL
+
+# A NULL argument returns NULL before the other fields are checked
+query DD
+SELECT make_date(2024, 13, NULL), make_date(NULL, 13, 40);
+----
+NULL NULL
+
+query error \[DATETIME_FIELD_OUT_OF_BOUNDS\.WITH_SUGGESTION\] Invalid date 'February 29' as '2023' is not a leap year\. If necessary set "spark\.sql\.ansi\.enabled" to "false" to bypass this error\. SQLSTATE: 22023
+SELECT make_date(2023, 2, 29);
+
+query error \[DATETIME_FIELD_OUT_OF_BOUNDS\.WITH_SUGGESTION\] Invalid date 'APRIL 31'\.
+SELECT make_date(2023, 4, 31);
+
+query error \[DATETIME_FIELD_OUT_OF_BOUNDS\.WITH_SUGGESTION\] Invalid date 'FEBRUARY 30'\.
+SELECT make_date(2023, 2, 30);
+
+query error \[DATETIME_FIELD_OUT_OF_BOUNDS\.WITH_SUGGESTION\] Invalid value for MonthOfYear \(valid values 1 - 12\): 13\.
+SELECT make_date(2023, 13, 40);
+
+query error \[DATETIME_FIELD_OUT_OF_BOUNDS\.WITH_SUGGESTION\] Invalid value for DayOfMonth \(valid values 1 - 28/31\): 0\.
+SELECT make_date(2023, 6, 0);
+
+query error \[DATETIME_FIELD_OUT_OF_BOUNDS\.WITH_SUGGESTION\] Invalid value for Year \(valid values -999999999 - 999999999\): 1000000000\.
+SELECT make_date(1000000000, 13, 40);
+
+query error \[DATETIME_FIELD_OUT_OF_BOUNDS\.WITH_SUGGESTION\] Invalid value for Year \(valid values -999999999 - 999999999\): -1000000000\.
+SELECT make_date(-1000000000, 1, 1);
+
+query error \[DATETIME_FIELD_OUT_OF_BOUNDS\.WITH_SUGGESTION\] Invalid date 'February 29' as '2023' is not a leap year
+SELECT make_date(column1::int, column2::int, column3::int) FROM ymd;
+
+query error \[ARITHMETIC_OVERFLOW\] overflow
+SELECT make_date(5881580, 7, 12);
+
+# Rows with a NULL input are not validated
+query D
+SELECT make_date(column1::int, column2::int, column3::int) FROM ymd WHERE column1 IS NULL OR column2 IS NULL;
+----
+NULL
+NULL
+
+# A BIGINT outside the INT range raises an error, as Spark's CAST_OVERFLOW does
+query error Can't cast value 3000000000 to type Int32
+SELECT make_date(3000000000, 1, 1);
+
+statement ok
+set datafusion.execution.enable_ansi_mode = false;
+
+statement ok
+DROP TABLE ymd;

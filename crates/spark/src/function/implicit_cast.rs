@@ -30,6 +30,10 @@
 //!
 //! This module only chooses the target types. The cast that runs is DataFusion's, so how a
 //! malformed string or an overflowing value is cast is part of the CAST work in #88.
+//!
+//! For expressions that use only `ExpectsInputTypes`, construct the declarations with
+//! [`SparkInputTypes::check_only`]. This shares the validation and error messages without
+//! accepting implicit casts. Functions may then widen validated inputs for execution.
 
 use arrow::datatypes::{DataType, IntervalUnit};
 use datafusion_common::config::ConfigOptions;
@@ -78,12 +82,13 @@ pub(crate) enum SparkInputType {
     OneOf(Vec<SparkInputType>),
 }
 
-/// The input types a function declares, and whether ANSI mode is on, which changes the casts
-/// Spark allows.
+/// The input types a function declares, whether implicit casts are allowed, and the ANSI
+/// mode that controls those casts.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) struct SparkInputTypes {
     types: Vec<SparkInputType>,
     ansi_mode: bool,
+    implicit_casts: bool,
     signature: Signature,
 }
 
@@ -93,7 +98,17 @@ impl SparkInputTypes {
         Self {
             types,
             ansi_mode: false,
+            implicit_casts: true,
             signature: Signature::user_defined(volatility),
+        }
+    }
+
+    /// Declares `ExpectsInputTypes`: validate inputs without implicit casts.
+    /// NULL uses the declared type's default, and dictionary layouts are unwrapped.
+    pub(crate) fn check_only(types: Vec<SparkInputType>, volatility: Volatility) -> Self {
+        Self {
+            implicit_casts: false,
+            ..Self::new(types, volatility)
         }
     }
 
@@ -114,7 +129,8 @@ impl SparkInputTypes {
         })
     }
 
-    /// Casts each of `arg_types` to its declared type, for `ScalarUDFImpl::coerce_types`.
+    /// Chooses each argument's target type for `ScalarUDFImpl::coerce_types`.
+    /// In check-only mode, only accepted layouts and untyped NULLs are allowed.
     ///
     /// Returns Spark's `WRONG_NUM_ARGS` error for the wrong number of arguments, and
     /// `DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE` for an argument that cannot be cast.
@@ -138,7 +154,19 @@ impl SparkInputTypes {
             .zip(&self.types)
             .enumerate()
             .map(|(idx, (arg_type, expected))| {
-                match implicit_cast(arg_type, expected, self.ansi_mode) {
+                let target = if self.implicit_casts {
+                    implicit_cast(arg_type, expected, self.ansi_mode)
+                } else {
+                    let layout = spark_layout(arg_type);
+                    if expected.accepts(&layout) {
+                        Some(layout)
+                    } else if layout == DataType::Null {
+                        expected.default_type()
+                    } else {
+                        None
+                    }
+                };
+                match target {
                     Some(target) => Ok(target),
                     None => plan_err!(
                         "[DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE] The {} parameter of \
@@ -752,6 +780,69 @@ mod tests {
             err.contains("requires the (\"STRING\" or \"BINARY\") type"),
             "{err}"
         );
+    }
+
+    #[test]
+    fn check_only_validates_without_implicit_casts() {
+        let types = SparkInputTypes::check_only(vec![T::Integral], Volatility::Stable);
+        for ansi_mode in [false, true] {
+            let mut config = ConfigOptions::default();
+            config.execution.enable_ansi_mode = ansi_mode;
+            let types = types.with_config(&config).unwrap_or_else(|| types.clone());
+            for input in [DataType::Int8, DataType::Int64, DataType::UInt32] {
+                assert_eq!(
+                    types
+                        .coerce("timestamp_micros", std::slice::from_ref(&input))
+                        .unwrap(),
+                    vec![input]
+                );
+            }
+            assert_eq!(
+                types.coerce("timestamp_micros", &[DataType::Null]).unwrap(),
+                vec![DataType::Int32]
+            );
+            assert_eq!(
+                types
+                    .coerce(
+                        "timestamp_micros",
+                        &[DataType::Dictionary(
+                            Box::new(DataType::Int32),
+                            Box::new(DataType::UInt32)
+                        )]
+                    )
+                    .unwrap(),
+                vec![DataType::UInt32]
+            );
+            for input in [
+                DataType::Utf8,
+                DataType::Float64,
+                DataType::Decimal128(10, 1),
+                DataType::Boolean,
+            ] {
+                let error = types
+                    .coerce("timestamp_micros", &[input])
+                    .unwrap_err()
+                    .strip_backtrace();
+                assert!(
+                    error.contains(
+                        "The first parameter of `timestamp_micros` requires the \"INTEGRAL\" type"
+                    ),
+                    "{error}"
+                );
+            }
+            assert!(
+                types
+                    .coerce("timestamp_micros", &[])
+                    .unwrap_err()
+                    .strip_backtrace()
+                    .contains("WRONG_NUM_ARGS")
+            );
+        }
+        // Concrete types demonstrate that validation does not cast a string or
+        // narrow an integer, unlike ImplicitCastInputTypes.
+        let types = SparkInputTypes::check_only(vec![T::Integer], Volatility::Immutable);
+        assert!(types.coerce("f", &[DataType::Utf8]).is_err());
+        assert!(types.coerce("f", &[DataType::Int64]).is_err());
     }
 
     #[test]

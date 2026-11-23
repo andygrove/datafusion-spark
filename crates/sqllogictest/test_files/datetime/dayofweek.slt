@@ -8,7 +8,210 @@
 # For more information, please see:
 #   https://github.com/apache/datafusion/issues/15914
 
+# Spark `dayofweek` is 1-indexed with Sunday = 1 .. Saturday = 7.
+# Expected values verified against Spark 4.2.0.
+
 ## Original Query: SELECT dayofweek('2009-07-30');
 ## PySpark 3.5.5 Result: {'dayofweek(2009-07-30)': 5, 'typeof(dayofweek(2009-07-30))': 'int', 'typeof(2009-07-30)': 'string'}
-#query
-#SELECT dayofweek('2009-07-30'::string);
+query I
+SELECT dayofweek('2009-07-30'::string);
+----
+5
+
+query I
+SELECT dayofweek('2009-07-30'::DATE);
+----
+5
+
+# All seven days of one week (2024-01-07 is a Sunday)
+query IIIIIII
+SELECT dayofweek('2024-01-07'::DATE), dayofweek('2024-01-08'::DATE), dayofweek('2024-01-09'::DATE),
+       dayofweek('2024-01-10'::DATE), dayofweek('2024-01-11'::DATE), dayofweek('2024-01-12'::DATE),
+       dayofweek('2024-01-13'::DATE);
+----
+1 2 3 4 5 6 7
+
+# Epoch, the day before it, and a leap day
+query III
+SELECT dayofweek('1970-01-01'::DATE), dayofweek('1969-12-31'::DATE), dayofweek('2024-02-29'::DATE);
+----
+5 4 5
+
+# Calendar boundaries. Spark uses the proleptic Gregorian calendar, so
+# 1582-10-04 (the last Julian day before the switch) is a Monday.
+query IIII
+SELECT dayofweek('0001-01-01'::DATE), dayofweek('9999-12-31'::DATE),
+       dayofweek('1582-10-04'::DATE), dayofweek('1582-10-15'::DATE);
+----
+2 6 2 6
+
+# The whole Int32 epoch-day range: -5877641-06-23 and +5881580-07-11
+query II
+SELECT dayofweek(date_from_unix_date(-2147483648)), dayofweek(date_from_unix_date(2147483647));
+----
+3 6
+
+# The same two dates as a column, so the function sees an array
+query I
+SELECT dayofweek(d) FROM (VALUES (date_from_unix_date(-2147483648)), (date_from_unix_date(2147483647))) AS t(d);
+----
+3
+6
+
+# NULL
+query I
+SELECT dayofweek(NULL::DATE);
+----
+NULL
+
+# Untyped NULL gives a NULL INT
+query IT
+SELECT dayofweek(NULL), arrow_typeof(dayofweek(NULL));
+----
+NULL Int32
+
+# Result type
+query T
+SELECT arrow_typeof(dayofweek('2024-01-01'::DATE));
+----
+Int32
+
+# Column input, including NULL
+query I
+SELECT dayofweek(d) FROM (VALUES ('2024-01-01'::DATE), (NULL::DATE), ('2024-01-07'::DATE)) AS t(d);
+----
+2
+NULL
+1
+
+# Strings are implicitly cast to dates
+query I
+SELECT dayofweek('2024-05-20 23:30:00'::STRING);
+----
+2
+
+query I
+SELECT dayofweek(d) FROM (VALUES ('2024-01-01'::STRING), (NULL::STRING), ('2024-01-07'::STRING)) AS t(d);
+----
+2
+NULL
+1
+
+# Spark returns NULL for a malformed string when ANSI mode is off. DataFusion's
+# string to date cast errors regardless of ANSI mode. ANSI-aware casting is
+# tracked by https://github.com/apache/datafusion-spark/issues/88
+# query I
+# SELECT dayofweek('abc'::STRING);
+# ----
+# NULL
+
+# Spark reads '2009' and '2009-07' as the first day of that year or month, in both ANSI
+# modes. DataFusion's string to date cast rejects them. Tracked by
+# https://github.com/apache/datafusion-spark/issues/88
+# query II
+# SELECT dayofweek('2009'::STRING), dayofweek('2009-07'::STRING);
+# ----
+# 5 4
+
+# Date64 is cast to epoch days
+query II
+SELECT dayofweek(arrow_cast('2024-01-07'::DATE, 'Date64')), dayofweek(arrow_cast('1969-12-31'::DATE, 'Date64'));
+----
+1 4
+
+query I
+SELECT dayofweek(d) FROM (VALUES (arrow_cast('2024-01-07'::DATE, 'Date64')), (arrow_cast(NULL::DATE, 'Date64'))) AS t(d);
+----
+1
+NULL
+
+# A Date64 outside the Date32 range still has a day of the week, rather than
+# NULL: one day after and one day before the Date32 range, then the last
+# millisecond before the epoch, which is on 1969-12-31. DataFusion only, since
+# Spark has no Date64.
+skipif spark
+query I
+SELECT dayofweek(d) FROM (VALUES
+  (arrow_cast(185542587187200000, 'Date64')),
+  (arrow_cast(-185542587273600000, 'Date64')),
+  (arrow_cast(-1, 'Date64'))
+) AS t(d);
+----
+7
+2
+4
+
+# With ANSI mode on, Spark raises CAST_INVALID_INPUT for a malformed string
+statement ok
+set datafusion.execution.enable_ansi_mode = true;
+
+query error Cannot cast string 'abc' to value of Date32 type
+SELECT dayofweek('abc'::STRING);
+
+statement ok
+set datafusion.execution.enable_ansi_mode = false;
+
+# Timestamps are cast to dates, so the time of day is ignored
+query I
+SELECT dayofweek(arrow_cast('2024-01-07 23:59:59', 'Timestamp(Microsecond, None)'));
+----
+1
+
+query I
+SELECT dayofweek(ts) FROM (VALUES
+  ('2024-01-01 01:02:03'::TIMESTAMP),
+  ('2024-01-06 10:20:30'::TIMESTAMP),
+  ('2024-01-07 23:59:59'::TIMESTAMP),
+  (NULL::TIMESTAMP)
+) AS t(ts);
+----
+2
+7
+1
+NULL
+
+# A timestamp with a time zone is cast to a date in its own time zone. With
+# the default UTC session time zone this matches Spark.
+query I
+SELECT dayofweek(arrow_cast('2024-05-21T02:00:00Z', 'Timestamp(Microsecond, Some("UTC"))'));
+----
+3
+
+# Spark casts a timestamp to a date in the session time zone, so in
+# America/New_York the instant 2024-05-21T02:00:00Z is a Monday (2). DataFusion
+# uses the timestamp's own time zone (UTC) and returns 3. Session time zone
+# aware timestamp to date casting is tracked by
+# https://github.com/apache/datafusion-spark/issues/88
+statement ok
+set datafusion.execution.time_zone = 'America/New_York';
+
+# query I
+# SELECT dayofweek(arrow_cast('2024-05-21T02:00:00Z', 'Timestamp(Microsecond, Some("UTC"))'));
+# ----
+# 2
+
+statement ok
+reset datafusion.execution.time_zone;
+
+# A dictionary-encoded date column is accepted. Coercion unpacks it to Date32
+# before the function runs, so this checks coercion. The unit tests in
+# dayofweek.rs cover the function's own dictionary path. DataFusion only,
+# since Spark has no dictionary type.
+skipif spark
+query IT
+SELECT dayofweek(d), arrow_typeof(dayofweek(d)) FROM (VALUES
+  (arrow_cast('2024-01-01'::DATE, 'Dictionary(Int32, Date32)')),
+  (arrow_cast(NULL::DATE, 'Dictionary(Int32, Date32)')),
+  (arrow_cast('2024-01-07'::DATE, 'Dictionary(Int32, Date32)'))
+) AS t(d);
+----
+2 Int32
+NULL Int32
+1 Int32
+
+# Spark raises DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE for an integer
+statement error Function 'dayofweek' requires Date, but received Int32
+SELECT dayofweek(1::INT);
+
+statement error 'dayofweek' does not support zero arguments
+SELECT dayofweek();

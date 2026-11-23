@@ -53,6 +53,20 @@ SELECT weekday('2024-01-07'::DATE);
 ----
 6
 
+# The whole Int32 epoch-day range: -5877641-06-23 and +5881580-07-11, which
+# are outside chrono's calendar. Verified against Spark 4.2.0.
+query II
+SELECT weekday(date_from_unix_date(-2147483648)), weekday(date_from_unix_date(2147483647));
+----
+1 4
+
+# The same two dates as a column, so the function sees an array
+query I
+SELECT weekday(d) FROM (VALUES (date_from_unix_date(-2147483648)), (date_from_unix_date(2147483647))) AS t(d);
+----
+1
+4
+
 # NULL handling
 query I
 SELECT weekday(NULL::DATE);
@@ -104,6 +118,28 @@ query I
 SELECT weekday(arrow_cast('2024-01-07 03:00:00', 'Timestamp(Nanosecond, Some("UTC"))'));
 ----
 6
+
+# Date64 is cast to epoch days
+query II
+SELECT weekday(arrow_cast('2024-01-07'::DATE, 'Date64')), weekday(arrow_cast('1969-12-31'::DATE, 'Date64'));
+----
+6 2
+
+# A Date64 outside the Date32 range still has a day of the week, rather than
+# NULL: one day after and one day before the Date32 range, then the last
+# millisecond before the epoch, which is on 1969-12-31. DataFusion only, since
+# Spark has no Date64.
+skipif spark
+query I
+SELECT weekday(d) FROM (VALUES
+  (arrow_cast(185542587187200000, 'Date64')),
+  (arrow_cast(-185542587273600000, 'Date64')),
+  (arrow_cast(-1, 'Date64'))
+) AS t(d);
+----
+5
+0
+2
 
 # Error: wrong argument type (string without cast)
 # xfail spark: Spark implicitly casts a string argument to DATE/TIMESTAMP, invalid strings give NULL (https://github.com/apache/datafusion-spark/issues/41)

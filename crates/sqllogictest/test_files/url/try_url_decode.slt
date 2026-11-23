@@ -15,7 +15,7 @@ https://spark.apache.org
 
 # Test with Utf8View
 query T
-SELECT try_url_decode(arrow_cast('https%3A%2F%2Fspark.apache.org', 'Utf8View'));
+SELECT try_url_decode('https%3A%2F%2Fspark.apache.org'::STRING);
 ----
 https://spark.apache.org
 
@@ -55,9 +55,14 @@ SELECT try_url_decode('https%3%2F%2Fspark.apache.org'::string);
 ----
 NULL
 
-# Bytes that are not valid UTF-8 give NULL
-# xfail spark: Spark replaces bytes that are not valid UTF-8 with U+FFFD, datafusion-spark raises an error or returns NULL (https://github.com/apache/datafusion-spark/issues/366)
+# Bytes that are not valid UTF-8 become U+FFFD (EFBFBD), like Spark
 query T
-SELECT try_url_decode('%FF'::string);
+SELECT hex(try_url_decode('%FF'::string));
 ----
-NULL
+EFBFBD
+
+# An encoded surrogate becomes a single U+FFFD, like Spark
+query T
+SELECT hex(try_url_decode('%ED%A0%80'::string));
+----
+EFBFBD

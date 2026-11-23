@@ -135,8 +135,6 @@ FROM VALUES ('a', 'b'), ('c', CAST(NULL AS STRING)), (CAST(NULL AS STRING), 'd')
 result Utf8 NO
 
 ## Scalar-only arguments over multiple rows (broadcast test)
-# Without constant folding this panics (https://github.com/apache/datafusion-spark/issues/314).
-skipif evaluate
 query T
 SELECT concat_ws(',', 'a', 'b') AS result FROM VALUES (1), (2), (3) AS t(x);
 ----
@@ -166,7 +164,7 @@ a - b - c
 
 ## Utf8View separator
 query TT
-SELECT concat_ws(arrow_cast(',', 'Utf8View'), 'a', 'b'), arrow_typeof(concat_ws(arrow_cast(',', 'Utf8View'), 'a', 'b'));
+SELECT concat_ws(','::STRING, 'a', 'b'), arrow_typeof(concat_ws(','::STRING, 'a', 'b'));
 ----
 a,b Utf8
 

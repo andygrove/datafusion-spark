@@ -4,7 +4,7 @@
 
 use arrow::datatypes::{DataType, Field};
 use datafusion_common::utils::take_function_args;
-use datafusion_common::{Result, ScalarValue, exec_err};
+use datafusion_common::{Result, ScalarValue, plan_err};
 use datafusion_expr::{
     ColumnarValue, Documentation, ScalarFunctionArgs, ScalarUDFImpl, Signature,
     Volatility,
@@ -16,6 +16,7 @@ use std::sync::Arc;
 use crate::function::null_utils::{
     NullMaskResolution, apply_null_mask, compute_null_mask,
 };
+use crate::function::type_coercion::spark_sql_type;
 
 /// Spark-compatible `array_repeat` expression.
 ///
@@ -40,7 +41,7 @@ NULL
     ),
     argument(
         name = "count",
-        description = "Integer number of times to repeat `element`. Non-integer types are an error. NULL returns NULL."
+        description = "Number of times to repeat `element`, cast to INT. Non-integer types are an error. NULL returns NULL."
     )
 )]
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -89,20 +90,24 @@ impl ScalarUDFImpl for SparkArrayRepeat {
     fn coerce_types(&self, arg_types: &[DataType]) -> Result<Vec<DataType>> {
         let [first_type, second_type] = take_function_args(self.name(), arg_types)?;
 
-        // Coerce the second argument to Int64/UInt64 if it's a numeric type
-        let second = match second_type {
-            DataType::Int8
-            | DataType::Int16
-            | DataType::Int32
-            | DataType::Int64
-            | DataType::Null => DataType::Int64,
-            DataType::UInt8 | DataType::UInt16 | DataType::UInt32 | DataType::UInt64 => {
-                DataType::UInt64
-            }
-            _ => return exec_err!("count must be an integer type"),
+        // Spark's `ArrayRepeat` takes an INT count. DataFusion types bare integer
+        // literals as BIGINT, so accept every integer type and cast to INT. A
+        // value outside the INT range then fails the cast instead of being
+        // silently truncated. Spark has no dictionary types, so a dictionary-encoded
+        // count has the type of its values.
+        let count_type = match second_type {
+            DataType::Dictionary(_, value) => value.as_ref(),
+            other => other,
         };
-
-        Ok(vec![first_type.clone(), second])
+        if !(count_type.is_integer() || count_type.is_null()) {
+            return plan_err!(
+                "[DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE] The second parameter of \
+                 `array_repeat` requires the \"INT\" type, however it has the type \
+                 \"{}\". SQLSTATE: 42K09",
+                spark_sql_type(second_type)
+            );
+        }
+        Ok(vec![first_type.clone(), DataType::Int32])
     }
 }
 
@@ -110,8 +115,8 @@ impl ScalarUDFImpl for SparkArrayRepeat {
 /// if the count argument is NULL (Spark behavior), whereas DataFusion's array_repeat ignores NULLs.
 fn spark_array_repeat(args: ScalarFunctionArgs) -> Result<ColumnarValue> {
     let ScalarFunctionArgs {
-        args: arg_values,
-        arg_fields,
+        args: mut arg_values,
+        mut arg_fields,
         number_rows,
         return_field,
         config_options,
@@ -125,6 +130,15 @@ fn spark_array_repeat(args: ScalarFunctionArgs) -> Result<ColumnarValue> {
     if matches!(null_mask, NullMaskResolution::ReturnNull) {
         return Ok(ColumnarValue::Scalar(ScalarValue::try_from(return_type)?));
     }
+
+    // DataFusion's `array_repeat` takes a BIGINT count.
+    arg_values[1] = arg_values[1].cast_to(&DataType::Int64, None)?;
+    arg_fields[1] = Arc::new(
+        arg_fields[1]
+            .as_ref()
+            .clone()
+            .with_data_type(DataType::Int64),
+    );
 
     let array_repeat_func = ArrayRepeat::new();
     let func_args = ScalarFunctionArgs {

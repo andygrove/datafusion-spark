@@ -7,14 +7,15 @@ use std::sync::Arc;
 use arrow::array::{Array, Date32Array};
 use arrow::datatypes::{DataType, Field, FieldRef};
 use datafusion_common::cast::as_int32_array;
-use datafusion_common::types::{NativeType, logical_int32, logical_string};
 use datafusion_common::utils::take_function_args;
 use datafusion_common::{Result, ScalarValue, internal_err};
 use datafusion_expr::{
-    Coercion, ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs,
-    ScalarUDFImpl, Signature, TypeSignatureClass, Volatility,
+    ColumnarValue, Documentation, ReturnFieldArgs, ScalarFunctionArgs, ScalarUDFImpl,
+    Signature, Volatility,
 };
 use datafusion_macros::user_doc;
+
+use super::date_part_name::int32_coercion;
 
 /// Spark-compatible `date_from_unix_date` expression.
 ///
@@ -56,20 +57,12 @@ impl Default for SparkDateFromUnixDate {
 
 impl SparkDateFromUnixDate {
     pub fn new() -> Self {
-        // Spark declares the argument as INT and implicitly casts other numeric
-        // and string types to it. DataFusion types bare integer literals as BIGINT.
-        let int32 = Coercion::new_implicit(
-            TypeSignatureClass::Native(logical_int32()),
-            vec![
-                TypeSignatureClass::Integer,
-                TypeSignatureClass::Float,
-                TypeSignatureClass::Decimal,
-                TypeSignatureClass::Native(logical_string()),
-            ],
-            NativeType::Int32,
-        );
+        // Spark declares the argument as INT.
         Self {
-            signature: Signature::coercible(vec![int32], Volatility::Immutable),
+            signature: Signature::coercible(
+                vec![int32_coercion()],
+                Volatility::Immutable,
+            ),
         }
     }
 }

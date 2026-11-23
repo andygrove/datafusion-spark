@@ -15,7 +15,7 @@ https://spark.apache.org
 
 # Test with Utf8View
 query T
-SELECT url_decode(arrow_cast('https%3A%2F%2Fspark.apache.org', 'Utf8View'));
+SELECT url_decode('https%3A%2F%2Fspark.apache.org'::STRING);
 ----
 https://spark.apache.org
 
@@ -53,7 +53,36 @@ Spark SQL!
 query error DataFusion error: Execution error: Invalid percent\-encoding: invalid hex sequence '%3%' at position 5
 SELECT url_decode('https%3%2F%2Fspark.apache.org'::string);
 
-# Bytes that are not valid UTF-8 are an error
-# xfail spark: Spark replaces bytes that are not valid UTF-8 with U+FFFD, datafusion-spark raises an error or returns NULL (https://github.com/apache/datafusion-spark/issues/366)
-query error DataFusion error: Execution error: Invalid UTF\-8 sequence
-SELECT url_decode('%FF'::string);
+# Bytes that are not valid UTF-8 become U+FFFD (EFBFBD), like Spark
+query T
+SELECT hex(url_decode('%FF'::string));
+----
+EFBFBD
+
+query T
+SELECT hex(url_decode(column1)) FROM VALUES ('a%FFb%C3%28'), ('a%C3%A9'), (NULL);
+----
+61EFBFBD62EFBFBD28
+61C3A9
+NULL
+
+# An encoded surrogate becomes a single U+FFFD, like Spark
+query T
+SELECT hex(url_decode('%ED%A0%80'::string));
+----
+EFBFBD
+
+query T
+SELECT hex(url_decode('%ED%A0%80a'::string));
+----
+EFBFBD61
+
+query T
+SELECT hex(url_decode('%ED%A0'::string));
+----
+EFBFBD
+
+query T
+SELECT hex(url_decode('%ED%A0%80%ED%B0%80'::string));
+----
+EFBFBDEFBFBD

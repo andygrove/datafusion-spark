@@ -158,7 +158,7 @@ SELECT contains(1.5::double, '.');
 ## Arrow string and binary variants
 
 query BBB
-SELECT contains(arrow_cast('Spark SQL', 'LargeUtf8'), 'SQL'::string), contains(arrow_cast('Spark SQL', 'Utf8View'), arrow_cast('k S', 'Utf8View')), contains(arrow_cast('Spark SQL', 'Utf8View'), arrow_cast('x', 'LargeUtf8'));
+SELECT contains(arrow_cast('Spark SQL', 'LargeUtf8'), 'SQL'::string), contains('Spark SQL'::STRING, 'k S'::STRING), contains('Spark SQL'::STRING, arrow_cast('x', 'LargeUtf8'));
 ----
 true true false
 
@@ -168,7 +168,7 @@ SELECT contains(arrow_cast(X'00FF01', 'LargeBinary'), X'FF01'), contains(arrow_c
 true true false
 
 query B
-SELECT contains(arrow_cast(s, 'Utf8View'), arrow_cast(p, 'LargeUtf8')) FROM VALUES ('hello world', 'world'), ('hello', ''), (NULL, 'a'), ('abc', NULL), ('abc', 'd') AS t(s, p);
+SELECT contains(s::STRING, arrow_cast(p, 'LargeUtf8')) FROM VALUES ('hello world', 'world'), ('hello', ''), (NULL, 'a'), ('abc', NULL), ('abc', 'd') AS t(s, p);
 ----
 true
 true

@@ -76,7 +76,7 @@ NULL
 
 # Utf8View type
 statement ok
-CREATE TABLE t_utf8view AS VALUES (arrow_cast('414243', 'Utf8View')), (NULL);
+CREATE TABLE t_utf8view AS VALUES ('414243'::STRING), (NULL);
 
 query ?
 SELECT unhex(column1) FROM t_utf8view;
