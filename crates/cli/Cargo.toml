@@ -25,7 +25,7 @@ path = "src/main.rs"
 [dependencies]
 clap = { version = "4.5.60", features = ["derive"] }
 datafusion = { workspace = true, features = ["sql", "parquet", "nested_expressions"] }
-datafusion-cli = { git = "https://github.com/apache/datafusion", branch = "branch-56" }
+datafusion-cli = "56.0.0"
 datafusion-spark = { path = "../spark", features = ["core"] }
 env_logger = "0.11"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
