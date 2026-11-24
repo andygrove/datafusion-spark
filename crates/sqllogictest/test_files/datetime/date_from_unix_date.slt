@@ -43,12 +43,12 @@ true true
 
 # Other integer types are cast to INT
 query D
-SELECT date_from_unix_date(arrow_cast(100, 'Int8'));
+SELECT date_from_unix_date(100::TINYINT);
 ----
 1970-04-11
 
 query D
-SELECT date_from_unix_date(arrow_cast(1000, 'Int64'));
+SELECT date_from_unix_date(1000::BIGINT);
 ----
 1972-09-27
 

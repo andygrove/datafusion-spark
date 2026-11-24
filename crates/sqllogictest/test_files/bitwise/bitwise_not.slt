@@ -60,129 +60,129 @@ SELECT bitwise_not(-3::int);
 
 # Tests with different integer types
 query I
-SELECT bitwise_not(arrow_cast(0, 'Int8'));
+SELECT bitwise_not(0::TINYINT);
 ----
 -1
 
 query I
-SELECT bitwise_not(arrow_cast(15, 'Int8'));
+SELECT bitwise_not(15::TINYINT);
 ----
 -16
 
 query I
-SELECT bitwise_not(arrow_cast(-1, 'Int8'));
+SELECT bitwise_not((-1)::TINYINT);
 ----
 0
 
 query I
-SELECT bitwise_not(arrow_cast(0, 'Int16'));
+SELECT bitwise_not(0::SMALLINT);
 ----
 -1
 
 query I
-SELECT bitwise_not(arrow_cast(255, 'Int16'));
+SELECT bitwise_not(255::SMALLINT);
 ----
 -256
 
 query I
-SELECT bitwise_not(arrow_cast(-1, 'Int16'));
+SELECT bitwise_not((-1)::SMALLINT);
 ----
 0
 
 query I
-SELECT bitwise_not(arrow_cast(0, 'Int32'));
+SELECT bitwise_not(0::INT);
 ----
 -1
 
 query I
-SELECT bitwise_not(arrow_cast(255, 'Int32'));
+SELECT bitwise_not(255::INT);
 ----
 -256
 
 query I
-SELECT bitwise_not(arrow_cast(-1, 'Int32'));
+SELECT bitwise_not((-1)::INT);
 ----
 0
 
 query I
-SELECT bitwise_not(arrow_cast(0, 'Int64'));
+SELECT bitwise_not(0::BIGINT);
 ----
 -1
 
 query I
-SELECT bitwise_not(arrow_cast(255, 'Int64'));
+SELECT bitwise_not(255::BIGINT);
 ----
 -256
 
 query I
-SELECT bitwise_not(arrow_cast(-1, 'Int64'));
+SELECT bitwise_not((-1)::BIGINT);
 ----
 0
 
 # Tests with NULL values
 query I
-SELECT bitwise_not(arrow_cast(NULL, 'Int32'));
+SELECT bitwise_not(NULL::INT);
 ----
 NULL
 
 query I
-SELECT bitwise_not(arrow_cast(NULL, 'Int8'));
+SELECT bitwise_not(NULL::TINYINT);
 ----
 NULL
 
 query I
-SELECT bitwise_not(arrow_cast(NULL, 'Int64'));
+SELECT bitwise_not(NULL::BIGINT);
 ----
 NULL
 
 # Tests with edge cases
 query I
-SELECT bitwise_not(arrow_cast(0, 'Int32')) as zero_not;
+SELECT bitwise_not(0::INT) as zero_not;
 ----
 -1
 
 query I
-SELECT bitwise_not(arrow_cast(1, 'Int32')) as one_not;
+SELECT bitwise_not(1::INT) as one_not;
 ----
 -2
 
 query I
-SELECT bitwise_not(arrow_cast(2, 'Int32')) as two_not;
+SELECT bitwise_not(2::INT) as two_not;
 ----
 -3
 
 query I
-SELECT bitwise_not(arrow_cast(3, 'Int32')) as three_not;
+SELECT bitwise_not(3::INT) as three_not;
 ----
 -4
 
 query I
-SELECT bitwise_not(arrow_cast(4, 'Int32')) as four_not;
+SELECT bitwise_not(4::INT) as four_not;
 ----
 -5
 
 query I
-SELECT bitwise_not(arrow_cast(5, 'Int32')) as five_not;
+SELECT bitwise_not(5::INT) as five_not;
 ----
 -6
 
 # Tests with large numbers
 query I
-SELECT bitwise_not(arrow_cast(2147483647, 'Int32'));
+SELECT bitwise_not(2147483647::INT);
 ----
 -2147483648
 
 query I
-SELECT bitwise_not(arrow_cast(-2147483648, 'Int32'));
+SELECT bitwise_not((-2147483648)::INT);
 ----
 2147483647
 
 query I
-SELECT bitwise_not(arrow_cast(9223372036854775807, 'Int64'));
+SELECT bitwise_not(9223372036854775807::BIGINT);
 ----
 -9223372036854775808
 
 query I
-SELECT bitwise_not(arrow_cast(-9223372036854775808, 'Int64'));
+SELECT bitwise_not((-9223372036854775808)::BIGINT);
 ----
 9223372036854775807

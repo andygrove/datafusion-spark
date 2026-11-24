@@ -102,7 +102,7 @@ SELECT array_insert(make_array(0, NULL, 0), 1, NULL);
 
 # NULL array or NULL position gives NULL
 query ?
-SELECT array_insert(arrow_cast(NULL, 'List(Int32)'), 1, 5);
+SELECT array_insert(NULL::ARRAY<INT>, 1, 5);
 ----
 NULL
 
@@ -305,7 +305,7 @@ SELECT array_insert(make_array(make_array(1)), -3, make_array(2));
 
 # The item widens to the common numeric type
 query ?
-SELECT array_insert(make_array(arrow_cast(1, 'Int32')), 1, arrow_cast(3000000000, 'Int64'));
+SELECT array_insert(make_array(1::INT), 1, 3000000000::BIGINT);
 ----
 [3000000000, 1]
 

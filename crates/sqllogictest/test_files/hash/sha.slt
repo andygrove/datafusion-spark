@@ -35,13 +35,13 @@ SELECT sha(arrow_cast('Spark', 'LargeUtf8'));
 
 # Test with Utf8View (using CAST to ensure type)
 query T
-SELECT sha(arrow_cast('Spark', 'Utf8View'));
+SELECT sha('Spark'::STRING);
 ----
 85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
 
 # Test with Binary
 query T
-SELECT sha(arrow_cast('Spark', 'Binary'));
+SELECT sha('Spark'::BINARY);
 ----
 85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
 

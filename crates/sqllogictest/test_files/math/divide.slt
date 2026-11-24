@@ -32,7 +32,7 @@ SELECT a / b FROM (VALUES (1, 2), (3, 4)) t(a, b);
 0.75
 
 query RT
-SELECT arrow_cast(1, 'Float32') / arrow_cast(2, 'Float32') AS r, arrow_typeof(arrow_cast(1, 'Float32') / arrow_cast(2, 'Float32')) AS t;
+SELECT 1::FLOAT / 2::FLOAT AS r, arrow_typeof(1::FLOAT / 2::FLOAT) AS t;
 ----
 0.5 Float64
 

@@ -39,7 +39,7 @@ SELECT sha1(arrow_cast('Spark', 'LargeUtf8'));
 85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
 
 query T
-SELECT sha1(arrow_cast('Spark', 'Utf8View'));
+SELECT sha1('Spark'::STRING);
 ----
 85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
 
@@ -49,12 +49,12 @@ SELECT sha1(arrow_cast('Spark', 'Utf8'));
 85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
 
 query T
-SELECT sha1(arrow_cast('Spark', 'Binary'));
+SELECT sha1('Spark'::BINARY);
 ----
 85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
 
 query T
-SELECT sha1(arrow_cast(arrow_cast('Spark', 'Binary'), 'FixedSizeBinary(5)'));
+SELECT sha1(arrow_cast('Spark'::BINARY, 'FixedSizeBinary(5)'));
 ----
 85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
 

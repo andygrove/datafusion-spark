@@ -200,12 +200,12 @@ SELECT soundex(arrow_cast('123', 'LargeUtf8'));
 123
 
 query T
-SELECT soundex(arrow_cast('Miller', 'Utf8View'));
+SELECT soundex('Miller'::STRING);
 ----
 M460
 
 query T
-SELECT soundex(arrow_cast('123', 'Utf8View'));
+SELECT soundex('123'::STRING);
 ----
 123
 
@@ -234,7 +234,7 @@ NULL
 R163
 
 query T
-SELECT soundex(arrow_cast(c, 'Utf8View')) FROM VALUES ('Miller'), (NULL), ('Ñoño') AS t(c);
+SELECT soundex(c::STRING) FROM VALUES ('Miller'), (NULL), ('Ñoño') AS t(c);
 ----
 M460
 NULL

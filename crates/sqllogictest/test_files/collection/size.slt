@@ -58,7 +58,7 @@ SELECT size(map(make_array('a'), make_array(1)));
 
 # Empty array
 query I
-SELECT size(arrow_cast(make_array(), 'List(Int32)'));
+SELECT size(make_array()::ARRAY<INT>);
 ----
 0
 
@@ -78,7 +78,7 @@ SELECT size(CAST(NULL AS ARRAY<INT>));
 
 # Empty map
 query I
-SELECT size(map(arrow_cast(make_array(), 'List(Utf8)'), arrow_cast(make_array(), 'List(Int32)')));
+SELECT size(map(arrow_cast(make_array(), 'List(Utf8)'), make_array()::ARRAY<INT>));
 ----
 0
 

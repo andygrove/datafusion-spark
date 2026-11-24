@@ -74,17 +74,23 @@ use datafusion_spark::expr_fn::sha2;
 let expr = sha2(col("my_data"), lit(256));
 ```
 
-## Using the DataFusion CLI
+## Trying the functions in a SQL shell
 
-Pass `--spark` to `datafusion-cli` to enable the Spark SQL dialect and register
-the Spark-compatible scalar, aggregate, and window functions for the session:
+`datafusion-spark-cli` is the DataFusion CLI with the Spark SQL dialect enabled
+and the Spark-compatible scalar, aggregate, and window functions registered. It
+lives in [`crates/cli`](../cli) in this repository and is not published yet:
 
 ```shell
-datafusion-cli --spark
+cargo run -p datafusion-spark-cli
 ```
 
-The option is disabled by default because Spark-compatible functions can
-override DataFusion functions with the same name.
+The Spark functions override DataFusion functions with the same name. ANSI mode
+is on by default, as in Spark 4. Pass `--ansi false` for Spark's legacy behavior,
+after `--` so that `cargo` passes it to the CLI:
+
+```shell
+cargo run -p datafusion-spark-cli -- --ansi false
+```
 
 ## Things to know
 

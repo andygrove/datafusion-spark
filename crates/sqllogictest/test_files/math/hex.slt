@@ -27,7 +27,7 @@ NULL
 666F6F62617262617A
 
 statement ok
-CREATE TABLE t_utf8view as VALUES (arrow_cast('foo', 'Utf8View')), (NULL), (arrow_cast('foobarbaz', 'Utf8View'));
+CREATE TABLE t_utf8view as VALUES ('foo'::STRING), (NULL), ('foobarbaz'::STRING);
 
 query T
 SELECT hex(column1) FROM t_utf8view;

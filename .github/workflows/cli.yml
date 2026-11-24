@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: Apache-2.0
+# SPDX-FileCopyrightText: See the NOTICE file distributed with this work for additional information regarding copyright ownership
+# SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
+
+name: CLI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    name: datafusion-spark-cli smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal --no-self-update && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build -p datafusion-spark-cli
+      # A Spark function, and ANSI mode on by default and off with `--ansi false`.
+      - name: Run queries
+        run: |
+          set -euo pipefail
+          cli=target/debug/datafusion-spark-cli
+          $cli -q --format csv -c "SELECT sha2('Spark', 256) AS h" \
+            | grep -x '529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b'
+          if out=$($cli -q -c "SELECT abs(cast(-2147483648 AS int))" 2>&1); then
+            echo "expected an ARITHMETIC_OVERFLOW error with ANSI mode on" && exit 1
+          fi
+          grep -F '[ARITHMETIC_OVERFLOW]' <<< "$out"
+          $cli -q --ansi false --format csv -c "SELECT abs(cast(-2147483648 AS int)) AS a" \
+            | grep -x -- '-2147483648'
+      # SQL read from stdin by the REPL. `LONG` is a type in the Spark dialect only.
+      - name: Run the REPL from stdin
+        run: |
+          set -euo pipefail
+          echo "SELECT CAST(1 AS LONG) AS l;" \
+            | target/debug/datafusion-spark-cli -q --format csv | grep -x '1'
+      # `-f` and `-r` paths are relative to the working directory, not to `-p`, while
+      # paths in the SQL are relative to `-p`.
+      - name: Run files with a data path
+        run: |
+          set -euo pipefail
+          cli=$PWD/target/debug/datafusion-spark-cli
+          dir=$(mktemp -d) && cd "$dir" && mkdir data
+          echo "SELECT 'cwd' AS s;" > q.sql
+          echo "SELECT 'data' AS s;" > data/q.sql
+          $cli -q --format csv -p data -f q.sql | grep -x 'cwd'
+          echo "" | $cli -q --format csv -p data -r q.sql | grep -x 'cwd'
+          echo "SELECT 'stdin' AS s;" | $cli -q --format csv -p data -f /dev/stdin | grep -x 'stdin'
+          printf 's\ncwd_csv\n' > t.csv
+          printf 's\ndata_csv\n' > data/t.csv
+          echo "SELECT s FROM 't.csv';" > csv.sql
+          echo "SELECT 'wrong script' AS s;" > data/csv.sql
+          out=$($cli -q --format csv -p data -f csv.sql)
+          grep -x 'data_csv' <<< "$out"
+          if grep -e 'cwd_csv' -e 'wrong script' <<< "$out"; then exit 1; fi
+      # Every file is opened before any runs, so a file that cannot be opened fails
+      # before an earlier file has written anything.
+      - name: Fail before running when a file cannot be opened
+        run: |
+          set -euo pipefail
+          cli=$PWD/target/debug/datafusion-spark-cli
+          dir=$(mktemp -d) && cd "$dir"
+          echo "COPY (SELECT 1 AS a) TO 'out.csv';" > first.sql
+          echo "SELECT 2 AS b;" > second.sql
+          chmod 000 second.sql
+          if out=$($cli -q -f first.sql second.sql 2>&1); then
+            echo "expected an error for the unreadable file" && exit 1
+          fi
+          grep -F "Cannot open file 'second.sql'" <<< "$out"
+          test ! -e out.csv

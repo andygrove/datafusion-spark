@@ -12,7 +12,7 @@ use arrow::datatypes::DataType;
 use datafusion_common::cast::{
     as_large_string_array, as_string_array, as_string_view_array,
 };
-use datafusion_common::{Result, exec_datafusion_err, exec_err};
+use datafusion_common::{DataFusionError, Result, exec_datafusion_err, exec_err};
 use datafusion_expr::{
     ColumnarValue, ScalarFunctionArgs, ScalarUDFImpl, Signature, TypeSignature,
     Volatility,
@@ -97,12 +97,10 @@ impl ParseUrl {
                     _ => None,
                 })
             } else {
-                Err(exec_datafusion_err!(
-                    "The url is invalid: {value}. Use `try_parse_url` to tolerate invalid URL and return NULL instead. SQLSTATE: 22P02"
-                ))
+                Err(Self::invalid_url_err(value))
             };
         }
-        url.map_err(|e| exec_datafusion_err!("{e:?}"))
+        url.map_err(|_| Self::invalid_url_err(value))
             .map(|url| match part {
                 "HOST" => url.host_str().map(String::from),
                 "PATH" => {
@@ -135,6 +133,13 @@ impl ParseUrl {
                 }
                 _ => None,
             })
+    }
+
+    /// The same error for every URL that can't be parsed
+    fn invalid_url_err(value: &str) -> DataFusionError {
+        exec_datafusion_err!(
+            "The url is invalid: {value}. Use `try_parse_url` to tolerate invalid URL and return NULL instead. SQLSTATE: 22P02"
+        )
     }
 
     fn path<'a>(value: &str, url: &'a Url) -> &'a str {

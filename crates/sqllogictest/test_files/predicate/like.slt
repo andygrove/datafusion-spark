@@ -21,7 +21,7 @@ SELECT ilike('Spark',  arrow_cast('_park', 'LargeUtf8'));
 true
 
 query B
-SELECT ilike(arrow_cast('Spark', 'Utf8View'),  arrow_cast('_park', 'LargeUtf8'));
+SELECT ilike('Spark'::STRING,  arrow_cast('_park', 'LargeUtf8'));
 ----
 true
 

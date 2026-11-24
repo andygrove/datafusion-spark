@@ -136,8 +136,8 @@ select shiftright(3::int,-32);
 # i32 + nulls
 query IT
 SELECT
-	shiftright(arrow_cast(value, 'Int32'), shift),
-	arrow_typeof(shiftright(arrow_cast(value, 'Int32'), shift))
+	shiftright(value::INT, shift),
+	arrow_typeof(shiftright(value::INT, shift))
 FROM VALUES
 (4, 1),
 (8, 2),
@@ -157,8 +157,8 @@ NULL Int32
 # big shifts
 query IT
 SELECT
-	shiftright(arrow_cast(value, 'Int32'), shift),
-	arrow_typeof(shiftright(arrow_cast(value, 'Int32'), shift))
+	shiftright(value::INT, shift),
+	arrow_typeof(shiftright(value::INT, shift))
 FROM VALUES
 (1, 32),
 (2, 33),
@@ -172,8 +172,8 @@ t(value, shift)
 # negative shift
 query IT
 SELECT
-	shiftright(arrow_cast(value, 'Int32'), shift),
-	arrow_typeof(shiftright(arrow_cast(value, 'Int32'), shift))
+	shiftright(value::INT, shift),
+	arrow_typeof(shiftright(value::INT, shift))
 FROM VALUES
 (4, -1),
 (8, -2),
@@ -187,8 +187,8 @@ t(value, shift)
 # For signed integers, right shift preserves sign bit
 query IT
 SELECT
-	shiftright(arrow_cast(value, 'Int32'), shift),
-	arrow_typeof(shiftright(arrow_cast(value, 'Int32'), shift))
+	shiftright(value::INT, shift),
+	arrow_typeof(shiftright(value::INT, shift))
 FROM VALUES
 (-4, 1),
 (-8, 2),
@@ -202,8 +202,8 @@ t(value, shift)
 # i64 value
 query IT
 SELECT
-	shiftright(arrow_cast(value, 'Int64'), shift),
-	arrow_typeof(shiftright(arrow_cast(value, 'Int64'), shift))
+	shiftright(value::BIGINT, shift),
+	arrow_typeof(shiftright(value::BIGINT, shift))
 FROM VALUES (4, 1), (8, 2), (16, 3) t(value, shift)
 ----
 2 Int64

@@ -45,146 +45,146 @@ SELECT is_valid_utf8('ASCII only 123 !@#'::string);
 true
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'C2A9', 'Binary'));
+SELECT is_valid_utf8(x'C2A9'::BINARY);
 ----
 true
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'C2AE', 'Binary'));
+SELECT is_valid_utf8(x'C2AE'::BINARY);
 ----
 true
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'E282AC', 'Binary'));
+SELECT is_valid_utf8(x'E282AC'::BINARY);
 ----
 true
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'E284A2', 'Binary'));
+SELECT is_valid_utf8(x'E284A2'::BINARY);
 ----
 true
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'F09F9880', 'Binary'));
+SELECT is_valid_utf8(x'F09F9880'::BINARY);
 ----
 true
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'F09F8E89', 'Binary'));
+SELECT is_valid_utf8(x'F09F8E89'::BINARY);
 ----
 true
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'80', 'Binary'));
+SELECT is_valid_utf8(x'80'::BINARY);
 ----
 false
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'BF', 'Binary'));
+SELECT is_valid_utf8(x'BF'::BINARY);
 ----
 false
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'808080', 'Binary'));
+SELECT is_valid_utf8(x'808080'::BINARY);
 ----
 false
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'C2', 'Binary'));
+SELECT is_valid_utf8(x'C2'::BINARY);
 ----
 false
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'E2', 'Binary'));
+SELECT is_valid_utf8(x'E2'::BINARY);
 ----
 false
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'F0', 'Binary'));
+SELECT is_valid_utf8(x'F0'::BINARY);
 ----
 false
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'E282', 'Binary'));
+SELECT is_valid_utf8(x'E282'::BINARY);
 ----
 false
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'C081', 'Binary'));
+SELECT is_valid_utf8(x'C081'::BINARY);
 ----
 false
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'E08080', 'Binary'));
+SELECT is_valid_utf8(x'E08080'::BINARY);
 ----
 false
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'F0808080', 'Binary'));
+SELECT is_valid_utf8(x'F0808080'::BINARY);
 ----
 false
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'FE', 'Binary'));
+SELECT is_valid_utf8(x'FE'::BINARY);
 ----
 false
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'FF', 'Binary'));
+SELECT is_valid_utf8(x'FF'::BINARY);
 ----
 false
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'61C262', 'Binary'));
+SELECT is_valid_utf8(x'61C262'::BINARY);
 ----
 false
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'41BF42', 'Binary'));
+SELECT is_valid_utf8(x'41BF42'::BINARY);
 ----
 false
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'ED9FBF', 'Binary'));
+SELECT is_valid_utf8(x'ED9FBF'::BINARY);
 ----
 true
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'EDA080', 'Binary'));
+SELECT is_valid_utf8(x'EDA080'::BINARY);
 ----
 false
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'EDBFBF', 'Binary'));
+SELECT is_valid_utf8(x'EDBFBF'::BINARY);
 ----
 false
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'F48FBFBF', 'Binary'));
+SELECT is_valid_utf8(x'F48FBFBF'::BINARY);
 ----
 true
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'F4908080', 'Binary'));
+SELECT is_valid_utf8(x'F4908080'::BINARY);
 ----
 false
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'6162C2A963', 'Binary'));
+SELECT is_valid_utf8(x'6162C2A963'::BINARY);
 ----
 true
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'6162806364', 'Binary'));
+SELECT is_valid_utf8(x'6162806364'::BINARY);
 ----
 false
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'610062', 'Binary'));
+SELECT is_valid_utf8(x'610062'::BINARY);
 ----
 true
 
 query B
-SELECT is_valid_utf8(arrow_cast(x'', 'Binary'));
+SELECT is_valid_utf8(x''::BINARY);
 ----
 true
