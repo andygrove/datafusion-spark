@@ -49,7 +49,7 @@ Infinity
 -1
 
 query R
-SELECT expm1(-0.0::DOUBLE);
+SELECT expm1(-(0.0::DOUBLE));
 ----
 -0
 
