@@ -554,7 +554,7 @@ SELECT pmod(10.5, 3.0) as pmod_scalar_3;
 
 # DataFusion types the untyped `-7.2` and `3.0` as DOUBLE, while Spark reads them as
 # DECIMAL and returns 1.8 (https://github.com/apache/datafusion-spark/issues/97).
-# The `float8` cast above checks the DOUBLE result.
+# The `float8` query above checks the DOUBLE result.
 # xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query R
 SELECT pmod(-7.2, 3.0) as pmod_scalar_4;

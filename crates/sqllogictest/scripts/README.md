@@ -113,10 +113,10 @@ are DataFusion's defaults. These settings in the files are passed on to Spark:
 - `datafusion.execution.time_zone` sets `spark.sql.session.timeZone`
 - `datafusion.spark.map_key_dedup_policy` sets `spark.sql.mapKeyDedupPolicy`
 
-Spark 4.2 parses most of the SQL as written. The runner stops with an error if a
-record uses a `::` cast: write `CAST(x AS type)` instead, because Spark 3.5 does
-not parse `::`, and DataFusion and Spark 4 disagree on whether `-1::INT` casts
-`-1` or `1`. Otherwise the runner makes only these changes:
+The runner stops with an error if a record uses a `::` cast. Write
+`CAST(x AS type)` instead.
+
+Spark 4.2 parses most of the SQL as written. The runner makes only these changes:
 
 - `CREATE TABLE` becomes `CREATE TEMPORARY VIEW`, and `DROP TABLE` becomes
   `DROP VIEW`

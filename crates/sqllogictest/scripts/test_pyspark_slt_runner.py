@@ -31,6 +31,10 @@ def parse(text: str) -> list:
 
 
 class ParseTest(unittest.TestCase):
+    def test_test_files_parse(self):
+        for path in r.discover([str(r.DEFAULT_TEST_DIR)]):
+            r.parse_slt(path)
+
     def test_double_colon_cast_is_rejected(self):
         with self.assertRaisesRegex(SystemExit, r"\.slt:1: write `CAST\(x AS type\)` instead of `x::type`"):
             parse("query I\nSELECT 1::INT\n----\n1\n")

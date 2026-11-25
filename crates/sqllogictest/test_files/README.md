@@ -26,8 +26,8 @@ When testing Spark functions:
 - Test cases should only contain `SELECT` statements with the function being tested
 - Add explicit casts to input values to ensure the correct data type is used (e.g., `CAST(0 AS INT)`)
   - Explicit casting is necessary because DataFusion and Spark do not infer data types in the same way
-  - Write casts as `CAST(x AS type)`, not `x::type`. Spark 3.5 does not parse `::`, and DataFusion and Spark 4
-    disagree on whether `-1::INT` casts `-1` or `1`, so the PySpark runner rejects `::`
+  - Write `CAST(x AS type)`, not `x::type`: Spark 3.5 does not parse `::`, and DataFusion and Spark 4 disagree on
+    whether `-1::INT` casts `-1` or `1`
 - If the Spark built-in function under test behaves differently in ANSI SQL mode, please wrap your test cases like this example:
 
 ```sql
