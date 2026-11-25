@@ -8,25 +8,25 @@
 # date input
 skipif evaluate
 query I
-SELECT date_diff('2009-07-30'::date, '2009-07-31'::date);
+SELECT date_diff(CAST('2009-07-30' AS date), CAST('2009-07-31' AS date));
 ----
 -1
 
 skipif evaluate
 query I
-SELECT date_diff('2009-07-31'::date, '2009-07-30'::date);
+SELECT date_diff(CAST('2009-07-31' AS date), CAST('2009-07-30' AS date));
 ----
 1
 
 skipif evaluate
 query I
-SELECT date_diff('2009-07-31'::string, '2009-07-30'::date);
+SELECT date_diff(CAST('2009-07-31' AS string), CAST('2009-07-30' AS date));
 ----
 1
 
 skipif evaluate
 query I
-SELECT date_diff('2009-07-31'::timestamp, '2009-07-30'::date);
+SELECT date_diff(CAST('2009-07-31' AS timestamp), CAST('2009-07-30' AS date));
 ----
 1
 
@@ -46,13 +46,13 @@ SELECT date_diff(arrow_cast('2009-07-30', 'Date64'), arrow_cast('2009-07-31', 'D
 # Mixed Date32 and Date64 input
 skipif evaluate
 query I
-SELECT date_diff('2009-07-31'::date, arrow_cast('2009-07-30', 'Date64'));
+SELECT date_diff(CAST('2009-07-31' AS date), arrow_cast('2009-07-30', 'Date64'));
 ----
 1
 
 skipif evaluate
 query I
-SELECT date_diff(arrow_cast('2009-07-31', 'Date64'), '2009-07-30'::date);
+SELECT date_diff(arrow_cast('2009-07-31', 'Date64'), CAST('2009-07-30' AS date));
 ----
 1
 
@@ -60,33 +60,33 @@ SELECT date_diff(arrow_cast('2009-07-31', 'Date64'), '2009-07-30'::date);
 # Same date returns 0
 skipif evaluate
 query I
-SELECT date_diff('2009-07-30'::date, '2009-07-30'::date);
+SELECT date_diff(CAST('2009-07-30' AS date), CAST('2009-07-30' AS date));
 ----
 0
 
 # Large difference
 skipif evaluate
 query I
-SELECT date_diff('2020-01-01'::date, '1970-01-01'::date);
+SELECT date_diff(CAST('2020-01-01' AS date), CAST('1970-01-01' AS date));
 ----
 18262
 
 # timestamp input
 skipif evaluate
 query I
-SELECT date_diff('2009-07-30 12:34:56'::timestamp, '2009-07-31 23:45:01'::timestamp);
+SELECT date_diff(CAST('2009-07-30 12:34:56' AS timestamp), CAST('2009-07-31 23:45:01' AS timestamp));
 ----
 -1
 
 skipif evaluate
 query I
-SELECT date_diff('2009-07-31 23:45:01'::timestamp, '2009-07-30 12:34:56'::timestamp);
+SELECT date_diff(CAST('2009-07-31 23:45:01' AS timestamp), CAST('2009-07-30 12:34:56' AS timestamp));
 ----
 1
 
 skipif evaluate
 query I
-SELECT date_diff('2009-07-31 23:45:01'::string, '2009-07-30 12:34:56'::timestamp);
+SELECT date_diff(CAST('2009-07-31 23:45:01' AS string), CAST('2009-07-30 12:34:56' AS timestamp));
 ----
 1
 
@@ -106,19 +106,19 @@ SELECT date_diff('2009-07-31', '2009-07-30');
 # NULL handling
 skipif evaluate
 query I
-SELECT date_diff(NULL::date, '2009-07-30'::date);
+SELECT date_diff(CAST(NULL AS date), CAST('2009-07-30' AS date));
 ----
 NULL
 
 skipif evaluate
 query I
-SELECT date_diff('2009-07-31'::date, NULL::date);
+SELECT date_diff(CAST('2009-07-31' AS date), CAST(NULL AS date));
 ----
 NULL
 
 skipif evaluate
 query I
-SELECT date_diff(NULL::date, NULL::date);
+SELECT date_diff(CAST(NULL AS date), CAST(NULL AS date));
 ----
 NULL
 
@@ -126,11 +126,11 @@ skipif evaluate
 query I
 SELECT date_diff(column1, column2)
 FROM VALUES
-('2009-07-30'::date, '2009-07-31'::date),
-('2009-07-31'::date, '2009-07-30'::date),
-(NULL::date, '2009-07-30'::date),
-('2009-07-31'::date, NULL::date),
-(NULL::date, NULL::date);
+(CAST('2009-07-30' AS date), CAST('2009-07-31' AS date)),
+(CAST('2009-07-31' AS date), CAST('2009-07-30' AS date)),
+(CAST(NULL AS date), CAST('2009-07-30' AS date)),
+(CAST('2009-07-31' AS date), CAST(NULL AS date)),
+(CAST(NULL AS date), CAST(NULL AS date));
 ----
 -1
 1
@@ -142,7 +142,7 @@ NULL
 # Alias datediff
 skipif evaluate
 query I
-SELECT datediff('2009-07-30'::date, '2009-07-31'::date);
+SELECT datediff(CAST('2009-07-30' AS date), CAST('2009-07-31' AS date));
 ----
 -1
 
@@ -150,11 +150,11 @@ skipif evaluate
 query I
 SELECT datediff(column1, column2)
 FROM VALUES
-('2009-07-30'::date, '2009-07-31'::date),
-('2009-07-31'::date, '2009-07-30'::date),
-(NULL::date, '2009-07-30'::date),
-('2009-07-31'::date, NULL::date),
-(NULL::date, NULL::date);
+(CAST('2009-07-30' AS date), CAST('2009-07-31' AS date)),
+(CAST('2009-07-31' AS date), CAST('2009-07-30' AS date)),
+(CAST(NULL AS date), CAST('2009-07-30' AS date)),
+(CAST('2009-07-31' AS date), CAST(NULL AS date)),
+(CAST(NULL AS date), CAST(NULL AS date));
 ----
 -1
 1

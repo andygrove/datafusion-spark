@@ -11,87 +11,87 @@
 # Scalar: hive key 1
 # xfail spark: intended: json_tuple returns a struct of the fields, Spark's generator returns one column per key
 query ?
-SELECT json_tuple('{"f1":"value1","f2":"value2","f3":3,"f5":5.23}'::STRING, 'f1'::STRING, 'f2'::STRING, 'f3'::STRING, 'f4'::STRING, 'f5'::STRING);
+SELECT json_tuple(CAST('{"f1":"value1","f2":"value2","f3":3,"f5":5.23}' AS STRING), CAST('f1' AS STRING), CAST('f2' AS STRING), CAST('f3' AS STRING), CAST('f4' AS STRING), CAST('f5' AS STRING));
 ----
 {c0: value1, c1: value2, c2: 3, c3: NULL, c4: 5.23}
 
 # Scalar: hive key 2
 # xfail spark: intended: json_tuple returns a struct of the fields, Spark's generator returns one column per key
 query ?
-SELECT json_tuple('{"f1":"value12","f3":"value3","f2":2,"f4":4.01}'::STRING, 'f1'::STRING, 'f2'::STRING, 'f3'::STRING, 'f4'::STRING, 'f5'::STRING);
+SELECT json_tuple(CAST('{"f1":"value12","f3":"value3","f2":2,"f4":4.01}' AS STRING), CAST('f1' AS STRING), CAST('f2' AS STRING), CAST('f3' AS STRING), CAST('f4' AS STRING), CAST('f5' AS STRING));
 ----
 {c0: value12, c1: 2, c2: value3, c3: 4.01, c4: NULL}
 
 # Scalar: hive key 3
 # xfail spark: intended: json_tuple returns a struct of the fields, Spark's generator returns one column per key
 query ?
-SELECT json_tuple('{"f1":"value13","f4":"value44","f3":"value33","f2":2,"f5":5.01}'::STRING, 'f1'::STRING, 'f2'::STRING, 'f3'::STRING, 'f4'::STRING, 'f5'::STRING);
+SELECT json_tuple(CAST('{"f1":"value13","f4":"value44","f3":"value33","f2":2,"f5":5.01}' AS STRING), CAST('f1' AS STRING), CAST('f2' AS STRING), CAST('f3' AS STRING), CAST('f4' AS STRING), CAST('f5' AS STRING));
 ----
 {c0: value13, c1: 2, c2: value33, c3: value44, c4: 5.01}
 
 # Scalar: null JSON input
 # xfail spark: intended: json_tuple returns a struct of the fields, Spark's generator returns one column per key
 query ?
-SELECT json_tuple(NULL::STRING, 'f1'::STRING, 'f2'::STRING, 'f3'::STRING, 'f4'::STRING, 'f5'::STRING);
+SELECT json_tuple(CAST(NULL AS STRING), CAST('f1' AS STRING), CAST('f2' AS STRING), CAST('f3' AS STRING), CAST('f4' AS STRING), CAST('f5' AS STRING));
 ----
 NULL
 
 # Scalar: null and empty values
 # xfail spark: intended: json_tuple returns a struct of the fields, Spark's generator returns one column per key
 query ?
-SELECT json_tuple('{"f1":"","f5":null}'::STRING, 'f1'::STRING, 'f2'::STRING, 'f3'::STRING, 'f4'::STRING, 'f5'::STRING);
+SELECT json_tuple(CAST('{"f1":"","f5":null}' AS STRING), CAST('f1' AS STRING), CAST('f2' AS STRING), CAST('f3' AS STRING), CAST('f4' AS STRING), CAST('f5' AS STRING));
 ----
 {c0: , c1: NULL, c2: NULL, c3: NULL, c4: NULL}
 
 # Scalar: invalid JSON (array)
 # xfail spark: intended: json_tuple returns a struct of the fields, Spark's generator returns one column per key
 query ?
-SELECT json_tuple('[invalid JSON string]'::STRING, 'f1'::STRING);
+SELECT json_tuple(CAST('[invalid JSON string]' AS STRING), CAST('f1' AS STRING));
 ----
 NULL
 
 # Scalar: invalid JSON (start only)
 # xfail spark: intended: json_tuple returns a struct of the fields, Spark's generator returns one column per key
 query ?
-SELECT json_tuple('{'::STRING, 'f1'::STRING);
+SELECT json_tuple(CAST('{' AS STRING), CAST('f1' AS STRING));
 ----
 NULL
 
 # Scalar: invalid JSON (no closing brace)
 # xfail spark: intended: json_tuple returns a struct of the fields, Spark's generator returns one column per key
 query ?
-SELECT json_tuple('{"foo":"bar"'::STRING, 'f1'::STRING);
+SELECT json_tuple(CAST('{"foo":"bar"' AS STRING), CAST('f1' AS STRING));
 ----
 NULL
 
 # Scalar: invalid JSON (backslash)
 query ?
-SELECT json_tuple('\'::STRING, 'f1'::STRING);
+SELECT json_tuple(CAST('\' AS STRING), CAST('f1' AS STRING));
 ----
 NULL
 
 # Scalar: invalid JSON (quoted string, not an object)
 # xfail spark: intended: json_tuple returns a struct of the fields, Spark's generator returns one column per key
 query ?
-SELECT json_tuple('"quote'::STRING, '"quote'::STRING);
+SELECT json_tuple(CAST('"quote' AS STRING), CAST('"quote' AS STRING));
 ----
 NULL
 
 # Scalar: empty JSON object
 # xfail spark: intended: json_tuple returns a struct of the fields, Spark's generator returns one column per key
 query ?
-SELECT json_tuple('{}'::STRING, 'a'::STRING);
+SELECT json_tuple(CAST('{}' AS STRING), CAST('a' AS STRING));
 ----
 {c0: NULL}
 
 # Array: multi-row test
 # xfail spark: intended: json_tuple returns a struct of the fields, Spark's generator returns one column per key
 query ?
-SELECT json_tuple(col, 'f1'::STRING, 'f2'::STRING) FROM (VALUES
-    ('{"f1":"a","f2":"b"}'::STRING),
-    (NULL::STRING),
-    ('{"f1":"c"}'::STRING),
-    ('invalid'::STRING)
+SELECT json_tuple(col, CAST('f1' AS STRING), CAST('f2' AS STRING)) FROM (VALUES
+    (CAST('{"f1":"a","f2":"b"}' AS STRING)),
+    (CAST(NULL AS STRING)),
+    (CAST('{"f1":"c"}' AS STRING)),
+    (CAST('invalid' AS STRING))
 ) AS t(col);
 ----
 {c0: a, c1: b}
@@ -103,7 +103,7 @@ NULL
 # xfail spark: intended: json_tuple returns a struct of the fields, Spark's generator returns one column per key
 query ?
 SELECT json_tuple(col1, col2, col3, col4) FROM (VALUES
-    ('{"f1":1,"f2":2}'::STRING, 'f1'::STRING, NULL::STRING, 'f2'::STRING)
+    (CAST('{"f1":1,"f2":2}' AS STRING), CAST('f1' AS STRING), CAST(NULL AS STRING), CAST('f2' AS STRING))
 ) AS t(col1, col2, col3, col4);
 ----
 {c0: 1, c1: NULL, c2: 2}
@@ -112,7 +112,7 @@ SELECT json_tuple(col1, col2, col3, col4) FROM (VALUES
 # xfail spark: intended: json_tuple returns a struct of the fields, Spark's generator returns one column per key
 query ?
 SELECT json_tuple(col1, col2, col3, col4) FROM (VALUES
-    ('{"f1":1,"f2":2}'::STRING, 'f1'::STRING, NULL::STRING, 'f1'::STRING)
+    (CAST('{"f1":1,"f2":2}' AS STRING), CAST('f1' AS STRING), CAST(NULL AS STRING), CAST('f1' AS STRING))
 ) AS t(col1, col2, col3, col4);
 ----
 {c0: 1, c1: NULL, c2: 1}
@@ -120,40 +120,40 @@ SELECT json_tuple(col1, col2, col3, col4) FROM (VALUES
 # Edge case: both json and field key are null
 # xfail spark: intended: json_tuple returns a struct of the fields, Spark's generator returns one column per key
 query ?
-SELECT json_tuple(NULL::STRING, NULL::STRING);
+SELECT json_tuple(CAST(NULL AS STRING), CAST(NULL AS STRING));
 ----
 NULL
 
 # Edge case: empty string json and empty string key
 # xfail spark: intended: json_tuple returns a struct of the fields, Spark's generator returns one column per key
 query ?
-SELECT json_tuple(''::STRING, ''::STRING);
+SELECT json_tuple(CAST('' AS STRING), CAST('' AS STRING));
 ----
 NULL
 
 # Edge case: mixed upper/lower case keys
 # xfail spark: intended: json_tuple returns a struct of the fields, Spark's generator returns one column per key
 query ?
-SELECT json_tuple('{"Name":"Alice","name":"bob","NAME":"Charlie"}'::STRING, 'Name'::STRING, 'name'::STRING, 'NAME'::STRING);
+SELECT json_tuple(CAST('{"Name":"Alice","name":"bob","NAME":"Charlie"}' AS STRING), CAST('Name' AS STRING), CAST('name' AS STRING), CAST('NAME' AS STRING));
 ----
 {c0: Alice, c1: bob, c2: Charlie}
 
 # Edge case: UTF-8 Chinese characters
 # xfail spark: intended: json_tuple returns a struct of the fields, Spark's generator returns one column per key
 query ?
-SELECT json_tuple('{"姓名":"小明","城市":"台北"}'::STRING, '姓名'::STRING, '城市'::STRING);
+SELECT json_tuple(CAST('{"姓名":"小明","城市":"台北"}' AS STRING), CAST('姓名' AS STRING), CAST('城市' AS STRING));
 ----
 {c0: 小明, c1: 台北}
 
 # Edge case: UTF-8 Cyrillic characters
 # xfail spark: intended: json_tuple returns a struct of the fields, Spark's generator returns one column per key
 query ?
-SELECT json_tuple('{"имя":"Иван","город":"Москва"}'::STRING, 'имя'::STRING, 'город'::STRING);
+SELECT json_tuple(CAST('{"имя":"Иван","город":"Москва"}' AS STRING), CAST('имя' AS STRING), CAST('город' AS STRING));
 ----
 {c0: Иван, c1: Москва}
 
 # Verify return type with arrow_typeof
 query T
-SELECT arrow_typeof(json_tuple('{"a":1}'::STRING, 'a'::STRING));
+SELECT arrow_typeof(json_tuple(CAST('{"a":1}' AS STRING), CAST('a' AS STRING)));
 ----
 Struct("c0": Utf8)

@@ -6,71 +6,71 @@
 
 # Test spark_cast from int8 to timestamp
 query P
-SELECT spark_cast(0::TINYINT, 'timestamp');
+SELECT spark_cast(CAST(0 AS TINYINT), 'timestamp');
 ----
 1970-01-01T00:00:00Z
 
 query P
-SELECT spark_cast(1::TINYINT, 'timestamp');
+SELECT spark_cast(CAST(1 AS TINYINT), 'timestamp');
 ----
 1970-01-01T00:00:01Z
 
 query P
-SELECT spark_cast((-1)::TINYINT, 'timestamp');
+SELECT spark_cast(CAST(-1 AS TINYINT), 'timestamp');
 ----
 1969-12-31T23:59:59Z
 
 # Test spark_cast from int16 to timestamp
 query P
-SELECT spark_cast(0::SMALLINT, 'timestamp');
+SELECT spark_cast(CAST(0 AS SMALLINT), 'timestamp');
 ----
 1970-01-01T00:00:00Z
 
 query P
-SELECT spark_cast(3600::SMALLINT, 'timestamp');
+SELECT spark_cast(CAST(3600 AS SMALLINT), 'timestamp');
 ----
 1970-01-01T01:00:00Z
 
 # Test spark_cast from int32 to timestamp
 query P
-SELECT spark_cast(0::INT, 'timestamp');
+SELECT spark_cast(CAST(0 AS INT), 'timestamp');
 ----
 1970-01-01T00:00:00Z
 
 query P
-SELECT spark_cast(1704067200::INT, 'timestamp');
+SELECT spark_cast(CAST(1704067200 AS INT), 'timestamp');
 ----
 2024-01-01T00:00:00Z
 
 # Test spark_cast from int64 to timestamp
 query P
-SELECT spark_cast(0::bigint, 'timestamp');
+SELECT spark_cast(CAST(0 AS bigint), 'timestamp');
 ----
 1970-01-01T00:00:00Z
 
 query P
-SELECT spark_cast(1704067200::bigint, 'timestamp');
+SELECT spark_cast(CAST(1704067200 AS bigint), 'timestamp');
 ----
 2024-01-01T00:00:00Z
 
 # Test NULL handling
 query P
-SELECT spark_cast(NULL::TINYINT, 'timestamp');
+SELECT spark_cast(CAST(NULL AS TINYINT), 'timestamp');
 ----
 NULL
 
 query P
-SELECT spark_cast(NULL::SMALLINT, 'timestamp');
+SELECT spark_cast(CAST(NULL AS SMALLINT), 'timestamp');
 ----
 NULL
 
 query P
-SELECT spark_cast(NULL::INT, 'timestamp');
+SELECT spark_cast(CAST(NULL AS INT), 'timestamp');
 ----
 NULL
 
 query P
-SELECT spark_cast(NULL::bigint, 'timestamp');
+SELECT spark_cast(CAST(NULL AS bigint), 'timestamp');
 ----
 NULL
 
@@ -82,29 +82,29 @@ NULL
 
 # Test Int8 boundary values
 query P
-SELECT spark_cast(127::TINYINT, 'timestamp');
+SELECT spark_cast(CAST(127 AS TINYINT), 'timestamp');
 ----
 1970-01-01T00:02:07Z
 
 query P
-SELECT spark_cast((-128)::TINYINT, 'timestamp');
+SELECT spark_cast(CAST(-128 AS TINYINT), 'timestamp');
 ----
 1969-12-31T23:57:52Z
 
 # Test Int16 boundary values
 query P
-SELECT spark_cast(32767::SMALLINT, 'timestamp');
+SELECT spark_cast(CAST(32767 AS SMALLINT), 'timestamp');
 ----
 1970-01-01T09:06:07Z
 
 query P
-SELECT spark_cast((-32768)::SMALLINT, 'timestamp');
+SELECT spark_cast(CAST(-32768 AS SMALLINT), 'timestamp');
 ----
 1969-12-31T14:53:52Z
 
 # Test Int64 negative value
 query P
-SELECT spark_cast(-86400::bigint, 'timestamp');
+SELECT spark_cast(-CAST(86400 AS bigint), 'timestamp');
 ----
 1969-12-31T00:00:00Z
 
@@ -119,7 +119,7 @@ SELECT spark_cast(100, 'interval');
 
 # Spark has no cast from a number to TIMESTAMP_NTZ
 statement error Spark-compatible cast from BIGINT to TIMESTAMP_NTZ is not supported
-SELECT spark_cast(100::bigint, 'timestamp_ntz');
+SELECT spark_cast(CAST(100 AS bigint), 'timestamp_ntz');
 
 # Test with different session timezones to verify simplify() picks up config
 
@@ -129,13 +129,13 @@ SET datafusion.execution.time_zone = 'America/Los_Angeles';
 
 # Epoch in PST (UTC-8)
 query P
-SELECT spark_cast(0::bigint, 'timestamp');
+SELECT spark_cast(CAST(0 AS bigint), 'timestamp');
 ----
 1969-12-31T16:00:00-08:00
 
 # 2024-01-01 00:00:00 UTC in PST (winter, UTC-8)
 query P
-SELECT spark_cast(1704067200::bigint, 'timestamp');
+SELECT spark_cast(CAST(1704067200 AS bigint), 'timestamp');
 ----
 2023-12-31T16:00:00-08:00
 
@@ -145,13 +145,13 @@ SET datafusion.execution.time_zone = 'America/Phoenix';
 
 # Epoch in Phoenix (UTC-7)
 query P
-SELECT spark_cast(0::bigint, 'timestamp');
+SELECT spark_cast(CAST(0 AS bigint), 'timestamp');
 ----
 1969-12-31T17:00:00-07:00
 
 # 2024-01-01 00:00:00 UTC in Phoenix (still UTC-7, no DST)
 query P
-SELECT spark_cast(1704067200::bigint, 'timestamp');
+SELECT spark_cast(CAST(1704067200 AS bigint), 'timestamp');
 ----
 2023-12-31T17:00:00-07:00
 
@@ -160,12 +160,12 @@ statement ok
 SET datafusion.execution.time_zone = 'America/Los_Angeles';
 
 query P
-SELECT spark_cast(1710054000::bigint, 'timestamp');
+SELECT spark_cast(CAST(1710054000 AS bigint), 'timestamp');
 ----
 2024-03-09T23:00:00-08:00
 
 query P
-SELECT spark_cast(1710057600::bigint, 'timestamp');
+SELECT spark_cast(CAST(1710057600 AS bigint), 'timestamp');
 ----
 2024-03-10T00:00:00-08:00
 
@@ -174,12 +174,12 @@ statement ok
 SET datafusion.execution.time_zone = 'America/Phoenix';
 
 query P
-SELECT spark_cast(1710054000::bigint, 'timestamp');
+SELECT spark_cast(CAST(1710054000 AS bigint), 'timestamp');
 ----
 2024-03-10T00:00:00-07:00
 
 query P
-SELECT spark_cast(1710057600::bigint, 'timestamp');
+SELECT spark_cast(CAST(1710057600 AS bigint), 'timestamp');
 ----
 2024-03-10T01:00:00-07:00
 
@@ -194,10 +194,10 @@ SET datafusion.execution.time_zone = 'UTC';
 # Create test table with 4 int columns: null, min, max, regular value
 statement ok
 CREATE TABLE int_test AS SELECT
-    column1::TINYINT as i8_col,
-    column2::SMALLINT as i16_col,
-    column3::INT as i32_col,
-    column4::bigint as i64_col
+    CAST(column1 AS TINYINT) as i8_col,
+    CAST(column2 AS SMALLINT) as i16_col,
+    CAST(column3 AS INT) as i32_col,
+    CAST(column4 AS bigint) as i64_col
 FROM (VALUES
     (NULL, NULL, NULL, NULL),
     (-128, -32768, -2147483648, -86400),

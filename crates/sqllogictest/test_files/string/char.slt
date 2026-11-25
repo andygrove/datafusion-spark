@@ -3,22 +3,22 @@
 # SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 query T
-SELECT char(65::INT);
+SELECT char(CAST(65 AS INT));
 ----
 A
 
 query T
-SELECT char(321::INT);
+SELECT char(CAST(321 AS INT));
 ----
 A
 
 query T
-SELECT char(NULL::INT);
+SELECT char(CAST(NULL AS INT));
 ----
 NULL
 
 query T
-SELECT char(a) FROM (VALUES (-1::INT), (0::INT), (65::INT), (321::INT)) AS t(a);
+SELECT char(a) FROM (VALUES (-CAST(1 AS INT)), (CAST(0 AS INT)), (CAST(65 AS INT)), (CAST(321 AS INT))) AS t(a);
 ----
 (empty)
 \0

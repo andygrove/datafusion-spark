@@ -3,96 +3,96 @@
 # SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 query I
-SELECT bitmap_bit_position(1::TINYINT);
+SELECT bitmap_bit_position(CAST(1 AS TINYINT));
 ----
 0
 
 query I
-SELECT bitmap_bit_position(3::TINYINT);
+SELECT bitmap_bit_position(CAST(3 AS TINYINT));
 ----
 2
 
 query I
-SELECT bitmap_bit_position(7::TINYINT);
+SELECT bitmap_bit_position(CAST(7 AS TINYINT));
 ----
 6
 
 query I
-SELECT bitmap_bit_position(15::TINYINT);
+SELECT bitmap_bit_position(CAST(15 AS TINYINT));
 ----
 14
 
 query I
-SELECT bitmap_bit_position((-1)::TINYINT);
+SELECT bitmap_bit_position(CAST(-1 AS TINYINT));
 ----
 1
 
 query I
-SELECT bitmap_bit_position(256::SMALLINT);
+SELECT bitmap_bit_position(CAST(256 AS SMALLINT));
 ----
 255
 
 query I
-SELECT bitmap_bit_position(1024::SMALLINT);
+SELECT bitmap_bit_position(CAST(1024 AS SMALLINT));
 ----
 1023
 
 query I
-SELECT bitmap_bit_position((-32768)::SMALLINT);
+SELECT bitmap_bit_position(CAST(-32768 AS SMALLINT));
 ----
 0
 
 query I
-SELECT bitmap_bit_position(16384::SMALLINT);
+SELECT bitmap_bit_position(CAST(16384 AS SMALLINT));
 ----
 16383
 
 query I
-SELECT bitmap_bit_position((-1)::SMALLINT);
+SELECT bitmap_bit_position(CAST(-1 AS SMALLINT));
 ----
 1
 
 query I
-SELECT bitmap_bit_position(65536::INT);
+SELECT bitmap_bit_position(CAST(65536 AS INT));
 ----
 32767
 
 query I
-SELECT bitmap_bit_position(1048576::INT);
+SELECT bitmap_bit_position(CAST(1048576 AS INT));
 ----
 32767
 
 query I
-SELECT bitmap_bit_position((-2147483648)::INT);
+SELECT bitmap_bit_position(CAST(-2147483648 AS INT));
 ----
 0
 
 query I
-SELECT bitmap_bit_position(1073741824::INT);
+SELECT bitmap_bit_position(CAST(1073741824 AS INT));
 ----
 32767
 
 query I
-SELECT bitmap_bit_position((-1)::INT);
+SELECT bitmap_bit_position(CAST(-1 AS INT));
 ----
 1
 
 query I
-SELECT bitmap_bit_position(4294967296::BIGINT);
+SELECT bitmap_bit_position(CAST(4294967296 AS BIGINT));
 ----
 32767
 
 query I
-SELECT bitmap_bit_position((-1)::BIGINT);
+SELECT bitmap_bit_position(CAST(-1 AS BIGINT));
 ----
 1
 
 query I
-SELECT bitmap_bit_position((-9223372036854775808)::BIGINT);
+SELECT bitmap_bit_position(CAST(-9223372036854775808 AS BIGINT));
 ----
 0
 
 query I
-SELECT bitmap_bit_position(9223372036854775807::BIGINT);
+SELECT bitmap_bit_position(CAST(9223372036854775807 AS BIGINT));
 ----
 32766

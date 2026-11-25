@@ -34,7 +34,7 @@ NULL
 
 # Typed null lists have no child values to shuffle.
 query ??
-SELECT shuffle(NULL::ARRAY<INT>), shuffle(arrow_cast(NULL, 'LargeList(Int32)'));
+SELECT shuffle(CAST(NULL AS ARRAY<INT>)), shuffle(arrow_cast(NULL, 'LargeList(Int32)'));
 ----
 NULL NULL
 
@@ -81,7 +81,7 @@ SELECT shuffle(column1, 1) FROM test_shuffle_fixed_size;
 NULL
 
 query ?
-SELECT shuffle(['2001-09-28T01:00:00'::timestamp, '2001-08-28T01:00:00'::timestamp, '2001-07-28T01:00:00'::timestamp, '2001-06-28T01:00:00'::timestamp, '2001-05-28T01:00:00'::timestamp], 1);
+SELECT shuffle([CAST('2001-09-28T01:00:00' AS timestamp), CAST('2001-08-28T01:00:00' AS timestamp), CAST('2001-07-28T01:00:00' AS timestamp), CAST('2001-06-28T01:00:00' AS timestamp), CAST('2001-05-28T01:00:00' AS timestamp)], 1);
 ----
 [2001-09-28T01:00:00, 2001-06-28T01:00:00, 2001-07-28T01:00:00, 2001-08-28T01:00:00, 2001-05-28T01:00:00]
 

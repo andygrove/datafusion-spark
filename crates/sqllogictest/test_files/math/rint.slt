@@ -22,7 +22,7 @@ SELECT rint(-12.3456);
 -12
 
 query R
-SELECT rint((-12.3456)::FLOAT);
+SELECT rint(CAST(-12.3456 AS FLOAT));
 ----
 -12
 
@@ -33,7 +33,7 @@ SELECT rint(arrow_cast(12, 'UInt8'));
 12
 
 query R
-SELECT rint((-12)::TINYINT);
+SELECT rint(CAST(-12 AS TINYINT));
 ----
 -12
 
@@ -43,7 +43,7 @@ SELECT rint(arrow_cast(12, 'UInt16'));
 12
 
 query R
-SELECT rint((-12)::SMALLINT);
+SELECT rint(CAST(-12 AS SMALLINT));
 ----
 -12
 
@@ -53,7 +53,7 @@ SELECT rint(arrow_cast(12, 'UInt32'));
 12
 
 query R
-SELECT rint((-12)::INT);
+SELECT rint(CAST(-12 AS INT));
 ----
 -12
 
@@ -63,7 +63,7 @@ SELECT rint(arrow_cast(12, 'UInt64'));
 12
 
 query R
-SELECT rint((-12)::BIGINT);
+SELECT rint(CAST(-12 AS BIGINT));
 ----
 -12
 

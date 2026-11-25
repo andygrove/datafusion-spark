@@ -24,7 +24,7 @@ SELECT format_string(arrow_cast('Hello World %s', 'LargeUtf8'), 'DataFusion');
 Hello World DataFusion
 
 query T
-SELECT format_string('Hello World %s'::STRING, 'DataFusion');
+SELECT format_string(CAST('Hello World %s' AS STRING), 'DataFusion');
 ----
 Hello World DataFusion
 
@@ -862,7 +862,7 @@ SELECT format_string(arrow_cast(NULL, 'LargeUtf8'), 'test');
 NULL
 
 query T
-SELECT format_string(NULL::STRING, 'test');
+SELECT format_string(CAST(NULL AS STRING), 'test');
 ----
 NULL
 
@@ -905,97 +905,97 @@ Upper: NULL
 
 ## NULL argument with string format
 query T
-SELECT format_string('Value: %s', NULL::STRING);
+SELECT format_string('Value: %s', CAST(NULL AS STRING));
 ----
 Value: null
 
 ## NULL with string format (uppercase)
 query T
-SELECT format_string('Upper: %S', NULL::STRING);
+SELECT format_string('Upper: %S', CAST(NULL AS STRING));
 ----
 Upper: NULL
 
 ## NULL with integer format
 query T
-SELECT format_string('Integer: %d', NULL::INT);
+SELECT format_string('Integer: %d', CAST(NULL AS INT));
 ----
 Integer: null
 
 ## NULL with hex format (lowercase)
 query T
-SELECT format_string('Hex: %x', NULL::INT);
+SELECT format_string('Hex: %x', CAST(NULL AS INT));
 ----
 Hex: null
 
 ## NULL with hex format (uppercase)
 query T
-SELECT format_string('Hex: %X', NULL::INT);
+SELECT format_string('Hex: %X', CAST(NULL AS INT));
 ----
 Hex: NULL
 
 ## NULL with octal format
 query T
-SELECT format_string('Octal: %o', NULL::INT);
+SELECT format_string('Octal: %o', CAST(NULL AS INT));
 ----
 Octal: null
 
 ## NULL with float format
 query T
-SELECT format_string('Float: %f', NULL::DOUBLE);
+SELECT format_string('Float: %f', CAST(NULL AS DOUBLE));
 ----
 Float: null
 
 ## NULL with float and precision
 query T
-SELECT format_string('Float: %.2f', NULL::DOUBLE);
+SELECT format_string('Float: %.2f', CAST(NULL AS DOUBLE));
 ----
 Float: nu
 
 ## NULL with scientific notation (lowercase)
 query T
-SELECT format_string('Scientific: %e', NULL::DOUBLE);
+SELECT format_string('Scientific: %e', CAST(NULL AS DOUBLE));
 ----
 Scientific: null
 
 ## NULL with scientific notation (uppercase)
 query T
-SELECT format_string('Scientific: %E', NULL::DOUBLE);
+SELECT format_string('Scientific: %E', CAST(NULL AS DOUBLE));
 ----
 Scientific: NULL
 
 ## NULL with compact float (lowercase)
 query T
-SELECT format_string('Compact: %g', NULL::DOUBLE);
+SELECT format_string('Compact: %g', CAST(NULL AS DOUBLE));
 ----
 Compact: null
 
 ## NULL with compact float and precision (lowercase)
 query T
-SELECT format_string('Float: %.3g', NULL::DOUBLE);
+SELECT format_string('Float: %.3g', CAST(NULL AS DOUBLE));
 ----
 Float: nul
 
 ## NULL with compact float (uppercase)
 query T
-SELECT format_string('Compact: %G', NULL::DOUBLE);
+SELECT format_string('Compact: %G', CAST(NULL AS DOUBLE));
 ----
 Compact: NULL
 
 ## NULL with compact float and precision (uppercase)
 query T
-SELECT format_string('Float: %.3G', NULL::DOUBLE);
+SELECT format_string('Float: %.3G', CAST(NULL AS DOUBLE));
 ----
 Float: NUL
 
 ## NULL with hex float (lowercase)
 query T
-SELECT format_string('Hex float: %a', NULL::DOUBLE);
+SELECT format_string('Hex float: %a', CAST(NULL AS DOUBLE));
 ----
 Hex float: null
 
 ## NULL with hex float (uppercase)
 query T
-SELECT format_string('Hex float: %A', NULL::DOUBLE);
+SELECT format_string('Hex float: %A', CAST(NULL AS DOUBLE));
 ----
 Hex float: NULL
 
@@ -1007,25 +1007,25 @@ Hex float: NULL
 
 ## NULL with boolean format (lowercase)
 query T
-SELECT format_string('Bool: %b', NULL::BOOLEAN);
+SELECT format_string('Bool: %b', CAST(NULL AS BOOLEAN));
 ----
 Bool: false
 
 ## NULL with boolean format (uppercase)
 query T
-SELECT format_string('Bool: %B', NULL::BOOLEAN);
+SELECT format_string('Bool: %B', CAST(NULL AS BOOLEAN));
 ----
 Bool: FALSE
 
 ## NULL with character format (lowercase)
 query T
-SELECT format_string('Char: %c', NULL::INT);
+SELECT format_string('Char: %c', CAST(NULL AS INT));
 ----
 Char: null
 
 ## NULL with character format (uppercase)
 query T
-SELECT format_string('Char: %C', NULL::INT);
+SELECT format_string('Char: %C', CAST(NULL AS INT));
 ----
 Char: NULL
 
@@ -1091,25 +1091,25 @@ Month: null
 
 ## NULL with decimal format
 query T
-SELECT format_string('Decimal: %f', NULL::DECIMAL(10, 2));
+SELECT format_string('Decimal: %f', CAST(NULL AS DECIMAL(10, 2)));
 ----
 Decimal: null
 
 ## NULL Int8 with string format
 query T
-SELECT format_string('Value: %s', NULL::TINYINT);
+SELECT format_string('Value: %s', CAST(NULL AS TINYINT));
 ----
 Value: null
 
 ## NULL Int16 with string format
 query T
-SELECT format_string('Value: %s', NULL::SMALLINT);
+SELECT format_string('Value: %s', CAST(NULL AS SMALLINT));
 ----
 Value: null
 
 ## NULL Int64 with string format
 query T
-SELECT format_string('Value: %s', NULL::BIGINT);
+SELECT format_string('Value: %s', CAST(NULL AS BIGINT));
 ----
 Value: null
 
@@ -1139,13 +1139,13 @@ Value: null
 
 ## NULL Float32 with string format
 query T
-SELECT format_string('Value: %s', NULL::FLOAT);
+SELECT format_string('Value: %s', CAST(NULL AS FLOAT));
 ----
 Value: null
 
 ## NULL Float64 with string format
 query T
-SELECT format_string('Value: %s', NULL::DOUBLE);
+SELECT format_string('Value: %s', CAST(NULL AS DOUBLE));
 ----
 Value: null
 
@@ -1157,7 +1157,7 @@ Value: null
 
 ## NULL Date32 with string format
 query T
-SELECT format_string('Value: %s', NULL::DATE);
+SELECT format_string('Value: %s', CAST(NULL AS DATE));
 ----
 Value: null
 
@@ -1169,7 +1169,7 @@ Value: null
 
 ## NULL Decimal128 with string format
 query T
-SELECT format_string('Value: %s', NULL::DECIMAL(10, 2));
+SELECT format_string('Value: %s', CAST(NULL AS DECIMAL(10, 2)));
 ----
 Value: null
 
@@ -1288,7 +1288,7 @@ Float: 2 3.14159
 NULL
 
 query T
-SELECT format_string(fmt::STRING, val1, val2) FROM test_format;
+SELECT format_string(CAST(fmt AS STRING), val1, val2) FROM test_format;
 ----
 Hello World 1
 Float: 2 3.14159
@@ -1309,7 +1309,7 @@ Float: 2 3.14159
 NULL
 
 query T
-SELECT format_string(fmt, val1::STRING, val2) FROM test_format;
+SELECT format_string(fmt, CAST(val1 AS STRING), val2) FROM test_format;
 ----
 Hello World 1
 Float: 2 3.14159
@@ -1330,7 +1330,7 @@ Hello 3.14159 2
 Hello 3.14159 3
 
 query T
-SELECT format_string('Hello %s %d'::STRING, val1, val2) FROM test_format;
+SELECT format_string(CAST('Hello %s %d' AS STRING), val1, val2) FROM test_format;
 ----
 Hello World 1
 Hello 3.14159 2
@@ -1345,43 +1345,43 @@ DROP TABLE test_format;
 
 ## Boolean with string formats
 query T
-SELECT format_string('Value: %s', true::BOOLEAN);
+SELECT format_string('Value: %s', CAST(true AS BOOLEAN));
 ----
 Value: true
 
 query T
-SELECT format_string('Value: %S', false::BOOLEAN);
+SELECT format_string('Value: %S', CAST(false AS BOOLEAN));
 ----
 Value: FALSE
 
 ## Int8 with various formats
 query T
-SELECT format_string('Decimal: %d', 127::TINYINT);
+SELECT format_string('Decimal: %d', CAST(127 AS TINYINT));
 ----
 Decimal: 127
 
 query T
-SELECT format_string('Hex: %x', 127::TINYINT);
+SELECT format_string('Hex: %x', CAST(127 AS TINYINT));
 ----
 Hex: 7f
 
 query T
-SELECT format_string('Hex: %X', 127::TINYINT);
+SELECT format_string('Hex: %X', CAST(127 AS TINYINT));
 ----
 Hex: 7F
 
 query T
-SELECT format_string('Octal: %o', 127::TINYINT);
+SELECT format_string('Octal: %o', CAST(127 AS TINYINT));
 ----
 Octal: 177
 
 query T
-SELECT format_string('Char: %c', 65::TINYINT);
+SELECT format_string('Char: %c', CAST(65 AS TINYINT));
 ----
 Char: A
 
 query T
-SELECT format_string('Char: %C', 97::TINYINT);
+SELECT format_string('Char: %C', CAST(97 AS TINYINT));
 ----
 Char: A
 
@@ -1406,12 +1406,12 @@ SELECT format_string('Char: %C', arrow_cast(97, 'UInt64'));
 Char: A
 
 query T
-SELECT format_string('String: %s', 127::TINYINT);
+SELECT format_string('String: %s', CAST(127 AS TINYINT));
 ----
 String: 127
 
 query T
-SELECT format_string('String: %S', 127::TINYINT);
+SELECT format_string('String: %S', CAST(127 AS TINYINT));
 ----
 String: 127
 
@@ -1436,12 +1436,12 @@ SELECT format_string('String: %S', arrow_cast(127, 'UInt16'));
 String: 127
 
 query T
-SELECT format_string('String: %s', 127::INT);
+SELECT format_string('String: %s', CAST(127 AS INT));
 ----
 String: 127
 
 query T
-SELECT format_string('String: %S', 127::INT);
+SELECT format_string('String: %S', CAST(127 AS INT));
 ----
 String: 127
 
@@ -1457,32 +1457,32 @@ String: 127
 
 ## Int16 with various formats
 query T
-SELECT format_string('Decimal: %d', 32767::SMALLINT);
+SELECT format_string('Decimal: %d', CAST(32767 AS SMALLINT));
 ----
 Decimal: 32767
 
 query T
-SELECT format_string('Hex: %x', 32767::SMALLINT);
+SELECT format_string('Hex: %x', CAST(32767 AS SMALLINT));
 ----
 Hex: 7fff
 
 query T
-SELECT format_string('Hex: %X', 32767::SMALLINT);
+SELECT format_string('Hex: %X', CAST(32767 AS SMALLINT));
 ----
 Hex: 7FFF
 
 query T
-SELECT format_string('Octal: %o', 32767::SMALLINT);
+SELECT format_string('Octal: %o', CAST(32767 AS SMALLINT));
 ----
 Octal: 77777
 
 query T
-SELECT format_string('Char: %c', 8364::SMALLINT);
+SELECT format_string('Char: %c', CAST(8364 AS SMALLINT));
 ----
 Char: €
 
 query T
-SELECT format_string('String: %s', 32767::SMALLINT);
+SELECT format_string('String: %s', CAST(32767 AS SMALLINT));
 ----
 String: 32767
 
@@ -1518,22 +1518,22 @@ Infinity: -INFINITY
 
 ## Int32 with various formats
 query T
-SELECT format_string('Decimal: %d', 2147483647::INT);
+SELECT format_string('Decimal: %d', CAST(2147483647 AS INT));
 ----
 Decimal: 2147483647
 
 query T
-SELECT format_string('Hex: %x', 255::INT);
+SELECT format_string('Hex: %x', CAST(255 AS INT));
 ----
 Hex: ff
 
 query T
-SELECT format_string('Octal: %o', 511::INT);
+SELECT format_string('Octal: %o', CAST(511 AS INT));
 ----
 Octal: 777
 
 query T
-SELECT format_string('Char: %c', 128512::INT);
+SELECT format_string('Char: %c', CAST(128512 AS INT));
 ----
 Char: 😀
 
@@ -1649,44 +1649,44 @@ Hex float: 0X1.92P1
 
 ## Float32 with various formats
 query T
-SELECT format_string('Float: %f', 3.14159::FLOAT);
+SELECT format_string('Float: %f', CAST(3.14159 AS FLOAT));
 ----
 Float: 3.141590
 
 query T
-SELECT format_string('Scientific: %e', 1234.5::FLOAT);
+SELECT format_string('Scientific: %e', CAST(1234.5 AS FLOAT));
 ----
 Scientific: 1.234500e+03
 
 query T
-SELECT format_string('Compact: %g', 1234.5::FLOAT);
+SELECT format_string('Compact: %g', CAST(1234.5 AS FLOAT));
 ----
 Compact: 1234.50
 
 query T
-SELECT format_string('String: %s', 3.14159::FLOAT);
+SELECT format_string('String: %s', CAST(3.14159 AS FLOAT));
 ----
 String: 3.14159
 
 query T
-SELECT format_string('Hex float: %a', 3.14::FLOAT);
+SELECT format_string('Hex float: %a', CAST(3.14 AS FLOAT));
 ----
 Hex float: 0x1.91eb86p1
 
 query T
-SELECT format_string('Hex float: %A', 3.14::FLOAT);
+SELECT format_string('Hex float: %A', CAST(3.14 AS FLOAT));
 ----
 Hex float: 0X1.91EB86P1
 
 ## Float64 with various formats
 
 query T
-SELECT format_string('String: %s', 3.14159::DOUBLE);
+SELECT format_string('String: %s', CAST(3.14159 AS DOUBLE));
 ----
 String: 3.14159
 
 query T
-SELECT format_string('String: %S', 3.14159::DOUBLE);
+SELECT format_string('String: %S', CAST(3.14159 AS DOUBLE));
 ----
 String: 3.14159
 
@@ -1698,43 +1698,43 @@ Compact: 500.000
 ## Decimal128 with various formats
 # xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
-SELECT format_string('Float: %f', 123.456::DECIMAL(10, 3));
+SELECT format_string('Float: %f', CAST(123.456 AS DECIMAL(10, 3)));
 ----
 Float: 123.456000
 
 # xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
-SELECT format_string('Scientific: %e', 1234.5::DECIMAL(10, 2));
+SELECT format_string('Scientific: %e', CAST(1234.5 AS DECIMAL(10, 2)));
 ----
 Scientific: 1.234500e+03
 
 # xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
-SELECT format_string('Scientific: %E', 1234.5::DECIMAL(10, 2));
+SELECT format_string('Scientific: %E', CAST(1234.5 AS DECIMAL(10, 2)));
 ----
 Scientific: 1.234500E+03
 
 # xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
-SELECT format_string('Compact: %g', 1234.5::DECIMAL(10, 2));
+SELECT format_string('Compact: %g', CAST(1234.5 AS DECIMAL(10, 2)));
 ----
 Compact: 1234.50
 
 # xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
-SELECT format_string('Compact: %G', 1234.5::DECIMAL(10, 2));
+SELECT format_string('Compact: %G', CAST(1234.5 AS DECIMAL(10, 2)));
 ----
 Compact: 1234.50
 
 # xfail spark: %s of a DECIMAL prints the unscaled value, Spark prints it with its scale (https://github.com/apache/datafusion-spark/issues/39)
 query T
-SELECT format_string('String: %s', 123.456::DECIMAL(10, 3));
+SELECT format_string('String: %s', CAST(123.456 AS DECIMAL(10, 3)));
 ----
 String: 123456
 
 # xfail spark: %s of a DECIMAL prints the unscaled value, Spark prints it with its scale (https://github.com/apache/datafusion-spark/issues/39)
 query T
-SELECT format_string('String: %S', 123.456::DECIMAL(10, 3));
+SELECT format_string('String: %S', CAST(123.456 AS DECIMAL(10, 3)));
 ----
 String: 123456
 
@@ -1765,38 +1765,38 @@ String: 123456
 
 ## Time32Second with time formats
 query T
-SELECT format_string('Hour: %tH', arrow_cast(52245::int, 'Time32(Second)'));
+SELECT format_string('Hour: %tH', arrow_cast(CAST(52245 AS int), 'Time32(Second)'));
 ----
 Hour: 14
 
 query T
-SELECT format_string('Minute: %tM', arrow_cast(52245::int, 'Time32(Second)'));
+SELECT format_string('Minute: %tM', arrow_cast(CAST(52245 AS int), 'Time32(Second)'));
 ----
 Minute: 30
 
 query T
-SELECT format_string('String: %s', arrow_cast(52245::int, 'Time32(Second)'));
+SELECT format_string('String: %s', arrow_cast(CAST(52245 AS int), 'Time32(Second)'));
 ----
 String: 52245
 
 query T
-SELECT format_string('String: %S', arrow_cast(52245::int, 'Time32(Second)'));
+SELECT format_string('String: %S', arrow_cast(CAST(52245 AS int), 'Time32(Second)'));
 ----
 String: 52245
 
 ## Time32Millisecond with time formats
 query T
-SELECT format_string('Hour: %tH', arrow_cast(52245000::int, 'Time32(Millisecond)'));
+SELECT format_string('Hour: %tH', arrow_cast(CAST(52245000 AS int), 'Time32(Millisecond)'));
 ----
 Hour: 14
 
 query T
-SELECT format_string('Second: %tS', arrow_cast(52245000::int, 'Time32(Millisecond)'));
+SELECT format_string('Second: %tS', arrow_cast(CAST(52245000 AS int), 'Time32(Millisecond)'));
 ----
 Second: 45
 
 query T
-SELECT format_string('String: %s', arrow_cast(52245000::int, 'Time32(Millisecond)'));
+SELECT format_string('String: %s', arrow_cast(CAST(52245000 AS int), 'Time32(Millisecond)'));
 ----
 String: 52245000
 
@@ -2213,83 +2213,83 @@ Hex: 0x0000ff
 
 ## Signed integer parentheses and zero padding include the suffix in the width
 query T
-SELECT format_string('[%(08d]', -12::BIGINT);
+SELECT format_string('[%(08d]', -CAST(12 AS BIGINT));
 ----
 [(000012)]
 
 ## Signed integer parentheses stay before right padding
 query T
-SELECT format_string('[%-(8d]', -12::BIGINT);
+SELECT format_string('[%-(8d]', -CAST(12 AS BIGINT));
 ----
 [(12)    ]
 
 ## Signed integer force-sign and zero padding
 query T
-SELECT format_string('[%+08d]', 12::BIGINT);
+SELECT format_string('[%+08d]', CAST(12 AS BIGINT));
 ----
 [+0000012]
 
 ## Signed integer space-sign and zero padding
 query T
-SELECT format_string('[% 08d]', 12::BIGINT);
+SELECT format_string('[% 08d]', CAST(12 AS BIGINT));
 ----
 [ 0000012]
 
 ## Negative integers keep their minus sign with force-sign or space-sign flags
 query TT
 SELECT
-  format_string('[%+08d]', -12::BIGINT),
-  format_string('[% 08d]', -12::BIGINT);
+  format_string('[%+08d]', -CAST(12 AS BIGINT)),
+  format_string('[% 08d]', -CAST(12 AS BIGINT));
 ----
 [-0000012] [-0000012]
 
 ## Signed integer grouping, force-sign, and width
 query T
-SELECT format_string('[%+,12d]', 1234567::BIGINT);
+SELECT format_string('[%+,12d]', CAST(1234567 AS BIGINT));
 ----
 [  +1,234,567]
 
 ## Minimum signed integer formats without overflowing its magnitude
 query TT
 SELECT
-  format_string('%d', (-9223372036854775808)::BIGINT),
-  format_string('%(,d', (-9223372036854775808)::BIGINT);
+  format_string('%d', CAST(-9223372036854775808 AS BIGINT)),
+  format_string('%(,d', CAST(-9223372036854775808 AS BIGINT));
 ----
 -9223372036854775808 (9,223,372,036,854,775,808)
 
 ## Signed integer array input uses the same final assembly
 query T rowsort
 SELECT format_string('[%(08d]', value)
-FROM (VALUES (-12::BIGINT), (-1234::BIGINT)) AS t(value);
+FROM (VALUES (-CAST(12 AS BIGINT)), (-CAST(1234 AS BIGINT))) AS t(value);
 ----
 [(000012)]
 [(001234)]
 
 ## Unsigned integer grouping and zero padding preserve the DataFusion extension
 query T
-SELECT format_string('[%0,12d]', arrow_cast(1234567::BIGINT, 'UInt64'));
+SELECT format_string('[%0,12d]', arrow_cast(CAST(1234567 AS BIGINT), 'UInt64'));
 ----
 [0001,234,567]
 
 ## Unsigned integer grouping and left adjustment preserve the DataFusion extension
 query T
-SELECT format_string('[%-,12d]', arrow_cast(1234567::BIGINT, 'UInt64'));
+SELECT format_string('[%-,12d]', arrow_cast(CAST(1234567 AS BIGINT), 'UInt64'));
 ----
 [1,234,567   ]
 
 ## Negative decimal zero padding keeps the closing parenthesis last
 # xfail spark: Spark errors for %f/%e/%g/%a of a DECIMAL (https://github.com/apache/datafusion-spark/issues/95)
 query T
-SELECT format_string('[%(012.2f]', -1234.50::DECIMAL(10, 2));
+SELECT format_string('[%(012.2f]', -CAST(1234.50 AS DECIMAL(10, 2)));
 ----
 [(0001234.50)]
 
 ## Zero padding is ignored for non-finite floating-point values
 query TTT
 SELECT
-  format_string('[%010.2f]', 'NaN'::DOUBLE),
-  format_string('[%010.2f]', 'Infinity'::DOUBLE),
-  format_string('[%010.2f]', '-Infinity'::DOUBLE);
+  format_string('[%010.2f]', CAST('NaN' AS DOUBLE)),
+  format_string('[%010.2f]', CAST('Infinity' AS DOUBLE)),
+  format_string('[%010.2f]', CAST('-Infinity' AS DOUBLE));
 ----
 [       NaN] [  Infinity] [ -Infinity]
 
@@ -2540,12 +2540,12 @@ SELECT format_string('%5n');
 
 ## Very large number in different bases
 query T
-SELECT format_string('Large hex: %x', 9223372036854775807::BIGINT);
+SELECT format_string('Large hex: %x', CAST(9223372036854775807 AS BIGINT));
 ----
 Large hex: 7fffffffffffffff
 
 ## Large octal
 query T
-SELECT format_string('Large octal: %o', 9223372036854775807::BIGINT);
+SELECT format_string('Large octal: %o', CAST(9223372036854775807 AS BIGINT));
 ----
 Large octal: 777777777777777777777

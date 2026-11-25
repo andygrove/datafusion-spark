@@ -21,24 +21,24 @@ SELECT hypot(5, 12);
 
 # Double inputs
 query R
-SELECT hypot(3.0::double, 4.0::double);
+SELECT hypot(CAST(3.0 AS double), CAST(4.0 AS double));
 ----
 5
 
 # NULL if either argument is NULL
 query R
-SELECT hypot(NULL::double, 4.0::double);
+SELECT hypot(CAST(NULL AS double), CAST(4.0 AS double));
 ----
 NULL
 
 query R
-SELECT hypot(3.0::double, NULL::double);
+SELECT hypot(CAST(3.0 AS double), CAST(NULL AS double));
 ----
 NULL
 
 # Array path, including a NULL row
 query R
-SELECT hypot(a, b) FROM (VALUES (3.0::double, 4.0::double), (6.0::double, 8.0::double), (NULL::double, 1.0::double)) AS t(a, b);
+SELECT hypot(a, b) FROM (VALUES (CAST(3.0 AS double), CAST(4.0 AS double)), (CAST(6.0 AS double), CAST(8.0 AS double)), (CAST(NULL AS double), CAST(1.0 AS double))) AS t(a, b);
 ----
 5
 10
@@ -46,63 +46,63 @@ NULL
 
 # Overflow-safe: naive sqrt(a*a + b*b) overflows to Infinity here; hypot stays finite (matches Spark's Math.hypot)
 query B
-SELECT hypot(3e200::double, 4e200::double) < 'Infinity'::double;
+SELECT hypot(CAST(3e200 AS double), CAST(4e200 AS double)) < CAST('Infinity' AS double);
 ----
 true
 
 # any infinite input yields +Infinity, even when the other is NaN
 query R
-SELECT hypot('Infinity'::double, 4.0::double);
+SELECT hypot(CAST('Infinity' AS double), CAST(4.0 AS double));
 ----
 Infinity
 
 query R
-SELECT hypot(4.0::double, '-Infinity'::double);
+SELECT hypot(CAST(4.0 AS double), CAST('-Infinity' AS double));
 ----
 Infinity
 
 query R
-SELECT hypot('Infinity'::double, 'NaN'::double);
+SELECT hypot(CAST('Infinity' AS double), CAST('NaN' AS double));
 ----
 Infinity
 
 # NaN propagates when neither input is infinite
 query R
-SELECT hypot('NaN'::double, 4.0::double);
+SELECT hypot(CAST('NaN' AS double), CAST(4.0 AS double));
 ----
 NaN
 
 # signed zeros
 query RRR
-SELECT hypot(0.0::double, 0.0::double), hypot(-0.0::double, 0.0::double), hypot(3.0::double, -0.0::double);
+SELECT hypot(CAST(0.0 AS double), CAST(0.0 AS double)), hypot(-CAST(0.0 AS double), CAST(0.0 AS double)), hypot(CAST(3.0 AS double), -CAST(0.0 AS double));
 ----
 0 0 3
 
 # NULL propagates even when the other input is Infinity
 query R
-SELECT hypot(NULL::double, 'Infinity'::double);
+SELECT hypot(CAST(NULL AS double), CAST('Infinity' AS double));
 ----
 NULL
 
 # negative inputs yield the positive magnitude
 query RR
-SELECT hypot(-3.0::double, -4.0::double), hypot(-3.0::double, 4.0::double);
+SELECT hypot(-CAST(3.0 AS double), -CAST(4.0 AS double)), hypot(-CAST(3.0 AS double), CAST(4.0 AS double));
 ----
 5 5
 
 # Underflow-safe: naive sqrt(a*a + b*b) underflows to 0 for tiny inputs; hypot stays nonzero (matches Spark's Math.hypot)
 query B
-SELECT hypot(3e-200::double, 4e-200::double) > 0;
+SELECT hypot(CAST(3e-200 AS double), CAST(4e-200 AS double)) > 0;
 ----
 true
 
 # Array path with special values (normal, +Infinity, NaN, NULL)
 query R
 SELECT hypot(a, b) FROM (VALUES
-  (3.0::double, 4.0::double),
-  ('Infinity'::double, 1.0::double),
-  ('NaN'::double, 1.0::double),
-  (NULL::double, 1.0::double)) AS t(a, b);
+  (CAST(3.0 AS double), CAST(4.0 AS double)),
+  (CAST('Infinity' AS double), CAST(1.0 AS double)),
+  (CAST('NaN' AS double), CAST(1.0 AS double)),
+  (CAST(NULL AS double), CAST(1.0 AS double))) AS t(a, b);
 ----
 5
 Infinity
@@ -111,12 +111,12 @@ NULL
 
 # both inputs NaN -> NaN
 query R
-SELECT hypot('NaN'::double, 'NaN'::double);
+SELECT hypot(CAST('NaN' AS double), CAST('NaN' AS double));
 ----
 NaN
 
 # both inputs infinite -> +Infinity
 query R
-SELECT hypot('Infinity'::double, '-Infinity'::double);
+SELECT hypot(CAST('Infinity' AS double), CAST('-Infinity' AS double));
 ----
 Infinity

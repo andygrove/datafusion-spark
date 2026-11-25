@@ -8,107 +8,107 @@
 # YEAR - truncate to first date of year, time zeroed
 skipif evaluate
 query P
-SELECT date_trunc('YEAR', '2015-03-05T09:32:05.123456'::timestamp);
+SELECT date_trunc('YEAR', CAST('2015-03-05T09:32:05.123456' AS timestamp));
 ----
 2015-01-01T00:00:00
 
 skipif evaluate
 query P
-SELECT date_trunc('YYYY', '2015-03-05T09:32:05.123456'::timestamp);
+SELECT date_trunc('YYYY', CAST('2015-03-05T09:32:05.123456' AS timestamp));
 ----
 2015-01-01T00:00:00
 
 skipif evaluate
 query P
-SELECT date_trunc('YY', '2015-03-05T09:32:05.123456'::timestamp);
+SELECT date_trunc('YY', CAST('2015-03-05T09:32:05.123456' AS timestamp));
 ----
 2015-01-01T00:00:00
 
 # QUARTER - truncate to first date of quarter, time zeroed
 skipif evaluate
 query P
-SELECT date_trunc('QUARTER', '2015-05-05T09:32:05.123456'::timestamp);
+SELECT date_trunc('QUARTER', CAST('2015-05-05T09:32:05.123456' AS timestamp));
 ----
 2015-04-01T00:00:00
 
 # MONTH - truncate to first date of month, time zeroed
 skipif evaluate
 query P
-SELECT date_trunc('MONTH', '2015-03-05T09:32:05.123456'::timestamp);
+SELECT date_trunc('MONTH', CAST('2015-03-05T09:32:05.123456' AS timestamp));
 ----
 2015-03-01T00:00:00
 
 skipif evaluate
 query P
-SELECT date_trunc('MM', '2015-03-05T09:32:05.123456'::timestamp);
+SELECT date_trunc('MM', CAST('2015-03-05T09:32:05.123456' AS timestamp));
 ----
 2015-03-01T00:00:00
 
 skipif evaluate
 query P
-SELECT date_trunc('MON', '2015-03-05T09:32:05.123456'::timestamp);
+SELECT date_trunc('MON', CAST('2015-03-05T09:32:05.123456' AS timestamp));
 ----
 2015-03-01T00:00:00
 
 # xfail spark: Spark returns NULL for an unsupported or NULL trunc/date_trunc format (https://github.com/apache/datafusion-spark/issues/40)
 skipif evaluate
 query P
-SELECT date_trunc('MONTHS', '2015-03-05T09:32:05.123456'::timestamp);
+SELECT date_trunc('MONTHS', CAST('2015-03-05T09:32:05.123456' AS timestamp));
 ----
 2015-03-01T00:00:00
 
 # WEEK - truncate to Monday of the week, time zeroed
 skipif evaluate
 query P
-SELECT date_trunc('WEEK', '2015-03-05T09:32:05.123456'::timestamp);
+SELECT date_trunc('WEEK', CAST('2015-03-05T09:32:05.123456' AS timestamp));
 ----
 2015-03-02T00:00:00
 
 # DAY - zero out time part
 skipif evaluate
 query P
-SELECT date_trunc('DAY', '2015-03-05T09:32:05.123456'::timestamp);
+SELECT date_trunc('DAY', CAST('2015-03-05T09:32:05.123456' AS timestamp));
 ----
 2015-03-05T00:00:00
 
 skipif evaluate
 query P
-SELECT date_trunc('DD', '2015-03-05T09:32:05.123456'::timestamp);
+SELECT date_trunc('DD', CAST('2015-03-05T09:32:05.123456' AS timestamp));
 ----
 2015-03-05T00:00:00
 
 # HOUR - zero out minute and second with fraction
 skipif evaluate
 query P
-SELECT date_trunc('HOUR', '2015-03-05T09:32:05.123456'::timestamp);
+SELECT date_trunc('HOUR', CAST('2015-03-05T09:32:05.123456' AS timestamp));
 ----
 2015-03-05T09:00:00
 
 # MINUTE - zero out second with fraction
 skipif evaluate
 query P
-SELECT date_trunc('MINUTE', '2015-03-05T09:32:05.123456'::timestamp);
+SELECT date_trunc('MINUTE', CAST('2015-03-05T09:32:05.123456' AS timestamp));
 ----
 2015-03-05T09:32:00
 
 # SECOND - zero out fraction
 skipif evaluate
 query P
-SELECT date_trunc('SECOND', '2015-03-05T09:32:05.123456'::timestamp);
+SELECT date_trunc('SECOND', CAST('2015-03-05T09:32:05.123456' AS timestamp));
 ----
 2015-03-05T09:32:05
 
 # MILLISECOND - zero out microseconds
 skipif evaluate
 query P
-SELECT date_trunc('MILLISECOND', '2015-03-05T09:32:05.123456'::timestamp);
+SELECT date_trunc('MILLISECOND', CAST('2015-03-05T09:32:05.123456' AS timestamp));
 ----
 2015-03-05T09:32:05.123
 
 # MICROSECOND - everything remains
 skipif evaluate
 query P
-SELECT date_trunc('MICROSECOND', '2015-03-05T09:32:05.123456'::timestamp);
+SELECT date_trunc('MICROSECOND', CAST('2015-03-05T09:32:05.123456' AS timestamp));
 ----
 2015-03-05T09:32:05.123456
 
@@ -116,10 +116,10 @@ skipif evaluate
 query P
 SELECT date_trunc('YEAR', column1)
 FROM VALUES
-('2015-03-05T09:32:05.123456'::timestamp),
-('2020-11-15T22:45:30.654321'::timestamp),
-('1999-07-20T14:20:10.000001'::timestamp),
-(NULL::timestamp);
+(CAST('2015-03-05T09:32:05.123456' AS timestamp)),
+(CAST('2020-11-15T22:45:30.654321' AS timestamp)),
+(CAST('1999-07-20T14:20:10.000001' AS timestamp)),
+(CAST(NULL AS timestamp));
 ----
 2015-01-01T00:00:00
 2020-01-01T00:00:00
@@ -141,7 +141,7 @@ SELECT date_trunc(NULL, '2015-03-05T09:32:05.123456');
 
 skipif evaluate
 query P
-SELECT date_trunc('YEAR', NULL::timestamp);
+SELECT date_trunc('YEAR', CAST(NULL AS timestamp));
 ----
 NULL
 

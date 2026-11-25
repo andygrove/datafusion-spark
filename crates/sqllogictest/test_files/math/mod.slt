@@ -11,81 +11,81 @@
 ## Original Query: SELECT MOD(2, 1.8);
 ## PySpark 3.5.5 Result: {'mod(2, 1.8)': Decimal('0.2'), 'typeof(mod(2, 1.8))': 'decimal(2,1)', 'typeof(2)': 'int', 'typeof(1.8)': 'decimal(2,1)'}
 query R
-SELECT MOD(2::int, 1.8::decimal(2,1));
+SELECT MOD(CAST(2 AS int), CAST(1.8 AS decimal(2,1)));
 ----
 0.2
 
 # Basic integer modulo operations
 query I
-SELECT MOD(10::int, 3::int) as mod_1;
+SELECT MOD(CAST(10 AS int), CAST(3 AS int)) as mod_1;
 ----
 1
 
 query I
-SELECT MOD(7::int, 2::int) as mod_2;
+SELECT MOD(CAST(7 AS int), CAST(2 AS int)) as mod_2;
 ----
 1
 
 query I
-SELECT MOD(15::int, 4::int) as mod_3;
+SELECT MOD(CAST(15 AS int), CAST(4 AS int)) as mod_3;
 ----
 3
 
 query I
-SELECT MOD(100::int, 30::int) as mod_4;
+SELECT MOD(CAST(100 AS int), CAST(30 AS int)) as mod_4;
 ----
 10
 
 query I
-SELECT MOD(50::int, 25::int) as mod_5;
+SELECT MOD(CAST(50 AS int), CAST(25 AS int)) as mod_5;
 ----
 0
 
 query I
-SELECT MOD(200::int, 60::int) as mod_6;
+SELECT MOD(CAST(200 AS int), CAST(60 AS int)) as mod_6;
 ----
 20
 
 # Float modulo operations
 query R
-SELECT MOD(10.5::float8, 3.0::float8) as mod_float_1;
+SELECT MOD(CAST(10.5 AS float8), CAST(3.0 AS float8)) as mod_float_1;
 ----
 1.5
 
 query R
-SELECT MOD(7.2::float8, 2.5::float8) as mod_float_2;
+SELECT MOD(CAST(7.2 AS float8), CAST(2.5 AS float8)) as mod_float_2;
 ----
 2.2
 
 query R
-SELECT MOD(15.8::float8, 4.2::float8) as mod_float_3;
+SELECT MOD(CAST(15.8 AS float8), CAST(4.2 AS float8)) as mod_float_3;
 ----
 3.2
 
 # Mixed type operations
 query R
-SELECT MOD(10::int, 3.0::float8) as mod_mixed_1;
+SELECT MOD(CAST(10 AS int), CAST(3.0 AS float8)) as mod_mixed_1;
 ----
 1
 
 query R
-SELECT MOD(10.5::float8, 3::int) as mod_mixed_2;
+SELECT MOD(CAST(10.5 AS float8), CAST(3 AS int)) as mod_mixed_2;
 ----
 1.5
 
 # NULL value handling
 query I
-SELECT MOD(NULL::int, 3::int) as mod_null_1;
+SELECT MOD(CAST(NULL AS int), CAST(3 AS int)) as mod_null_1;
 ----
 NULL
 
 query I
-SELECT MOD(10::int, NULL::int) as mod_null_2;
+SELECT MOD(CAST(10 AS int), CAST(NULL AS int)) as mod_null_2;
 ----
 NULL
 
 query I
-SELECT MOD(NULL::int, NULL::int) as mod_null_3;
+SELECT MOD(CAST(NULL AS int), CAST(NULL AS int)) as mod_null_3;
 ----
 NULL
 
@@ -106,71 +106,71 @@ NULL
 
 # Special values: NaN and Infinity
 query R
-SELECT MOD(5.0::float8, 'NaN'::float8) as mod_nan_1;
+SELECT MOD(CAST(5.0 AS float8), CAST('NaN' AS float8)) as mod_nan_1;
 ----
 NaN
 
 query R
-SELECT MOD('NaN'::float8, 2.0::float8) as mod_nan_2;
+SELECT MOD(CAST('NaN' AS float8), CAST(2.0 AS float8)) as mod_nan_2;
 ----
 NaN
 
 query R
-SELECT MOD('NaN'::float8, 'Infinity'::float8) as mod_nan_3;
+SELECT MOD(CAST('NaN' AS float8), CAST('Infinity' AS float8)) as mod_nan_3;
 ----
 NaN
 
 query R
-SELECT MOD('Infinity'::float8, 'NaN'::float8) as mod_nan_4;
+SELECT MOD(CAST('Infinity' AS float8), CAST('NaN' AS float8)) as mod_nan_4;
 ----
 NaN
 
 query R
-SELECT MOD(5.0::float8, 'Infinity'::float8) as mod_inf_1;
+SELECT MOD(CAST(5.0 AS float8), CAST('Infinity' AS float8)) as mod_inf_1;
 ----
 5
 
 query R
-SELECT MOD('Infinity'::float8, 2.0::float8) as mod_inf_2;
+SELECT MOD(CAST('Infinity' AS float8), CAST(2.0 AS float8)) as mod_inf_2;
 ----
 NaN
 
 # Decimal operations
 query R
-SELECT MOD(2.5::decimal(3,1), 1.2::decimal(2,1)) as mod_decimal_1;
+SELECT MOD(CAST(2.5 AS decimal(3,1)), CAST(1.2 AS decimal(2,1))) as mod_decimal_1;
 ----
 0.1
 
 query R
-SELECT MOD(10.0::decimal(3,1), 3.0::decimal(2,1)) as mod_decimal_2;
+SELECT MOD(CAST(10.0 AS decimal(3,1)), CAST(3.0 AS decimal(2,1))) as mod_decimal_2;
 ----
 1.0
 
 # Division by zero returns NULL in legacy mode (ANSI off)
 query I
-SELECT MOD(10::int, 0::int) as mod_div_zero_1;
+SELECT MOD(CAST(10 AS int), CAST(0 AS int)) as mod_div_zero_1;
 ----
 NULL
 
 query I
-SELECT MOD(-7::int, 0::int) as mod_div_zero_2;
+SELECT MOD(-CAST(7 AS int), CAST(0 AS int)) as mod_div_zero_2;
 ----
 NULL
 
 query R
-SELECT MOD(10.5::float8, 0.0::float8) as mod_div_zero_float;
+SELECT MOD(CAST(10.5 AS float8), CAST(0.0 AS float8)) as mod_div_zero_float;
 ----
 NULL
 
 # A negative zero divisor counts as zero and returns NULL in legacy mode
 query R
-SELECT MOD(10.5::float8, -0.0::float8) as mod_div_zero_neg_float;
+SELECT MOD(CAST(10.5 AS float8), -CAST(0.0 AS float8)) as mod_div_zero_neg_float;
 ----
 NULL
 
 # A NULL dividend evaluates to NULL regardless of the divisor
 query I
-SELECT MOD(NULL::int, 0::int) as mod_null_dividend_legacy;
+SELECT MOD(CAST(NULL AS int), CAST(0 AS int)) as mod_null_dividend_legacy;
 ----
 NULL
 
@@ -179,27 +179,27 @@ statement ok
 set datafusion.execution.enable_ansi_mode = true;
 
 statement error DataFusion error: Arrow error: Divide by zero error
-SELECT MOD(10::int, 0::int);
+SELECT MOD(CAST(10 AS int), CAST(0 AS int));
 
 statement error DataFusion error: Arrow error: Divide by zero error
-SELECT MOD(-7::int, 0::int);
+SELECT MOD(-CAST(7 AS int), CAST(0 AS int));
 
 # A zero divisor of any numeric type raises, including floating point
 statement error DataFusion error: Arrow error: Divide by zero error
-SELECT MOD(10.5::float8, 0.0::float8);
+SELECT MOD(CAST(10.5 AS float8), CAST(0.0 AS float8));
 
 # A negative zero divisor counts as zero and raises
 statement error DataFusion error: Arrow error: Divide by zero error
-SELECT MOD(10.5::float8, -0.0::float8);
+SELECT MOD(CAST(10.5 AS float8), -CAST(0.0 AS float8));
 
 # A NULL dividend short-circuits to NULL before the divisor is validated
 query I
-SELECT MOD(NULL::int, 0::int) as mod_null_dividend_ansi;
+SELECT MOD(CAST(NULL AS int), CAST(0 AS int)) as mod_null_dividend_ansi;
 ----
 NULL
 
 query R
-SELECT MOD(NULL::float8, 0.0::float8) as mod_null_dividend_ansi_float;
+SELECT MOD(CAST(NULL AS float8), CAST(0.0 AS float8)) as mod_null_dividend_ansi_float;
 ----
 NULL
 
@@ -208,59 +208,59 @@ set datafusion.execution.enable_ansi_mode = false;
 
 # Edge cases
 query I
-SELECT MOD(0::int, 5::int) as mod_zero_1;
+SELECT MOD(CAST(0 AS int), CAST(5 AS int)) as mod_zero_1;
 ----
 0
 
 query I
-SELECT MOD(5::int, 1::int) as mod_zero_2;
+SELECT MOD(CAST(5 AS int), CAST(1 AS int)) as mod_zero_2;
 ----
 0
 
 query I
-SELECT MOD(-10::int, 3::int) as mod_negative_1;
+SELECT MOD(-CAST(10 AS int), CAST(3 AS int)) as mod_negative_1;
 ----
 -1
 
 query I
-SELECT MOD(10::int, -3::int) as mod_negative_2;
+SELECT MOD(CAST(10 AS int), -CAST(3 AS int)) as mod_negative_2;
 ----
 1
 
 query I
-SELECT MOD(-10::int, -3::int) as mod_negative_3;
+SELECT MOD(-CAST(10 AS int), -CAST(3 AS int)) as mod_negative_3;
 ----
 -1
 
 # Multiple MOD operations
 query I
-SELECT MOD(MOD(100::int, 30::int), 5::int) as mod_nested_1;
+SELECT MOD(MOD(CAST(100 AS int), CAST(30 AS int)), CAST(5 AS int)) as mod_nested_1;
 ----
 0
 
 query I
-SELECT MOD(10::int, MOD(7::int, 3::int)) as mod_nested_2;
+SELECT MOD(CAST(10 AS int), MOD(CAST(7 AS int), CAST(3 AS int))) as mod_nested_2;
 ----
 0
 
 # MOD with different data types
 query I
-SELECT MOD(10::int8, 3::int8) as mod_int8;
+SELECT MOD(CAST(10 AS int8), CAST(3 AS int8)) as mod_int8;
 ----
 1
 
 query I
-SELECT MOD(10::SMALLINT, 3::SMALLINT) as mod_int16;
+SELECT MOD(CAST(10 AS SMALLINT), CAST(3 AS SMALLINT)) as mod_int16;
 ----
 1
 
 query I
-SELECT MOD(10::INT, 3::INT) as mod_int32;
+SELECT MOD(CAST(10 AS INT), CAST(3 AS INT)) as mod_int32;
 ----
 1
 
 query I
-SELECT MOD(10::BIGINT, 3::BIGINT) as mod_int64;
+SELECT MOD(CAST(10 AS BIGINT), CAST(3 AS BIGINT)) as mod_int64;
 ----
 1
 
@@ -280,27 +280,27 @@ SELECT MOD(arrow_cast(10, 'UInt64'), arrow_cast(3, 'UInt64')) as mod_int64;
 1
 
 query R
-SELECT MOD(10::float4, 3::float4) as mod_float4;
+SELECT MOD(CAST(10 AS float4), CAST(3 AS float4)) as mod_float4;
 ----
 1
 
 query R
-SELECT MOD(10::float8, 3::float8) as mod_float8;
+SELECT MOD(CAST(10 AS float8), CAST(3 AS float8)) as mod_float8;
 ----
 1
 
 # MOD in expressions
 query I
-SELECT MOD(10::int + 5::int, 3::int) as mod_expr_1;
+SELECT MOD(CAST(10 AS int) + CAST(5 AS int), CAST(3 AS int)) as mod_expr_1;
 ----
 0
 
 query I
-SELECT MOD(10::int, 2::int + 1::int) as mod_expr_2;
+SELECT MOD(CAST(10 AS int), CAST(2 AS int) + CAST(1 AS int)) as mod_expr_2;
 ----
 1
 
 query I
-SELECT MOD(10::int * 2::int, 5::int) as mod_expr_3;
+SELECT MOD(CAST(10 AS int) * CAST(2 AS int), CAST(5 AS int)) as mod_expr_3;
 ----
 0

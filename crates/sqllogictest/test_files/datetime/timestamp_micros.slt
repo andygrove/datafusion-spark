@@ -12,27 +12,27 @@
 
 # Microseconds are measured from the UTC epoch, including negative values.
 query PPPP
-SELECT timestamp_micros(0::BIGINT), timestamp_micros(-1::BIGINT),
-  timestamp_micros(1230219000123123::BIGINT), timestamp_micros(-1230219000123123::BIGINT);
+SELECT timestamp_micros(CAST(0 AS BIGINT)), timestamp_micros(-CAST(1 AS BIGINT)),
+  timestamp_micros(CAST(1230219000123123 AS BIGINT)), timestamp_micros(-CAST(1230219000123123 AS BIGINT));
 ----
 1970-01-01T00:00:00Z 1969-12-31T23:59:59.999999Z 2008-12-25T15:30:00.123123Z 1931-01-07T08:29:59.876877Z
 
 # All Spark signed integer types are accepted and widened without rescaling.
 query PPPP
-SELECT timestamp_micros(1::TINYINT) AS tiny, timestamp_micros(1::SMALLINT) AS small,
-  timestamp_micros(1::INT) AS integer_value, timestamp_micros(1::BIGINT) AS big;
+SELECT timestamp_micros(CAST(1 AS TINYINT)) AS tiny, timestamp_micros(CAST(1 AS SMALLINT)) AS small,
+  timestamp_micros(CAST(1 AS INT)) AS integer_value, timestamp_micros(CAST(1 AS BIGINT)) AS big;
 ----
 1970-01-01T00:00:00.000001Z 1970-01-01T00:00:00.000001Z 1970-01-01T00:00:00.000001Z 1970-01-01T00:00:00.000001Z
 
 query PP
-SELECT timestamp_micros(NULL) AS untyped_null, timestamp_micros(NULL::BIGINT) AS typed_null;
+SELECT timestamp_micros(NULL) AS untyped_null, timestamp_micros(CAST(NULL AS BIGINT)) AS typed_null;
 ----
 NULL NULL
 
 # Column input exercises physical execution in both SLT modes.
 query PI
 SELECT timestamp_micros(x), unix_micros(timestamp_micros(x))
-FROM (VALUES (-1::BIGINT), (0::BIGINT), (1::BIGINT), (NULL::BIGINT)) AS t(x);
+FROM (VALUES (-CAST(1 AS BIGINT)), (CAST(0 AS BIGINT)), (CAST(1 AS BIGINT)), (CAST(NULL AS BIGINT))) AS t(x);
 ----
 1969-12-31T23:59:59.999999Z -1
 1970-01-01T00:00:00Z 0
@@ -41,7 +41,7 @@ NULL NULL
 
 query PPP
 SELECT timestamp_micros(a), timestamp_micros(b), timestamp_micros(c)
-FROM (VALUES ((-128)::TINYINT, (-32768)::SMALLINT, (-2147483648)::INT)) AS t(a, b, c);
+FROM (VALUES (CAST(-128 AS TINYINT), CAST(-32768 AS SMALLINT), CAST(-2147483648 AS INT))) AS t(a, b, c);
 ----
 1969-12-31T23:59:59.999872Z 1969-12-31T23:59:59.967232Z 1969-12-31T23:24:12.516352Z
 
@@ -49,14 +49,14 @@ FROM (VALUES ((-128)::TINYINT, (-32768)::SMALLINT, (-2147483648)::INT)) AS t(a, 
 # timestamps, whose years exceed the calendar/formatter range.
 query I
 SELECT unix_micros(timestamp_micros(x))
-FROM (VALUES ((-9223372036854775808)::BIGINT), (9223372036854775807::BIGINT)) AS t(x);
+FROM (VALUES (CAST(-9223372036854775808 AS BIGINT)), (CAST(9223372036854775807 AS BIGINT))) AS t(x);
 ----
 -9223372036854775808
 9223372036854775807
 
 query I
 SELECT unix_micros(timestamp_micros(arrow_cast(x, 'Dictionary(Int32, Int64)')))
-FROM (VALUES (-1::BIGINT), (1::BIGINT), (NULL::BIGINT)) AS t(x);
+FROM (VALUES (-CAST(1 AS BIGINT)), (CAST(1 AS BIGINT)), (CAST(NULL AS BIGINT))) AS t(x);
 ----
 -1
 1
@@ -64,13 +64,13 @@ NULL
 
 # ExpectsInputTypes rejects non-integer arguments rather than casting them.
 query error The first parameter of `timestamp_micros` requires the "INTEGRAL" type, however it has the type "DOUBLE".
-SELECT timestamp_micros(1.0::DOUBLE);
+SELECT timestamp_micros(CAST(1.0 AS DOUBLE));
 
 query error DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE
-SELECT timestamp_micros(1.0::FLOAT);
+SELECT timestamp_micros(CAST(1.0 AS FLOAT));
 
 query error DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE
-SELECT timestamp_micros(1.0::DECIMAL(10, 1));
+SELECT timestamp_micros(CAST(1.0 AS DECIMAL(10, 1)));
 
 query error DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE
 SELECT timestamp_micros('1');
@@ -86,8 +86,8 @@ query error DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE
 SELECT timestamp_micros('1');
 
 query II
-SELECT unix_micros(timestamp_micros((-9223372036854775808)::BIGINT)),
-  unix_micros(timestamp_micros(9223372036854775807::BIGINT));
+SELECT unix_micros(timestamp_micros(CAST(-9223372036854775808 AS BIGINT))),
+  unix_micros(timestamp_micros(CAST(9223372036854775807 AS BIGINT)));
 ----
 -9223372036854775808 9223372036854775807
 
@@ -99,14 +99,14 @@ statement ok
 SET datafusion.execution.time_zone = 'America/Los_Angeles';
 
 query PP
-SELECT timestamp_micros(1230219000123123::BIGINT), timestamp_micros(-1230219000123123::BIGINT);
+SELECT timestamp_micros(CAST(1230219000123123 AS BIGINT)), timestamp_micros(-CAST(1230219000123123 AS BIGINT));
 ----
 2008-12-25T07:30:00.123123-08:00 1931-01-07T00:29:59.876877-08:00
 
 # Across the spring daylight saving transition, UTC values remain unchanged.
 query PI
 SELECT timestamp_micros(x), unix_micros(timestamp_micros(x))
-FROM (VALUES (1710064799999999::BIGINT), (1710064800000000::BIGINT)) AS t(x);
+FROM (VALUES (CAST(1710064799999999 AS BIGINT)), (CAST(1710064800000000 AS BIGINT))) AS t(x);
 ----
 2024-03-10T01:59:59.999999-08:00 1710064799999999
 2024-03-10T03:00:00-07:00 1710064800000000
@@ -116,7 +116,7 @@ SET datafusion.execution.time_zone = 'UTC';
 
 # Check the Arrow return type without relying on Spark's type display.
 query T
-SELECT arrow_typeof(timestamp_micros(0::BIGINT));
+SELECT arrow_typeof(timestamp_micros(CAST(0 AS BIGINT)));
 ----
 Timestamp(µs, "UTC")
 
@@ -130,7 +130,7 @@ SELECT unix_micros(timestamp_micros(arrow_cast(255, 'UInt8'))),
 
 query I
 SELECT unix_micros(timestamp_micros(arrow_cast(x, 'Dictionary(Int32, UInt32)')))
-FROM (VALUES (0::BIGINT), (4294967295::BIGINT), (NULL::BIGINT)) AS t(x);
+FROM (VALUES (CAST(0 AS BIGINT)), (CAST(4294967295 AS BIGINT)), (CAST(NULL AS BIGINT))) AS t(x);
 ----
 0
 4294967295

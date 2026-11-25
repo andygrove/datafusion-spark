@@ -3,57 +3,57 @@
 # SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 query T
-SELECT parse_url('http://spark.apache.org/path?query=1'::string, 'HOST'::string);
+SELECT parse_url(CAST('http://spark.apache.org/path?query=1' AS string), CAST('HOST' AS string));
 ----
 spark.apache.org
 
 query T
-SELECT parse_url('http://spark.apache.org/path?query=1'::string, 'QUERY'::string);
+SELECT parse_url(CAST('http://spark.apache.org/path?query=1' AS string), CAST('QUERY' AS string));
 ----
 query=1
 
 query T
-SELECT parse_url('http://spark.apache.org/path?query=1'::string, 'QUERY'::string, 'query'::string);
+SELECT parse_url(CAST('http://spark.apache.org/path?query=1' AS string), CAST('QUERY' AS string), CAST('query' AS string));
 ----
 1
 
 query T
-SELECT parse_url('http://userinfo@spark.apache.org/path?query=1#Ref'::string, 'HOST'::string);
+SELECT parse_url(CAST('http://userinfo@spark.apache.org/path?query=1#Ref' AS string), CAST('HOST' AS string));
 ----
 spark.apache.org
 
 query T
-SELECT parse_url('http://userinfo@spark.apache.org/path?query=1#Ref'::string, 'PATH'::string);
+SELECT parse_url(CAST('http://userinfo@spark.apache.org/path?query=1#Ref' AS string), CAST('PATH' AS string));
 ----
 /path
 
 query T
-SELECT parse_url('http://userinfo@spark.apache.org/path?query=1#Ref'::string, 'QUERY'::string);
+SELECT parse_url(CAST('http://userinfo@spark.apache.org/path?query=1#Ref' AS string), CAST('QUERY' AS string));
 ----
 query=1
 
 query T
-SELECT parse_url('http://userinfo@spark.apache.org/path?query=1#Ref'::string, 'REF'::string);
+SELECT parse_url(CAST('http://userinfo@spark.apache.org/path?query=1#Ref' AS string), CAST('REF' AS string));
 ----
 Ref
 
 query T
-SELECT parse_url('http://userinfo@spark.apache.org/path?query=1#Ref'::string, 'PROTOCOL'::string);
+SELECT parse_url(CAST('http://userinfo@spark.apache.org/path?query=1#Ref' AS string), CAST('PROTOCOL' AS string));
 ----
 http
 
 query T
-SELECT parse_url('http://userinfo@spark.apache.org/path?query=1#Ref'::string, 'FILE'::string);
+SELECT parse_url(CAST('http://userinfo@spark.apache.org/path?query=1#Ref' AS string), CAST('FILE' AS string));
 ----
 /path?query=1
 
 query T
-SELECT parse_url('http://userinfo@spark.apache.org/path?query=1#Ref'::string, 'AUTHORITY'::string);
+SELECT parse_url(CAST('http://userinfo@spark.apache.org/path?query=1#Ref' AS string), CAST('AUTHORITY' AS string));
 ----
 userinfo@spark.apache.org
 
 query T
-SELECT parse_url('http://userinfo@spark.apache.org/path?query=1#Ref'::string, 'USERINFO'::string);
+SELECT parse_url(CAST('http://userinfo@spark.apache.org/path?query=1#Ref' AS string), CAST('USERINFO' AS string));
 ----
 userinfo
 

@@ -20,171 +20,171 @@ true
 NULL
 
 query B
-SELECT is_valid_utf8(NULL::string);
+SELECT is_valid_utf8(CAST(NULL AS string));
 ----
 NULL
 
 query B
-SELECT is_valid_utf8('Hello, world!'::string);
+SELECT is_valid_utf8(CAST('Hello, world!' AS string));
 ----
 true
 
 query B
-SELECT is_valid_utf8('😀🎉✨'::string);
+SELECT is_valid_utf8(CAST('😀🎉✨' AS string));
 ----
 true
 
 query B
-SELECT is_valid_utf8(''::string);
+SELECT is_valid_utf8(CAST('' AS string));
 ----
 true
 
 query B
-SELECT is_valid_utf8('ASCII only 123 !@#'::string);
+SELECT is_valid_utf8(CAST('ASCII only 123 !@#' AS string));
 ----
 true
 
 query B
-SELECT is_valid_utf8(x'C2A9'::BINARY);
+SELECT is_valid_utf8(CAST(x'C2A9' AS BINARY));
 ----
 true
 
 query B
-SELECT is_valid_utf8(x'C2AE'::BINARY);
+SELECT is_valid_utf8(CAST(x'C2AE' AS BINARY));
 ----
 true
 
 query B
-SELECT is_valid_utf8(x'E282AC'::BINARY);
+SELECT is_valid_utf8(CAST(x'E282AC' AS BINARY));
 ----
 true
 
 query B
-SELECT is_valid_utf8(x'E284A2'::BINARY);
+SELECT is_valid_utf8(CAST(x'E284A2' AS BINARY));
 ----
 true
 
 query B
-SELECT is_valid_utf8(x'F09F9880'::BINARY);
+SELECT is_valid_utf8(CAST(x'F09F9880' AS BINARY));
 ----
 true
 
 query B
-SELECT is_valid_utf8(x'F09F8E89'::BINARY);
+SELECT is_valid_utf8(CAST(x'F09F8E89' AS BINARY));
 ----
 true
 
 query B
-SELECT is_valid_utf8(x'80'::BINARY);
+SELECT is_valid_utf8(CAST(x'80' AS BINARY));
 ----
 false
 
 query B
-SELECT is_valid_utf8(x'BF'::BINARY);
+SELECT is_valid_utf8(CAST(x'BF' AS BINARY));
 ----
 false
 
 query B
-SELECT is_valid_utf8(x'808080'::BINARY);
+SELECT is_valid_utf8(CAST(x'808080' AS BINARY));
 ----
 false
 
 query B
-SELECT is_valid_utf8(x'C2'::BINARY);
+SELECT is_valid_utf8(CAST(x'C2' AS BINARY));
 ----
 false
 
 query B
-SELECT is_valid_utf8(x'E2'::BINARY);
+SELECT is_valid_utf8(CAST(x'E2' AS BINARY));
 ----
 false
 
 query B
-SELECT is_valid_utf8(x'F0'::BINARY);
+SELECT is_valid_utf8(CAST(x'F0' AS BINARY));
 ----
 false
 
 query B
-SELECT is_valid_utf8(x'E282'::BINARY);
+SELECT is_valid_utf8(CAST(x'E282' AS BINARY));
 ----
 false
 
 query B
-SELECT is_valid_utf8(x'C081'::BINARY);
+SELECT is_valid_utf8(CAST(x'C081' AS BINARY));
 ----
 false
 
 query B
-SELECT is_valid_utf8(x'E08080'::BINARY);
+SELECT is_valid_utf8(CAST(x'E08080' AS BINARY));
 ----
 false
 
 query B
-SELECT is_valid_utf8(x'F0808080'::BINARY);
+SELECT is_valid_utf8(CAST(x'F0808080' AS BINARY));
 ----
 false
 
 query B
-SELECT is_valid_utf8(x'FE'::BINARY);
+SELECT is_valid_utf8(CAST(x'FE' AS BINARY));
 ----
 false
 
 query B
-SELECT is_valid_utf8(x'FF'::BINARY);
+SELECT is_valid_utf8(CAST(x'FF' AS BINARY));
 ----
 false
 
 query B
-SELECT is_valid_utf8(x'61C262'::BINARY);
+SELECT is_valid_utf8(CAST(x'61C262' AS BINARY));
 ----
 false
 
 query B
-SELECT is_valid_utf8(x'41BF42'::BINARY);
+SELECT is_valid_utf8(CAST(x'41BF42' AS BINARY));
 ----
 false
 
 query B
-SELECT is_valid_utf8(x'ED9FBF'::BINARY);
+SELECT is_valid_utf8(CAST(x'ED9FBF' AS BINARY));
 ----
 true
 
 query B
-SELECT is_valid_utf8(x'EDA080'::BINARY);
+SELECT is_valid_utf8(CAST(x'EDA080' AS BINARY));
 ----
 false
 
 query B
-SELECT is_valid_utf8(x'EDBFBF'::BINARY);
+SELECT is_valid_utf8(CAST(x'EDBFBF' AS BINARY));
 ----
 false
 
 query B
-SELECT is_valid_utf8(x'F48FBFBF'::BINARY);
+SELECT is_valid_utf8(CAST(x'F48FBFBF' AS BINARY));
 ----
 true
 
 query B
-SELECT is_valid_utf8(x'F4908080'::BINARY);
+SELECT is_valid_utf8(CAST(x'F4908080' AS BINARY));
 ----
 false
 
 query B
-SELECT is_valid_utf8(x'6162C2A963'::BINARY);
+SELECT is_valid_utf8(CAST(x'6162C2A963' AS BINARY));
 ----
 true
 
 query B
-SELECT is_valid_utf8(x'6162806364'::BINARY);
+SELECT is_valid_utf8(CAST(x'6162806364' AS BINARY));
 ----
 false
 
 query B
-SELECT is_valid_utf8(x'610062'::BINARY);
+SELECT is_valid_utf8(CAST(x'610062' AS BINARY));
 ----
 true
 
 query B
-SELECT is_valid_utf8(x''::BINARY);
+SELECT is_valid_utf8(CAST(x'' AS BINARY));
 ----
 true

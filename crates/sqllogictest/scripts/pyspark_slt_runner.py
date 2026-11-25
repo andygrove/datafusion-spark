@@ -177,6 +177,12 @@ def parse_slt(path: Path) -> list[Record]:
                 sql.append(lines[i])
             i += 1
         record.sql = "\n".join(sql)
+        if any(kind == "cast" for kind, _ in _tokenize(record.sql)):
+            # Spark 3.5 does not parse `::`, and DataFusion and Spark 4 differ on
+            # whether `-1::INT` casts -1 or 1.
+            raise SystemExit(
+                f"error: {record.location}: write `CAST(x AS type)` instead of `x::type`"
+            )
 
         # Expected results (or an expected error message) run until an empty
         # line. A result line may start with `#`, so it is not a comment here,
@@ -194,7 +200,8 @@ def parse_slt(path: Path) -> list[Record]:
 # ---------------------------------------------------------------------------
 # Translating DataFusion SQL to Spark SQL
 #
-# Spark 4.2 parses most of these files as written, including `::` casts.
+# Spark 4.2 parses most of these files as written. The files use
+# `CAST(x AS type)` rather than `::`, which `parse_slt` rejects.
 # Only a few renames are applied here, and `arrow_cast` and `spark_cast`
 # become a CAST (see below). Anything else Spark cannot parse, and any function
 # Spark does not have (such as `arrow_typeof`), is skipped.
@@ -592,9 +599,6 @@ def _visible_type(sql: str) -> Optional[str]:
     """"DATE" or "TIMESTAMP" if a translated expression is visibly one: a typed
     literal, a cast, or a call to a function that returns a DATE. Otherwise None."""
     tokens = _strip_parens(_tokenize(sql))
-    if len(tokens) >= 3 and tokens[-2][0] == "cast":
-        # expr::TYPE, where `::` applies to the whole of expr
-        return _temporal_name(tokens[-1][1]) if _is_operand(tokens[:-2]) else None
     if len(tokens) == 2 and tokens[1][0] == "string":
         return _temporal_name(tokens[0][1])
     # A call: a name followed by its arguments.
@@ -775,8 +779,6 @@ def translate(sql: str, time_zone: str = "UTC") -> str:
                 "CAST",
                 "TRY_CAST",
             )
-        elif kind == "cast":
-            expect_type = True
         else:
             expect_type = False
             if text == "(":
@@ -1637,6 +1639,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     files = discover(args.paths)
     if not files:
         raise SystemExit("error: no .slt files found")
+    # Report a file this runner rejects, such as one with a `::` cast, before Spark starts.
+    for path in files:
+        parse_slt(path)
 
     # Keep the output complete when it is piped to a file and the run dies.
     sys.stdout.reconfigure(line_buffering=True)

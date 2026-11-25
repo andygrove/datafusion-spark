@@ -3,52 +3,52 @@
 # SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 query T
-SELECT quote(127::TINYINT);
+SELECT quote(CAST(127 AS TINYINT));
 ----
 '127'
 
 query T
-SELECT quote((-128)::TINYINT);
+SELECT quote(CAST(-128 AS TINYINT));
 ----
 '-128'
 
 query T
-SELECT quote(32767::SMALLINT);
+SELECT quote(CAST(32767 AS SMALLINT));
 ----
 '32767'
 
 query T
-SELECT quote((-32768)::SMALLINT);
+SELECT quote(CAST(-32768 AS SMALLINT));
 ----
 '-32768'
 
 query T
-SELECT quote(2147483647::INT);
+SELECT quote(CAST(2147483647 AS INT));
 ----
 '2147483647'
 
 query T
-SELECT quote((-2147483648)::INT);
+SELECT quote(CAST(-2147483648 AS INT));
 ----
 '-2147483648'
 
 query T
-SELECT quote(9223372036854775807::BIGINT);
+SELECT quote(CAST(9223372036854775807 AS BIGINT));
 ----
 '9223372036854775807'
 
 query T
-SELECT quote((-9223372036854775808)::BIGINT);
+SELECT quote(CAST(-9223372036854775808 AS BIGINT));
 ----
 '-9223372036854775808'
 
 query T
-SELECT quote(3.14::FLOAT);
+SELECT quote(CAST(3.14 AS FLOAT));
 ----
 '3.14'
 
 query T
-SELECT quote(2.718281828459045::DOUBLE);
+SELECT quote(CAST(2.718281828459045 AS DOUBLE));
 ----
 '2.718281828459045'
 
@@ -118,7 +118,7 @@ SELECT quote('emoji: 😀🎉❤️🚀');
 'emoji: 😀🎉❤️🚀'
 
 query T
-SELECT quote('2024-01-15'::DATE);
+SELECT quote(CAST('2024-01-15' AS DATE));
 ----
 '2024-01-15'
 
@@ -171,12 +171,12 @@ SELECT quote(arrow_cast('', 'LargeUtf8'));
 ''
 
 query T
-SELECT quote('it''s'::STRING);
+SELECT quote(CAST('it''s' AS STRING));
 ----
 'it\'s'
 
 query T
-SELECT quote(''::STRING);
+SELECT quote(CAST('' AS STRING));
 ----
 ''
 
@@ -201,7 +201,7 @@ NULL
 # Mixes values that are inlined in the views (<= 12 bytes) with values held in a
 # data buffer, since the two are measured differently for the capacity hint.
 query T
-SELECT quote(c::STRING)
+SELECT quote(CAST(c AS STRING))
 FROM VALUES ('a'), ('it''s'), (NULL), ('a value that is longer than twelve bytes and has an '' embedded quote') AS t(c);
 ----
 'a'

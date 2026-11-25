@@ -54,113 +54,113 @@ SELECT atan2(0, -1);
 
 # NULL if either argument is NULL
 query R
-SELECT atan2(NULL::double, 1.0::double);
+SELECT atan2(CAST(NULL AS double), CAST(1.0 AS double));
 ----
 NULL
 
 query R
-SELECT atan2(1.0::double, NULL::double);
+SELECT atan2(CAST(1.0 AS double), CAST(NULL AS double));
 ----
 NULL
 
 # NaN: any NaN input yields NaN (for atan2, NaN wins even over Infinity)
 query R
-SELECT atan2('NaN'::double, 1.0::double);
+SELECT atan2(CAST('NaN' AS double), CAST(1.0 AS double));
 ----
 NaN
 
 query R
-SELECT atan2(1.0::double, 'NaN'::double);
+SELECT atan2(CAST(1.0 AS double), CAST('NaN' AS double));
 ----
 NaN
 
 query R
-SELECT atan2('NaN'::double, 'NaN'::double);
+SELECT atan2(CAST('NaN' AS double), CAST('NaN' AS double));
 ----
 NaN
 
 query R
-SELECT atan2('NaN'::double, 'Infinity'::double);
+SELECT atan2(CAST('NaN' AS double), CAST('Infinity' AS double));
 ----
 NaN
 
 # NULL beats every special value (validity is checked before the value)
 query R
-SELECT atan2(NULL::double, 'Infinity'::double);
+SELECT atan2(CAST(NULL AS double), CAST('Infinity' AS double));
 ----
 NULL
 
 # both infinite: quadrant set by the signs (+/- pi/4, +/- 3pi/4)
 query R
-SELECT atan2('Infinity'::double, 'Infinity'::double);
+SELECT atan2(CAST('Infinity' AS double), CAST('Infinity' AS double));
 ----
 0.7853981633974483
 
 query R
-SELECT atan2('-Infinity'::double, 'Infinity'::double);
+SELECT atan2(CAST('-Infinity' AS double), CAST('Infinity' AS double));
 ----
 -0.7853981633974483
 
 query R
-SELECT atan2('Infinity'::double, '-Infinity'::double);
+SELECT atan2(CAST('Infinity' AS double), CAST('-Infinity' AS double));
 ----
 2.356194490192345
 
 query R
-SELECT atan2('-Infinity'::double, '-Infinity'::double);
+SELECT atan2(CAST('-Infinity' AS double), CAST('-Infinity' AS double));
 ----
 -2.356194490192345
 
 # one infinite argument
 query R
-SELECT atan2('Infinity'::double, 1.0::double);
+SELECT atan2(CAST('Infinity' AS double), CAST(1.0 AS double));
 ----
 1.5707963267948966
 
 query R
-SELECT atan2('-Infinity'::double, 1.0::double);
+SELECT atan2(CAST('-Infinity' AS double), CAST(1.0 AS double));
 ----
 -1.5707963267948966
 
 query R
-SELECT atan2(1.0::double, 'Infinity'::double);
+SELECT atan2(CAST(1.0 AS double), CAST('Infinity' AS double));
 ----
 0
 
 query R
-SELECT atan2(1.0::double, '-Infinity'::double);
+SELECT atan2(CAST(1.0 AS double), CAST('-Infinity' AS double));
 ----
 3.141592653589793
 
 query R
-SELECT atan2(-1.0::double, '-Infinity'::double);
+SELECT atan2(-CAST(1.0 AS double), CAST('-Infinity' AS double));
 ----
 -3.141592653589793
 
 # Spark adds 0.0 to both arguments, turning -0.0 into 0.0
 query R
-SELECT atan2(-0.0::double, -1.0::double);
+SELECT atan2(-CAST(0.0 AS double), -CAST(1.0 AS double));
 ----
 3.141592653589793
 
 query R
-SELECT atan2(-0.0::double, 1.0::double);
+SELECT atan2(-CAST(0.0 AS double), CAST(1.0 AS double));
 ----
 0
 
 query R
-SELECT atan2(0.0::double, -0.0::double);
+SELECT atan2(CAST(0.0 AS double), -CAST(0.0 AS double));
 ----
 0
 
 query R
-SELECT atan2(-0.0::double, -0.0::double);
+SELECT atan2(-CAST(0.0 AS double), -CAST(0.0 AS double));
 ----
 0
 
 # array path, including a NULL row and signed zero
 query R
-SELECT atan2(a, b) FROM (VALUES (0.0::double, 1.0::double), (1.0::double, 1.0::double), (NULL::double, 1.0::double), (-0.0::double, -1.0::double)) AS t(a, b);
+SELECT atan2(a, b) FROM (VALUES (CAST(0.0 AS double), CAST(1.0 AS double)), (CAST(1.0 AS double), CAST(1.0 AS double)), (CAST(NULL AS double), CAST(1.0 AS double)), (-CAST(0.0 AS double), -CAST(1.0 AS double))) AS t(a, b);
 ----
 0
 0.7853981633974483

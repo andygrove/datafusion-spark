@@ -98,7 +98,7 @@ SELECT i, is_variant_null(v) FROM (
 # a shredded VARIANT the value is then in `typed_value`, which is not a variant null.
 skipif spark
 query B
-SELECT is_variant_null(named_struct('metadata', X'010000', 'value', NULL::BINARY));
+SELECT is_variant_null(named_struct('metadata', X'010000', 'value', CAST(NULL AS BINARY)));
 ----
 false
 

@@ -13,131 +13,131 @@
 
 # Basic shiftright tests
 query I
-SELECT shiftright(4::int, 1::int);
+SELECT shiftright(CAST(4 AS int), CAST(1 AS int));
 ----
 2
 
 query I
-SELECT shiftright(8::int, 2::int);
+SELECT shiftright(CAST(8 AS int), CAST(2 AS int));
 ----
 2
 
 query I
-SELECT shiftright(16::int, 3::int);
+SELECT shiftright(CAST(16 AS int), CAST(3 AS int));
 ----
 2
 
 # Different data types
 query I
-SELECT shiftright(4::bigint, 1::int);
+SELECT shiftright(CAST(4 AS bigint), CAST(1 AS int));
 ----
 2
 
 query I
-SELECT shiftright(8::bigint, 2::int);
+SELECT shiftright(CAST(8 AS bigint), CAST(2 AS int));
 ----
 2
 
 query I
-SELECT shiftright(4::int, 1::bigint);
+SELECT shiftright(CAST(4 AS int), CAST(1 AS bigint));
 ----
 2
 
 # Large shifts (should handle modulo correctly)
 query I
-SELECT shiftright(1::int, 32::int);
+SELECT shiftright(CAST(1 AS int), CAST(32 AS int));
 ----
 1
 
 query I
-SELECT shiftright(2::int, 33::int);
+SELECT shiftright(CAST(2 AS int), CAST(33 AS int));
 ----
 1
 
 query I
-SELECT shiftright(3::int, 64::int);
+SELECT shiftright(CAST(3 AS int), CAST(64 AS int));
 ----
 3
 
 # Negative shifts
 query I
-SELECT shiftright(4::int, -1::int);
+SELECT shiftright(CAST(4 AS int), -CAST(1 AS int));
 ----
 0
 
 query I
-SELECT shiftright(8::int, -2::int);
+SELECT shiftright(CAST(8 AS int), -CAST(2 AS int));
 ----
 0
 
 query I
-SELECT shiftright(16::int, -3::int);
+SELECT shiftright(CAST(16 AS int), -CAST(3 AS int));
 ----
 0
 
 # Zero shifts
 query I
-SELECT shiftright(5::int, 0::int);
+SELECT shiftright(CAST(5 AS int), CAST(0 AS int));
 ----
 5
 
 query I
-SELECT shiftright(0::int, 5::int);
+SELECT shiftright(CAST(0 AS int), CAST(5 AS int));
 ----
 0
 
 # Edge cases - signed right shift preserves sign
 query I
-SELECT shiftright(-4::int, 1::int);
+SELECT shiftright(-CAST(4 AS int), CAST(1 AS int));
 ----
 -2
 
 query I
-SELECT shiftright(-8::int, 2::int);
+SELECT shiftright(-CAST(8 AS int), CAST(2 AS int));
 ----
 -2
 
 query I
-SELECT shiftright(-16::int, 3::int);
+SELECT shiftright(-CAST(16 AS int), CAST(3 AS int));
 ----
 -2
 
 query I
-SELECT shiftright(2147483647::int, 1::int);
+SELECT shiftright(CAST(2147483647 AS int), CAST(1 AS int));
 ----
 1073741823
 
 # Null handling
 query I
-SELECT shiftright(NULL::int, 1::int);
+SELECT shiftright(CAST(NULL AS int), CAST(1 AS int));
 ----
 NULL
 
 query I
-SELECT shiftright(1::int, NULL::int);
+SELECT shiftright(CAST(1 AS int), CAST(NULL AS int));
 ----
 NULL
 
 query I
-SELECT shiftright(NULL::int, NULL::int);
+SELECT shiftright(CAST(NULL AS int), CAST(NULL AS int));
 ----
 NULL
 
 query I
-select shiftright(3::int,-31);
+select shiftright(CAST(3 AS int),-31);
 ----
 1
 
 query I
-select shiftright(3::int,-32);
+select shiftright(CAST(3 AS int),-32);
 ----
 3
 
 # i32 + nulls
 query IT
 SELECT
-	shiftright(value::INT, shift),
-	arrow_typeof(shiftright(value::INT, shift))
+	shiftright(CAST(value AS INT), shift),
+	arrow_typeof(shiftright(CAST(value AS INT), shift))
 FROM VALUES
 (4, 1),
 (8, 2),
@@ -157,8 +157,8 @@ NULL Int32
 # big shifts
 query IT
 SELECT
-	shiftright(value::INT, shift),
-	arrow_typeof(shiftright(value::INT, shift))
+	shiftright(CAST(value AS INT), shift),
+	arrow_typeof(shiftright(CAST(value AS INT), shift))
 FROM VALUES
 (1, 32),
 (2, 33),
@@ -172,8 +172,8 @@ t(value, shift)
 # negative shift
 query IT
 SELECT
-	shiftright(value::INT, shift),
-	arrow_typeof(shiftright(value::INT, shift))
+	shiftright(CAST(value AS INT), shift),
+	arrow_typeof(shiftright(CAST(value AS INT), shift))
 FROM VALUES
 (4, -1),
 (8, -2),
@@ -187,8 +187,8 @@ t(value, shift)
 # For signed integers, right shift preserves sign bit
 query IT
 SELECT
-	shiftright(value::INT, shift),
-	arrow_typeof(shiftright(value::INT, shift))
+	shiftright(CAST(value AS INT), shift),
+	arrow_typeof(shiftright(CAST(value AS INT), shift))
 FROM VALUES
 (-4, 1),
 (-8, 2),
@@ -202,8 +202,8 @@ t(value, shift)
 # i64 value
 query IT
 SELECT
-	shiftright(value::BIGINT, shift),
-	arrow_typeof(shiftright(value::BIGINT, shift))
+	shiftright(CAST(value AS BIGINT), shift),
+	arrow_typeof(shiftright(CAST(value AS BIGINT), shift))
 FROM VALUES (4, 1), (8, 2), (16, 3) t(value, shift)
 ----
 2 Int64
@@ -244,6 +244,6 @@ SELECT shiftright(null, null), arrow_typeof(shiftright(null, null));
 NULL Int32
 
 query IT
-SELECT shiftright(1::bigint, null), arrow_typeof(shiftright(1::bigint, null));
+SELECT shiftright(CAST(1 AS bigint), null), arrow_typeof(shiftright(CAST(1 AS bigint), null));
 ----
 NULL Int64

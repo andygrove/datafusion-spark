@@ -9,53 +9,53 @@
 #   https://github.com/apache/datafusion/issues/15914
 
 query D
-SELECT next_day('2015-01-14'::DATE, 'TU'::string);
+SELECT next_day(CAST('2015-01-14' AS DATE), CAST('TU' AS string));
 ----
 2015-01-20
 
 query D
-SELECT next_day('2015-07-27'::DATE, 'Sun'::string);
+SELECT next_day(CAST('2015-07-27' AS DATE), CAST('Sun' AS string));
 ----
 2015-08-02
 
 query D
-SELECT next_day('2015-07-27'::DATE, 'Sat'::string);
+SELECT next_day(CAST('2015-07-27' AS DATE), CAST('Sat' AS string));
 ----
 2015-08-01
 
 # Whitespace-padded day names should be rejected (return NULL) per Spark behavior
 query D
-SELECT next_day('2015-01-14'::DATE, ' MO '::string);
+SELECT next_day(CAST('2015-01-14' AS DATE), CAST(' MO ' AS string));
 ----
 NULL
 
 query error Function 'next_day' expects 2 arguments but received 1
-SELECT next_day('2015-07-27'::DATE);
+SELECT next_day(CAST('2015-07-27' AS DATE));
 
 query error Function 'next_day' expects 2 arguments but received 1
-SELECT next_day('Sun'::string);
+SELECT next_day(CAST('Sun' AS string));
 
 query error 'next_day' does not support zero arguments
 SELECT next_day();
 
 query error Function 'next_day' requires Date, but received Int32
-SELECT next_day(1::int, 'Sun'::string);
+SELECT next_day(CAST(1 AS int), CAST('Sun' AS string));
 
 query error Function 'next_day' expects 2 arguments but received 3
-SELECT next_day('2015-07-27'::DATE, 'Sat'::string, 'Sun'::string);
+SELECT next_day(CAST('2015-07-27' AS DATE), CAST('Sat' AS string), CAST('Sun' AS string));
 
 # xfail spark: next_day casts a string to DATE with Arrow's cast, Spark's cast gives NULL (https://github.com/apache/datafusion-spark/issues/353)
 query error Cannot cast string 'invalid_date' to value of Date32 type
-SELECT next_day('invalid_date'::string, 'Mon'::string);
+SELECT next_day(CAST('invalid_date' AS string), CAST('Mon' AS string));
 
 query D
-SELECT next_day('2000-01-01'::DATE, 2.0::float);
+SELECT next_day(CAST('2000-01-01' AS DATE), CAST(2.0 AS float));
 ----
 NULL
 
 # Preserve implicit weekday-to-string conversions.
 query D
-SELECT next_day(DATE '2015-07-23', 'Mon'::BINARY);
+SELECT next_day(DATE '2015-07-23', CAST('Mon' AS BINARY));
 ----
 2015-07-27
 
@@ -65,21 +65,21 @@ SELECT next_day(DATE '2015-07-23', true);
 NULL
 
 query D
-SELECT next_day('2020-01-01'::DATE, 'invalid_day'::string);
+SELECT next_day(CAST('2020-01-01' AS DATE), CAST('invalid_day' AS string));
 ----
 NULL
 
-# xfail spark: test: DataFusion's ::DATE cast errors on an invalid date, Spark's non-ANSI CAST returns NULL
+# xfail spark: test: DataFusion's CAST to DATE errors on an invalid date, Spark's non-ANSI CAST returns NULL
 query error Cast error: Cannot cast string '2015-13-32' to value of Date32 type
-SELECT next_day('2015-13-32'::DATE, 'Sun'::string);
+SELECT next_day(CAST('2015-13-32' AS DATE), CAST('Sun' AS string));
 
 query D
 SELECT next_day(a, b)
 FROM VALUES
-    ('2000-01-01'::DATE, 'Mon'::string),
-    (NULL::DATE, NULL::string),
-    (NULL::DATE, 'Mon'::string),
-    ('2015-01-14'::DATE, NULL::string) as t(a, b);
+    (CAST('2000-01-01' AS DATE), CAST('Mon' AS string)),
+    (CAST(NULL AS DATE), CAST(NULL AS string)),
+    (CAST(NULL AS DATE), CAST('Mon' AS string)),
+    (CAST('2015-01-14' AS DATE), CAST(NULL AS string)) as t(a, b);
 ----
 2000-01-03
 NULL
@@ -92,29 +92,29 @@ NULL
 # arithmetic, rather than panicking. Cast the Date32 result to Int32 to assert
 # the epoch day directly (these dates are past the printable range).
 query I
-SELECT arrow_cast(next_day(date_from_unix_date(95026236), 'Mon'::string), 'Int32');
+SELECT arrow_cast(next_day(date_from_unix_date(95026236), CAST('Mon' AS string)), 'Int32');
 ----
 95026243
 
 query I
-SELECT arrow_cast(next_day(date_from_unix_date(95026230), 'Tue'::string), 'Int32');
+SELECT arrow_cast(next_day(date_from_unix_date(95026230), CAST('Tue' AS string)), 'Int32');
 ----
 95026237
 
 # https://github.com/apache/datafusion/issues/23889
 # Spark casts the start date to DATE, so STRING and TIMESTAMP are accepted
 query D
-SELECT next_day('2015-07-23'::string, 'Mon'::string);
+SELECT next_day(CAST('2015-07-23' AS string), CAST('Mon' AS string));
 ----
 2015-07-27
 
 query D
-SELECT next_day('2015-07-23 12:12:12'::string, 'Mon'::string);
+SELECT next_day(CAST('2015-07-23 12:12:12' AS string), CAST('Mon' AS string));
 ----
 2015-07-27
 
 query D
-SELECT next_day('2015-07-23 12:12:12'::timestamp, 'Mon'::string);
+SELECT next_day(CAST('2015-07-23 12:12:12' AS timestamp), CAST('Mon' AS string));
 ----
 2015-07-27
 
@@ -125,10 +125,10 @@ SELECT next_day(TIMESTAMP '1969-12-31 23:59:59', 'Thu');
 1970-01-01
 
 query D
-SELECT next_day(a, 'Mon'::string)
+SELECT next_day(a, CAST('Mon' AS string))
 FROM VALUES
-    ('2015-07-23'::string),
-    (NULL::string) as t(a);
+    (CAST('2015-07-23' AS string)),
+    (CAST(NULL AS string)) as t(a);
 ----
 2015-07-27
 NULL
@@ -137,9 +137,9 @@ NULL
 query D
 SELECT next_day(a, b)
 FROM VALUES
-    ('2015-07-23 12:12:12'::timestamp, 'Mon'::string),
-    ('2015-07-23 23:59:59'::timestamp, 'Fri'::string),
-    (NULL::timestamp, 'Mon'::string) as t(a, b);
+    (CAST('2015-07-23 12:12:12' AS timestamp), CAST('Mon' AS string)),
+    (CAST('2015-07-23 23:59:59' AS timestamp), CAST('Fri' AS string)),
+    (CAST(NULL AS timestamp), CAST('Mon' AS string)) as t(a, b);
 ----
 2015-07-27
 2015-07-24
@@ -152,7 +152,7 @@ SELECT next_day(arrow_cast('2015-07-23', 'LargeUtf8'), 'Mon');
 2015-07-27
 
 query D
-SELECT next_day('2015-07-23'::STRING, 'Mon');
+SELECT next_day(CAST('2015-07-23' AS STRING), 'Mon');
 ----
 2015-07-27
 
@@ -163,7 +163,7 @@ SELECT next_day('2015-07-23', arrow_cast('Mon', 'LargeUtf8'));
 2015-07-27
 
 query D
-SELECT next_day('2015-07-23', 'Mon'::STRING);
+SELECT next_day('2015-07-23', CAST('Mon' AS STRING));
 ----
 2015-07-27
 
@@ -194,7 +194,7 @@ SELECT next_day(DATE '2024-01-01', 'TUES');
 
 # NULL inputs short-circuit in ANSI mode
 query D
-SELECT next_day(NULL::DATE, 'xx');
+SELECT next_day(CAST(NULL AS DATE), 'xx');
 ----
 NULL
 
@@ -229,7 +229,7 @@ query error \[ILLEGAL_DAY_OF_WEEK\] Illegal input for day of week: invalid_day\.
 SELECT next_day('2024-01-01', arrow_cast('invalid_day', 'LargeUtf8'));
 
 query error \[ILLEGAL_DAY_OF_WEEK\] Illegal input for day of week: invalid_day\. SQLSTATE: 22009
-SELECT next_day('2024-01-01', 'invalid_day'::STRING);
+SELECT next_day('2024-01-01', CAST('invalid_day' AS STRING));
 
 # Unicode day names folding via Unicode case folding (Spark DateTimeUtils.toUpperCase(Locale.ROOT))
 query D
@@ -244,7 +244,7 @@ SELECT next_day(DATE '2024-01-01', 'frı');
 
 # Column inputs with ANSI mode enabled (maintainer test gap)
 query D
-SELECT next_day(a, b) FROM VALUES (NULL::DATE, 'xx'), (DATE '2024-01-01', 'TU') AS t(a, b);
+SELECT next_day(a, b) FROM VALUES (CAST(NULL AS DATE), 'xx'), (DATE '2024-01-01', 'TU') AS t(a, b);
 ----
 NULL
 2024-01-02

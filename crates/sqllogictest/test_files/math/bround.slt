@@ -17,20 +17,20 @@
 # the result type itself.
 skipif evaluate
 query RT
-SELECT bround(2.5::decimal(2,1), 0::int), arrow_typeof(bround(2.5::decimal(2,1), 0::int));
+SELECT bround(CAST(2.5 AS decimal(2,1)), CAST(0 AS int)), arrow_typeof(bround(CAST(2.5 AS decimal(2,1)), CAST(0 AS int)));
 ----
 2 Decimal128(2, 0)
 
 ## Original Query: SELECT bround(25, -1);
 ## PySpark 3.5.5 Result: {'bround(25, -1)': 20, 'typeof(bround(25, -1))': 'int', 'typeof(25)': 'int', 'typeof(-1)': 'int'}
 query IT
-SELECT bround(25::int, -1), arrow_typeof(bround(25::int, -1));
+SELECT bround(CAST(25 AS int), -1), arrow_typeof(bround(CAST(25 AS int), -1));
 ----
 20 Int32
 
 # Default scale is 0
 query RR
-SELECT bround(2.5::double), bround(3.5::double);
+SELECT bround(CAST(2.5 AS double)), bround(CAST(3.5 AS double));
 ----
 2 4
 
@@ -42,14 +42,14 @@ SELECT bround(25, -1), bround(35, -1), bround(-25, -1), bround(-35, -1), bround(
 
 # Integer types keep their type
 query IIITTT
-SELECT bround(525::smallint, -1), bround(525::bigint, -3), bround(25::tinyint, -2),
-  arrow_typeof(bround(525::smallint, -1)), arrow_typeof(bround(525::bigint, -3)), arrow_typeof(bround(25::tinyint, -2));
+SELECT bround(CAST(525 AS smallint), -1), bround(CAST(525 AS bigint), -3), bround(CAST(25 AS tinyint), -2),
+  arrow_typeof(bround(CAST(525 AS smallint), -1)), arrow_typeof(bround(CAST(525 AS bigint), -3)), arrow_typeof(bround(CAST(25 AS tinyint), -2));
 ----
 520 1000 0 Int16 Int64 Int8
 
 # Non-negative scale leaves integers unchanged, very negative scale gives 0
 query III
-SELECT bround(42, 2), bround(25::tinyint, -3), bround(9223372036854775807, -40);
+SELECT bround(42, 2), bround(CAST(25 AS tinyint), -3), bround(9223372036854775807, -40);
 ----
 42 0 0
 
@@ -62,70 +62,70 @@ SELECT bround(CAST(2147483647 AS INT), -1), bround(CAST(-128 AS TINYINT), -1), b
 
 # Decimal ties and result types
 query RRRR
-SELECT bround(45.00::decimal(4,2), -1), bround(-0.35::decimal(2,2), 1), bround(0.125::decimal(4,3), 2),
-  bround(1.25::decimal(3,2), 5);
+SELECT bround(CAST(45.00 AS decimal(4,2)), -1), bround(-CAST(0.35 AS decimal(2,2)), 1), bround(CAST(0.125 AS decimal(4,3)), 2),
+  bround(CAST(1.25 AS decimal(3,2)), 5);
 ----
 40 -0.4 0.12 1.25
 
 query TTTT
-SELECT arrow_typeof(bround(45.00::decimal(4,2), -1)), arrow_typeof(bround(-0.35::decimal(2,2), 1)),
-  arrow_typeof(bround(0.125::decimal(4,3), 2)), arrow_typeof(bround(1.25::decimal(3,2), 5));
+SELECT arrow_typeof(bround(CAST(45.00 AS decimal(4,2)), -1)), arrow_typeof(bround(-CAST(0.35 AS decimal(2,2)), 1)),
+  arrow_typeof(bround(CAST(0.125 AS decimal(4,3)), 2)), arrow_typeof(bround(CAST(1.25 AS decimal(3,2)), 5));
 ----
 Decimal128(3, 0) Decimal128(2, 1) Decimal128(4, 2) Decimal128(4, 2)
 
 query RT
-SELECT bround(5.5::decimal(2,1), -3), arrow_typeof(bround(5.5::decimal(2,1), -3));
+SELECT bround(CAST(5.5 AS decimal(2,1)), -3), arrow_typeof(bround(CAST(5.5 AS decimal(2,1)), -3));
 ----
 0 Decimal128(4, 0)
 
 query RT
-SELECT bround('99999999999999999999999999999999999999'::decimal(38,0), 0),
-  arrow_typeof(bround('99999999999999999999999999999999999999'::decimal(38,0), 0));
+SELECT bround(CAST('99999999999999999999999999999999999999' AS decimal(38,0)), 0),
+  arrow_typeof(bround(CAST('99999999999999999999999999999999999999' AS decimal(38,0)), 0));
 ----
 99999999999999999999999999999999999999 Decimal128(38, 0)
 
 # A result that needs more than 38 digits fails
 query error NUMERIC_VALUE_OUT_OF_RANGE
-SELECT bround('99999999999999999999999999999999999999'::decimal(38,0), -1);
+SELECT bround(CAST('99999999999999999999999999999999999999' AS decimal(38,0)), -1);
 
 # Floating-point ties round the shortest decimal representation, like Spark
 query RRRRRR
-SELECT bround(0.5::double, 0), bround(1.5::double, 0), bround(-2.5::double, 0), bround(-0.35::double, 1),
-  bround(0.125::double, 2), bround(2.675::double, 2);
+SELECT bround(CAST(0.5 AS double), 0), bround(CAST(1.5 AS double), 0), bround(-CAST(2.5 AS double), 0), bround(-CAST(0.35 AS double), 1),
+  bround(CAST(0.125 AS double), 2), bround(CAST(2.675 AS double), 2);
 ----
 0 2 -2 -0.4 0.12 2.68
 
 query RRRR
-SELECT bround(25.0::double, -1), bround(35.0::double, -1), bround(123.456::double, 400), bround(123.456::double, -400);
+SELECT bround(CAST(25.0 AS double), -1), bround(CAST(35.0 AS double), -1), bround(CAST(123.456 AS double), 400), bround(CAST(123.456 AS double), -400);
 ----
 20 40 123.456 0
 
 # Negative zero becomes zero
 query T
-SELECT CAST(bround(-0.4::double, 0) AS VARCHAR);
+SELECT CAST(bround(-CAST(0.4 AS double), 0) AS VARCHAR);
 ----
 0.0
 
 # FLOAT keeps its type and is widened to DOUBLE first (3.1414999961853027)
 query RRT
-SELECT bround(3.1415::float, 4), bround(3.1415::float, 3), arrow_typeof(bround(3.1415::float, 4));
+SELECT bround(CAST(3.1415 AS float), 4), bround(CAST(3.1415 AS float), 3), arrow_typeof(bround(CAST(3.1415 AS float), 4));
 ----
 3.1415 3.141 Float32
 
 query RRR
-SELECT bround('NaN'::double, 1), bround('Infinity'::double, 1), bround('-Infinity'::double, 1);
+SELECT bround(CAST('NaN' AS double), 1), bround(CAST('Infinity' AS double), 1), bround(CAST('-Infinity' AS double), 1);
 ----
 NaN Infinity -Infinity
 
 # NULL input
 query IRR
-SELECT bround(NULL::int, -1), bround(NULL::double, 1), bround(2.5::double, NULL);
+SELECT bround(CAST(NULL AS int), -1), bround(CAST(NULL AS double), 1), bround(CAST(2.5 AS double), NULL);
 ----
 NULL NULL NULL
 
 # Column input
 query R
-SELECT bround(column1, 0) FROM VALUES (0.5::double), (1.5::double), (2.5::double), (-2.5::double), (NULL::double);
+SELECT bround(column1, 0) FROM VALUES (CAST(0.5 AS double)), (CAST(1.5 AS double)), (CAST(2.5 AS double)), (-CAST(2.5 AS double)), (CAST(NULL AS double));
 ----
 0
 2
@@ -143,7 +143,7 @@ SELECT bround(column1, -1) FROM VALUES (15), (25), (-15), (-25), (NULL);
 NULL
 
 query R
-SELECT bround(column1, 1) FROM VALUES (0.25::decimal(3,2)), (0.35::decimal(3,2)), (-0.25::decimal(3,2)), (NULL::decimal(3,2));
+SELECT bround(column1, 1) FROM VALUES (CAST(0.25 AS decimal(3,2))), (CAST(0.35 AS decimal(3,2))), (-CAST(0.25 AS decimal(3,2))), (CAST(NULL AS decimal(3,2)));
 ----
 0.2
 0.4
@@ -158,7 +158,7 @@ NULL
 # the result type itself.
 skipif evaluate
 query RRR
-SELECT bround(2.25::decimal(3,2), 1::bigint) AS a, bround(2.25::decimal(3,2), 1 + 0) AS b, bround(2.25::decimal(3,2), CAST(1 AS INT)) AS c;
+SELECT bround(CAST(2.25 AS decimal(3,2)), CAST(1 AS bigint)) AS a, bround(CAST(2.25 AS decimal(3,2)), 1 + 0) AS b, bround(CAST(2.25 AS decimal(3,2)), CAST(1 AS INT)) AS c;
 ----
 2.2 2.2 2.2
 
@@ -170,9 +170,9 @@ SELECT bround(2.25::decimal(3,2), 1::bigint) AS a, bround(2.25::decimal(3,2), 1 
 # the result type itself.
 skipif evaluate
 query TTTT
-SELECT arrow_typeof(bround(2.25::decimal(3,2), 1::bigint)) AS a, arrow_typeof(bround(2.25::decimal(3,2), 1 + 0)) AS b,
-  arrow_typeof(bround(2.25::decimal(3,2), CAST(1 AS INT))) AS c, arrow_typeof(bround(column1, 1::bigint)) AS d
-FROM VALUES (2.25::decimal(3,2));
+SELECT arrow_typeof(bround(CAST(2.25 AS decimal(3,2)), CAST(1 AS bigint))) AS a, arrow_typeof(bround(CAST(2.25 AS decimal(3,2)), 1 + 0)) AS b,
+  arrow_typeof(bround(CAST(2.25 AS decimal(3,2)), CAST(1 AS INT))) AS c, arrow_typeof(bround(column1, CAST(1 AS bigint))) AS d
+FROM VALUES (CAST(2.25 AS decimal(3,2)));
 ----
 Decimal128(3, 1) Decimal128(3, 1) Decimal128(3, 1) Decimal128(3, 1)
 
@@ -214,7 +214,7 @@ SELECT bround(arrow_cast(arrow_cast(25, 'Int32'), 'Dictionary(Int32, Int32)'), -
 # the result type itself.
 skipif evaluate
 query R
-SELECT r FROM (SELECT bround(column1, 1::bigint) AS r FROM VALUES (2.25::decimal(3,2)), (2.35::decimal(3,2))) WHERE r > 2.3;
+SELECT r FROM (SELECT bround(column1, CAST(1 AS bigint)) AS r FROM VALUES (CAST(2.25 AS decimal(3,2))), (CAST(2.35 AS decimal(3,2)))) WHERE r > 2.3;
 ----
 2.4
 
@@ -233,7 +233,7 @@ SELECT bround(arrow_cast(2.5, 'Float16'), 0);
 
 # A decimal input needs a constant scale
 query error bround requires a constant scale
-SELECT bround(column1, column2) FROM VALUES (2.5::decimal(2,1), 0);
+SELECT bround(column1, column2) FROM VALUES (CAST(2.5 AS decimal(2,1)), 0);
 
 # Integer overflow fails with ANSI mode on
 statement ok

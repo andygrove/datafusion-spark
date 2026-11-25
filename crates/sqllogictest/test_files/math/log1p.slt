@@ -4,34 +4,34 @@
 
 # Basic values and a negative input within the domain
 query R
-SELECT log1p(0.5::DOUBLE);
+SELECT log1p(CAST(0.5 AS DOUBLE));
 ----
 0.4054651081081644
 
 query R
-SELECT log1p(1.0::DOUBLE);
+SELECT log1p(CAST(1.0 AS DOUBLE));
 ----
 0.6931471805599453
 
 query R
-SELECT log1p(-0.5::DOUBLE);
+SELECT log1p(-CAST(0.5 AS DOUBLE));
 ----
 -0.6931471805599453
 
 # A value immediately greater than the boundary -1
 query R
-SELECT log1p(-0.9999999999999999::DOUBLE);
+SELECT log1p(-CAST(0.9999999999999999 AS DOUBLE));
 ----
 -36.7368005696771
 
 # The boundary and values outside the domain return NULL
 query R
-SELECT log1p(-1.0::DOUBLE);
+SELECT log1p(-CAST(1.0 AS DOUBLE));
 ----
 NULL
 
 query R
-SELECT log1p(-2.0::DOUBLE);
+SELECT log1p(-CAST(2.0 AS DOUBLE));
 ----
 NULL
 
@@ -50,10 +50,10 @@ NULL
 query R
 SELECT log1p(a)
 FROM (VALUES
-    (0.0::DOUBLE),
-    (0.5::DOUBLE),
-    (-0.5::DOUBLE),
-    (-1.0::DOUBLE)
+    (CAST(0.0 AS DOUBLE)),
+    (CAST(0.5 AS DOUBLE)),
+    (-CAST(0.5 AS DOUBLE)),
+    (-CAST(1.0 AS DOUBLE))
 ) AS t(a);
 ----
 0
@@ -63,12 +63,12 @@ NULL
 
 # Small inputs retain precision near zero
 query B
-SELECT log1p(1e-300::DOUBLE) = 1e-300::DOUBLE;
+SELECT log1p(CAST(1e-300 AS DOUBLE)) = CAST(1e-300 AS DOUBLE);
 ----
 true
 
 query B
-SELECT log1p(1e-20::DOUBLE) = 1e-20::DOUBLE;
+SELECT log1p(CAST(1e-20 AS DOUBLE)) = CAST(1e-20 AS DOUBLE);
 ----
 true
 

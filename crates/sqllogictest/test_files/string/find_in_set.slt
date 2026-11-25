@@ -9,156 +9,156 @@
 #   https://github.com/apache/datafusion/issues/15914
 
 query I
-SELECT find_in_set('ab'::string, 'abc,b,ab,c,def'::string);
+SELECT find_in_set(CAST('ab' AS string), CAST('abc,b,ab,c,def' AS string));
 ----
 3
 
 query I
-SELECT find_in_set('abc'::string, 'abc,b,ab,c,def'::string);
+SELECT find_in_set(CAST('abc' AS string), CAST('abc,b,ab,c,def' AS string));
 ----
 1
 
 query I
-SELECT find_in_set('def'::string, 'abc,b,ab,c,def'::string);
+SELECT find_in_set(CAST('def' AS string), CAST('abc,b,ab,c,def' AS string));
 ----
 5
 
 query I
-SELECT find_in_set('xyz'::string, 'abc,b,ab,c,def'::string);
+SELECT find_in_set(CAST('xyz' AS string), CAST('abc,b,ab,c,def' AS string));
 ----
 0
 
 query I
-SELECT find_in_set('a'::string, 'abc,b,ab,c,def'::string);
+SELECT find_in_set(CAST('a' AS string), CAST('abc,b,ab,c,def' AS string));
 ----
 0
 
 query I
-SELECT find_in_set('abcd'::string, 'abc,b,ab,c,def'::string);
+SELECT find_in_set(CAST('abcd' AS string), CAST('abc,b,ab,c,def' AS string));
 ----
 0
 
 query I
-SELECT find_in_set('Ab'::string, 'abc,b,ab,c,def'::string);
+SELECT find_in_set(CAST('Ab' AS string), CAST('abc,b,ab,c,def' AS string));
 ----
 0
 
 query I
-SELECT find_in_set('d,ef'::string, 'abc,b,ab,c,def'::string);
+SELECT find_in_set(CAST('d,ef' AS string), CAST('abc,b,ab,c,def' AS string));
 ----
 0
 
 query I
-SELECT find_in_set('ab,'::string, 'abc,b,ab,c,def'::string);
+SELECT find_in_set(CAST('ab,' AS string), CAST('abc,b,ab,c,def' AS string));
 ----
 0
 
 # by definition a needle containing a comma is never found
 query I
-SELECT find_in_set(','::string, 'a,,b'::string);
+SELECT find_in_set(CAST(',' AS string), CAST('a,,b' AS string));
 ----
 0
 
 # a list with no comma is one element, so an empty list has one empty element
 query I
-SELECT find_in_set(''::string, ''::string);
+SELECT find_in_set(CAST('' AS string), CAST('' AS string));
 ----
 1
 
 query I
-SELECT find_in_set('a'::string, ''::string);
+SELECT find_in_set(CAST('a' AS string), CAST('' AS string));
 ----
 0
 
 # one comma delimits two empty elements, and the first match wins
 query I
-SELECT find_in_set(''::string, ','::string);
+SELECT find_in_set(CAST('' AS string), CAST(',' AS string));
 ----
 1
 
 query I
-SELECT find_in_set(''::string, 'a,,b'::string);
+SELECT find_in_set(CAST('' AS string), CAST('a,,b' AS string));
 ----
 2
 
 query I
-SELECT find_in_set(''::string, ',abc,b,ab,c,def'::string);
+SELECT find_in_set(CAST('' AS string), CAST(',abc,b,ab,c,def' AS string));
 ----
 1
 
 # a trailing comma adds a final empty element
 query I
-SELECT find_in_set(''::string, 'abc,b,ab,c,def,'::string);
+SELECT find_in_set(CAST('' AS string), CAST('abc,b,ab,c,def,' AS string));
 ----
 6
 
 query I
-SELECT find_in_set(''::string, 'abc,b,ab,c,def'::string);
+SELECT find_in_set(CAST('' AS string), CAST('abc,b,ab,c,def' AS string));
 ----
 0
 
 query I
-SELECT find_in_set(''::string, 'abc'::string);
+SELECT find_in_set(CAST('' AS string), CAST('abc' AS string));
 ----
 0
 
 query I
-SELECT find_in_set('ab'::string, ',,,ab,abc,b,ab,c,def'::string);
+SELECT find_in_set(CAST('ab' AS string), CAST(',,,ab,abc,b,ab,c,def' AS string));
 ----
 4
 
 query I
-SELECT find_in_set('ab'::string, 'ab,abc,b,ab,c,def'::string);
+SELECT find_in_set(CAST('ab' AS string), CAST('ab,abc,b,ab,c,def' AS string));
 ----
 1
 
 query I
-SELECT find_in_set('b'::string, 'a, b'::string);
+SELECT find_in_set(CAST('b' AS string), CAST('a, b' AS string));
 ----
 0
 
 query I
-SELECT find_in_set(' b'::string, 'a, b'::string);
+SELECT find_in_set(CAST(' b' AS string), CAST('a, b' AS string));
 ----
 2
 
 query I
-SELECT find_in_set('大'::string, 'test,大千,世,界X,大,千,世界'::string);
+SELECT find_in_set(CAST('大' AS string), CAST('test,大千,世,界X,大,千,世界' AS string));
 ----
 5
 
 query I
-SELECT find_in_set('界x'::string, 'test,大千,世,界X,大,千,世界'::string);
+SELECT find_in_set(CAST('界x' AS string), CAST('test,大千,世,界X,大,千,世界' AS string));
 ----
 0
 
 query I
-SELECT find_in_set('𝔸'::string, 'a,𐐅,𝔸'::string);
+SELECT find_in_set(CAST('𝔸' AS string), CAST('a,𐐅,𝔸' AS string));
 ----
 3
 
 query I
-SELECT find_in_set('🔥'::string, 'a,Д,🔥'::string);
+SELECT find_in_set(CAST('🔥' AS string), CAST('a,Д,🔥' AS string));
 ----
 3
 
 query I
-SELECT find_in_set(NULL::string, 'abc,b,ab,c,def'::string);
+SELECT find_in_set(CAST(NULL AS string), CAST('abc,b,ab,c,def' AS string));
 ----
 NULL
 
 query I
-SELECT find_in_set('ab'::string, NULL::string);
+SELECT find_in_set(CAST('ab' AS string), CAST(NULL AS string));
 ----
 NULL
 
 query I
-SELECT find_in_set(NULL::string, NULL::string);
+SELECT find_in_set(CAST(NULL AS string), CAST(NULL AS string));
 ----
 NULL
 
 query I
-SELECT find_in_set(a, 'abc,b,ab,c,def'::string) FROM (VALUES ('abc'::string), ('def'::string), ('zzz'::string), (''::string), ('d,ef'::string), (NULL::string)) AS t(a);
+SELECT find_in_set(a, CAST('abc,b,ab,c,def' AS string)) FROM (VALUES (CAST('abc' AS string)), (CAST('def' AS string)), (CAST('zzz' AS string)), (CAST('' AS string)), (CAST('d,ef' AS string)), (CAST(NULL AS string))) AS t(a);
 ----
 1
 5
@@ -168,7 +168,7 @@ SELECT find_in_set(a, 'abc,b,ab,c,def'::string) FROM (VALUES ('abc'::string), ('
 NULL
 
 query I
-SELECT find_in_set('ab'::string, a) FROM (VALUES ('abc,b,ab,c,def'::string), ('ab'::string), (''::string), (',ab'::string), (NULL::string)) AS t(a);
+SELECT find_in_set(CAST('ab' AS string), a) FROM (VALUES (CAST('abc,b,ab,c,def' AS string)), (CAST('ab' AS string)), (CAST('' AS string)), (CAST(',ab' AS string)), (CAST(NULL AS string))) AS t(a);
 ----
 3
 1
@@ -177,7 +177,7 @@ SELECT find_in_set('ab'::string, a) FROM (VALUES ('abc,b,ab,c,def'::string), ('a
 NULL
 
 query I
-SELECT find_in_set(a, b) FROM (VALUES ('ab'::string, 'abc,b,ab,c,def'::string), (''::string, 'a,,b'::string), ('c'::string, 'a,b'::string), ('a,b'::string, 'a,b'::string), (NULL::string, 'a,b'::string), ('a'::string, NULL::string)) AS t(a, b);
+SELECT find_in_set(a, b) FROM (VALUES (CAST('ab' AS string), CAST('abc,b,ab,c,def' AS string)), (CAST('' AS string), CAST('a,,b' AS string)), (CAST('c' AS string), CAST('a,b' AS string)), (CAST('a,b' AS string), CAST('a,b' AS string)), (CAST(NULL AS string), CAST('a,b' AS string)), (CAST('a' AS string), CAST(NULL AS string))) AS t(a, b);
 ----
 3
 2
@@ -188,7 +188,7 @@ NULL
 
 # 20 elements is past the size at which the set is looked up rather than scanned, and a5 repeats at 19
 query I
-SELECT find_in_set(a, 'a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,a13,a14,a15,a16,a17,a5,'::string) FROM (VALUES ('a0'::string), ('a17'::string), ('a5'::string), (''::string), ('zz'::string), (NULL::string)) AS t(a);
+SELECT find_in_set(a, CAST('a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,a13,a14,a15,a16,a17,a5,' AS string)) FROM (VALUES (CAST('a0' AS string)), (CAST('a17' AS string)), (CAST('a5' AS string)), (CAST('' AS string)), (CAST('zz' AS string)), (CAST(NULL AS string))) AS t(a);
 ----
 1
 18
@@ -198,12 +198,12 @@ SELECT find_in_set(a, 'a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,a13,a14,a15,a16
 NULL
 
 query I
-SELECT find_in_set('ab'::STRING, 'abc,b,ab,c,def'::STRING);
+SELECT find_in_set(CAST('ab' AS STRING), CAST('abc,b,ab,c,def' AS STRING));
 ----
 3
 
 query I
-SELECT find_in_set(a::STRING, 'abc,b,ab,c,def'::STRING) FROM (VALUES ('ab'::string), (''::string), (NULL::string)) AS t(a);
+SELECT find_in_set(CAST(a AS STRING), CAST('abc,b,ab,c,def' AS STRING)) FROM (VALUES (CAST('ab' AS string)), (CAST('' AS string)), (CAST(NULL AS string))) AS t(a);
 ----
 3
 0
@@ -215,7 +215,7 @@ SELECT find_in_set(arrow_cast('ab', 'LargeUtf8'), arrow_cast('abc,b,ab,c,def', '
 3
 
 query I
-SELECT find_in_set(arrow_cast(a, 'LargeUtf8'), arrow_cast('abc,b,ab,c,def', 'LargeUtf8')) FROM (VALUES ('ab'::string), (''::string), (NULL::string)) AS t(a);
+SELECT find_in_set(arrow_cast(a, 'LargeUtf8'), arrow_cast('abc,b,ab,c,def', 'LargeUtf8')) FROM (VALUES (CAST('ab' AS string)), (CAST('' AS string)), (CAST(NULL AS string))) AS t(a);
 ----
 3
 0
@@ -223,13 +223,13 @@ NULL
 
 # Spark implicitly casts both arguments to strings.
 query II
-SELECT find_in_set(2::INT, '1,2,3'), find_in_set('2', 2::INT);
+SELECT find_in_set(CAST(2 AS INT), '1,2,3'), find_in_set('2', CAST(2 AS INT));
 ----
 2 1
 
 query I
 SELECT find_in_set(a, 'false,true')
-FROM (VALUES (true), (false), (NULL::BOOLEAN)) AS t(a);
+FROM (VALUES (true), (false), (CAST(NULL AS BOOLEAN))) AS t(a);
 ----
 2
 1
@@ -253,7 +253,7 @@ SELECT find_in_set(TIMESTAMP '2020-01-01 00:00:00', 'x,2020-01-01 00:00:00');
 
 # xfail spark: double-to-string casting differs (https://github.com/apache/datafusion-spark/issues/88).
 query I
-SELECT find_in_set(1e20::DOUBLE, '1.0E20,100000000000000000000');
+SELECT find_in_set(CAST(1e20 AS DOUBLE), '1.0E20,100000000000000000000');
 ----
 0
 
@@ -268,7 +268,7 @@ NULL NULL NULL
 
 query I
 SELECT find_in_set(arrow_cast(a, 'LargeUtf8'), arrow_cast(b, 'Utf8View'))
-FROM (VALUES ('b', 'a,b'), ('界', 'a,界'), (NULL::STRING, 'a,b')) AS t(a, b);
+FROM (VALUES ('b', 'a,b'), ('界', 'a,界'), (CAST(NULL AS STRING), 'a,b')) AS t(a, b);
 ----
 2
 2
@@ -276,7 +276,7 @@ NULL
 
 query I
 SELECT find_in_set(arrow_cast(a, 'Dictionary(Int8, Utf8)'), b)
-FROM (VALUES ('b', 'a,b'), ('a', 'a,a'), (NULL::STRING, 'a,b')) AS t(a, b);
+FROM (VALUES ('b', 'a,b'), ('a', 'a,a'), (CAST(NULL AS STRING), 'a,b')) AS t(a, b);
 ----
 2
 1
@@ -289,7 +289,7 @@ Int32
 
 query T rowsort
 SELECT arrow_typeof(find_in_set(arrow_cast(a, 'LargeUtf8'), b))
-FROM (VALUES ('b', 'a,b'), (NULL::STRING, 'a,b')) AS t(a, b);
+FROM (VALUES ('b', 'a,b'), (CAST(NULL AS STRING), 'a,b')) AS t(a, b);
 ----
 Int32
 Int32

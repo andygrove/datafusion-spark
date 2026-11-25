@@ -13,176 +13,176 @@
 
 # Basic tests with different integer types
 query I
-SELECT bitwise_not(0::int);
+SELECT bitwise_not(CAST(0 AS int));
 ----
 -1
 
 query I
-SELECT bitwise_not(1::int);
+SELECT bitwise_not(CAST(1 AS int));
 ----
 -2
 
 query I
-SELECT bitwise_not(7::int);
+SELECT bitwise_not(CAST(7 AS int));
 ----
 -8
 
 query I
-SELECT bitwise_not(15::int);
+SELECT bitwise_not(CAST(15 AS int));
 ----
 -16
 
 query I
-SELECT bitwise_not(255::int);
+SELECT bitwise_not(CAST(255 AS int));
 ----
 -256
 
 query I
-SELECT bitwise_not(1023::int);
+SELECT bitwise_not(CAST(1023 AS int));
 ----
 -1024
 
 # Tests with negative numbers (two's complement)
 query I
-SELECT bitwise_not(-1::int);
+SELECT bitwise_not(-CAST(1 AS int));
 ----
 0
 
 query I
-SELECT bitwise_not(-2::int);
+SELECT bitwise_not(-CAST(2 AS int));
 ----
 1
 
 query I
-SELECT bitwise_not(-3::int);
+SELECT bitwise_not(-CAST(3 AS int));
 ----
 2
 
 # Tests with different integer types
 query I
-SELECT bitwise_not(0::TINYINT);
+SELECT bitwise_not(CAST(0 AS TINYINT));
 ----
 -1
 
 query I
-SELECT bitwise_not(15::TINYINT);
+SELECT bitwise_not(CAST(15 AS TINYINT));
 ----
 -16
 
 query I
-SELECT bitwise_not((-1)::TINYINT);
+SELECT bitwise_not(CAST(-1 AS TINYINT));
 ----
 0
 
 query I
-SELECT bitwise_not(0::SMALLINT);
+SELECT bitwise_not(CAST(0 AS SMALLINT));
 ----
 -1
 
 query I
-SELECT bitwise_not(255::SMALLINT);
+SELECT bitwise_not(CAST(255 AS SMALLINT));
 ----
 -256
 
 query I
-SELECT bitwise_not((-1)::SMALLINT);
+SELECT bitwise_not(CAST(-1 AS SMALLINT));
 ----
 0
 
 query I
-SELECT bitwise_not(0::INT);
+SELECT bitwise_not(CAST(0 AS INT));
 ----
 -1
 
 query I
-SELECT bitwise_not(255::INT);
+SELECT bitwise_not(CAST(255 AS INT));
 ----
 -256
 
 query I
-SELECT bitwise_not((-1)::INT);
+SELECT bitwise_not(CAST(-1 AS INT));
 ----
 0
 
 query I
-SELECT bitwise_not(0::BIGINT);
+SELECT bitwise_not(CAST(0 AS BIGINT));
 ----
 -1
 
 query I
-SELECT bitwise_not(255::BIGINT);
+SELECT bitwise_not(CAST(255 AS BIGINT));
 ----
 -256
 
 query I
-SELECT bitwise_not((-1)::BIGINT);
+SELECT bitwise_not(CAST(-1 AS BIGINT));
 ----
 0
 
 # Tests with NULL values
 query I
-SELECT bitwise_not(NULL::INT);
+SELECT bitwise_not(CAST(NULL AS INT));
 ----
 NULL
 
 query I
-SELECT bitwise_not(NULL::TINYINT);
+SELECT bitwise_not(CAST(NULL AS TINYINT));
 ----
 NULL
 
 query I
-SELECT bitwise_not(NULL::BIGINT);
+SELECT bitwise_not(CAST(NULL AS BIGINT));
 ----
 NULL
 
 # Tests with edge cases
 query I
-SELECT bitwise_not(0::INT) as zero_not;
+SELECT bitwise_not(CAST(0 AS INT)) as zero_not;
 ----
 -1
 
 query I
-SELECT bitwise_not(1::INT) as one_not;
+SELECT bitwise_not(CAST(1 AS INT)) as one_not;
 ----
 -2
 
 query I
-SELECT bitwise_not(2::INT) as two_not;
+SELECT bitwise_not(CAST(2 AS INT)) as two_not;
 ----
 -3
 
 query I
-SELECT bitwise_not(3::INT) as three_not;
+SELECT bitwise_not(CAST(3 AS INT)) as three_not;
 ----
 -4
 
 query I
-SELECT bitwise_not(4::INT) as four_not;
+SELECT bitwise_not(CAST(4 AS INT)) as four_not;
 ----
 -5
 
 query I
-SELECT bitwise_not(5::INT) as five_not;
+SELECT bitwise_not(CAST(5 AS INT)) as five_not;
 ----
 -6
 
 # Tests with large numbers
 query I
-SELECT bitwise_not(2147483647::INT);
+SELECT bitwise_not(CAST(2147483647 AS INT));
 ----
 -2147483648
 
 query I
-SELECT bitwise_not((-2147483648)::INT);
+SELECT bitwise_not(CAST(-2147483648 AS INT));
 ----
 2147483647
 
 query I
-SELECT bitwise_not(9223372036854775807::BIGINT);
+SELECT bitwise_not(CAST(9223372036854775807 AS BIGINT));
 ----
 -9223372036854775808
 
 query I
-SELECT bitwise_not((-9223372036854775808)::BIGINT);
+SELECT bitwise_not(CAST(-9223372036854775808 AS BIGINT));
 ----
 9223372036854775807

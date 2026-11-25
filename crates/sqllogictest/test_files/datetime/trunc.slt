@@ -8,77 +8,77 @@
 # YEAR - truncate to first date of year
 skipif evaluate
 query D
-SELECT trunc('2009-02-12'::date, 'YEAR'::string);
+SELECT trunc(CAST('2009-02-12' AS date), CAST('YEAR' AS string));
 ----
 2009-01-01
 
 skipif evaluate
 query D
-SELECT trunc('2009-02-12'::date, 'YYYY'::string);
+SELECT trunc(CAST('2009-02-12' AS date), CAST('YYYY' AS string));
 ----
 2009-01-01
 
 skipif evaluate
 query D
-SELECT trunc('2009-02-12'::date, 'YY'::string);
+SELECT trunc(CAST('2009-02-12' AS date), CAST('YY' AS string));
 ----
 2009-01-01
 
 # QUARTER - truncate to first date of quarter
 skipif evaluate
 query D
-SELECT trunc('2009-02-12'::date, 'QUARTER'::string);
+SELECT trunc(CAST('2009-02-12' AS date), CAST('QUARTER' AS string));
 ----
 2009-01-01
 
 # MONTH - truncate to first date of month
 skipif evaluate
 query D
-SELECT trunc('2009-02-12'::date, 'MONTH'::string);
+SELECT trunc(CAST('2009-02-12' AS date), CAST('MONTH' AS string));
 ----
 2009-02-01
 
 skipif evaluate
 query D
-SELECT trunc('2009-02-12'::date, 'MM'::string);
+SELECT trunc(CAST('2009-02-12' AS date), CAST('MM' AS string));
 ----
 2009-02-01
 
 skipif evaluate
 query D
-SELECT trunc('2009-02-12'::date, 'MON'::string);
+SELECT trunc(CAST('2009-02-12' AS date), CAST('MON' AS string));
 ----
 2009-02-01
 
 # xfail spark: Spark returns NULL for an unsupported or NULL trunc/date_trunc format (https://github.com/apache/datafusion-spark/issues/40)
 skipif evaluate
 query D
-SELECT trunc('2009-02-12'::date, 'MONTHS'::string);
+SELECT trunc(CAST('2009-02-12' AS date), CAST('MONTHS' AS string));
 ----
 2009-02-01
 
 # WEEK - truncate to Monday of the week
 skipif evaluate
 query D
-SELECT trunc('2009-02-12'::date, 'WEEK'::string);
+SELECT trunc(CAST('2009-02-12' AS date), CAST('WEEK' AS string));
 ----
 2009-02-09
 
 # string input
 skipif evaluate
 query D
-SELECT trunc('2009-02-12'::string, 'YEAR'::string);
+SELECT trunc(CAST('2009-02-12' AS string), CAST('YEAR' AS string));
 ----
 2009-01-01
 
 skipif evaluate
 query D
-SELECT trunc(column1, 'YEAR'::string)
+SELECT trunc(column1, CAST('YEAR' AS string))
 FROM VALUES
-('2009-02-12'::date),
-('2000-02-12'::date),
-('2042-02-12'::date),
-(NULL::date);
+(CAST('2009-02-12' AS date)),
+(CAST('2000-02-12' AS date)),
+(CAST('2042-02-12' AS date)),
+(CAST(NULL AS date));
 ----
 2009-01-01
 2000-01-01
@@ -88,17 +88,17 @@ NULL
 # Null handling
 skipif evaluate
 query D
-SELECT trunc(NULL::date, 'YEAR'::string);
+SELECT trunc(CAST(NULL AS date), CAST('YEAR' AS string));
 ----
 NULL
 
 # xfail spark: Spark returns NULL for an unsupported or NULL trunc/date_trunc format (https://github.com/apache/datafusion-spark/issues/40)
 skipif evaluate
 query error DataFusion error: Optimizer rule 'simplify_expressions' failed\ncaused by\nError during planning: Second argument of `TRUNC` must be non-null scalar Utf8
-SELECT trunc('2009-02-12'::date, NULL::string);
+SELECT trunc(CAST('2009-02-12' AS date), CAST(NULL AS string));
 
 # incorrect format
 # xfail spark: Spark returns NULL for an unsupported or NULL trunc/date_trunc format (https://github.com/apache/datafusion-spark/issues/40)
 skipif evaluate
 query error DataFusion error: Optimizer rule 'simplify_expressions' failed\ncaused by\nError during planning: The format argument of `TRUNC` must represent a year, month, day, week, or quarter.
-SELECT trunc('2009-02-12'::date, 'test'::string);
+SELECT trunc(CAST('2009-02-12' AS date), CAST('test' AS string));

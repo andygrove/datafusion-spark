@@ -12,7 +12,7 @@
 ## PySpark 3.5.5 Result: {'pow(2, 3)': 8.0, 'typeof(pow(2, 3))': 'double'}
 ## DataFusion: pow(int, int) returns int. Sqllogictest prints 8.
 query R
-SELECT pow(2::int, 3::int);
+SELECT pow(CAST(2 AS int), CAST(3 AS int));
 ----
 8
 
@@ -21,12 +21,12 @@ SELECT pow(2::int, 3::int);
 ## PySpark 3.5.5:  spark.sql("select pow(0, -1)").show()  =>  Infinity
 
 query R
-SELECT pow(0::double, -1::double);
+SELECT pow(CAST(0 AS double), -CAST(1 AS double));
 ----
 Infinity
 
 query R
-SELECT power(0::double, -1::double);
+SELECT power(CAST(0 AS double), -CAST(1 AS double));
 ----
 Infinity
 

@@ -10,60 +10,60 @@
 
 # Basic PMOD tests with positive integers
 query I
-SELECT pmod(10::int, 3::int) as pmod_1;
+SELECT pmod(CAST(10 AS int), CAST(3 AS int)) as pmod_1;
 ----
 1
 
 query I
-SELECT pmod(7::int, 2::int) as pmod_2;
+SELECT pmod(CAST(7 AS int), CAST(2 AS int)) as pmod_2;
 ----
 1
 
 query I
-SELECT pmod(15::int, 4::int) as pmod_3;
+SELECT pmod(CAST(15 AS int), CAST(4 AS int)) as pmod_3;
 ----
 3
 
 # PMOD tests with negative integers (should return positive remainder)
 query I
-SELECT pmod(-10::int, 3::int) as pmod_negative_1;
+SELECT pmod(-CAST(10 AS int), CAST(3 AS int)) as pmod_negative_1;
 ----
 2
 
 query I
-SELECT pmod(-7::int, 3::int) as pmod_negative_2;
+SELECT pmod(-CAST(7 AS int), CAST(3 AS int)) as pmod_negative_2;
 ----
 2
 
 query I
-SELECT pmod(-15::int, 4::int) as pmod_negative_3;
+SELECT pmod(-CAST(15 AS int), CAST(4 AS int)) as pmod_negative_3;
 ----
 1
 
 query I
-SELECT pmod(-5::int, 5::int) as pmod_negative_4;
+SELECT pmod(-CAST(5 AS int), CAST(5 AS int)) as pmod_negative_4;
 ----
 0
 
 # PMOD tests with zero
 query I
-SELECT pmod(0::int, 5::int) as pmod_zero_1;
+SELECT pmod(CAST(0 AS int), CAST(5 AS int)) as pmod_zero_1;
 ----
 0
 
 query I
-SELECT pmod(10::int, 0::int) as pmod_zero_2;
+SELECT pmod(CAST(10 AS int), CAST(0 AS int)) as pmod_zero_2;
 ----
 NULL
 
 query I
-SELECT pmod(-7::int, 0::int) as pmod_zero_3;
+SELECT pmod(-CAST(7 AS int), CAST(0 AS int)) as pmod_zero_3;
 ----
 NULL
 
 # A negative zero divisor counts as zero and returns NULL in legacy mode
 query R
-SELECT pmod(10.5::float8, -0.0::float8) as pmod_div_zero_neg_float;
+SELECT pmod(CAST(10.5 AS float8), -CAST(0.0 AS float8)) as pmod_div_zero_neg_float;
 ----
 NULL
 
@@ -72,31 +72,31 @@ statement ok
 set datafusion.execution.enable_ansi_mode = true;
 
 statement error DataFusion error: Arrow error: Divide by zero error
-SELECT pmod(10::int, 0::int);
+SELECT pmod(CAST(10 AS int), CAST(0 AS int));
 
 statement error DataFusion error: Arrow error: Divide by zero error
-SELECT pmod(-7::int, 0::int);
+SELECT pmod(-CAST(7 AS int), CAST(0 AS int));
 
 # A zero divisor of any numeric type raises, including floating point
 statement error DataFusion error: Arrow error: Divide by zero error
-SELECT pmod(10.5::float8, 0.0::float8);
+SELECT pmod(CAST(10.5 AS float8), CAST(0.0 AS float8));
 
 # A negative zero divisor counts as zero and raises
 statement error DataFusion error: Arrow error: Divide by zero error
-SELECT pmod(10.5::float8, -0.0::float8);
+SELECT pmod(CAST(10.5 AS float8), -CAST(0.0 AS float8));
 
 # A decimal result that does not fit raises instead of returning NULL
 statement error DataFusion error: Arrow error: Invalid argument error: 9999\.8 is too large to store in a Decimal128 of precision 3
-SELECT pmod(-0.1::decimal(3,1), 9999.9::decimal(5,1));
+SELECT pmod(-CAST(0.1 AS decimal(3,1)), CAST(9999.9 AS decimal(5,1)));
 
 # A NULL dividend short-circuits to NULL before the divisor is validated
 query I
-SELECT pmod(NULL::int, 0::int) as pmod_null_dividend_ansi;
+SELECT pmod(CAST(NULL AS int), CAST(0 AS int)) as pmod_null_dividend_ansi;
 ----
 NULL
 
 query R
-SELECT pmod(NULL::float8, 0.0::float8) as pmod_null_dividend_ansi_float;
+SELECT pmod(CAST(NULL AS float8), CAST(0.0 AS float8)) as pmod_null_dividend_ansi_float;
 ----
 NULL
 
@@ -105,17 +105,17 @@ set datafusion.execution.enable_ansi_mode = false;
 
 # PMOD tests with NULL values
 query I
-SELECT pmod(NULL::int, 3::int) as pmod_null_1;
+SELECT pmod(CAST(NULL AS int), CAST(3 AS int)) as pmod_null_1;
 ----
 NULL
 
 query I
-SELECT pmod(10::int, NULL::int) as pmod_null_2;
+SELECT pmod(CAST(10 AS int), CAST(NULL AS int)) as pmod_null_2;
 ----
 NULL
 
 query I
-SELECT pmod(NULL::int, NULL::int) as pmod_null_3;
+SELECT pmod(CAST(NULL AS int), CAST(NULL AS int)) as pmod_null_3;
 ----
 NULL
 
@@ -125,106 +125,106 @@ SELECT arrow_typeof(pmod(NULL, NULL));
 Float64
 
 query T
-SELECT arrow_typeof(pmod(2.5::decimal(3,1), NULL));
+SELECT arrow_typeof(pmod(CAST(2.5 AS decimal(3,1)), NULL));
 ----
 Decimal128(3, 1)
 
 query I
-SELECT pmod(NULL, 3::int);
+SELECT pmod(NULL, CAST(3 AS int));
 ----
 NULL
 
 # PMOD tests with large integers
 query I
-SELECT pmod(100::int, 30::int) as pmod_large_1;
+SELECT pmod(CAST(100 AS int), CAST(30 AS int)) as pmod_large_1;
 ----
 10
 
 query I
-SELECT pmod(-100::int, 30::int) as pmod_large_2;
+SELECT pmod(-CAST(100 AS int), CAST(30 AS int)) as pmod_large_2;
 ----
 20
 
 query I
-SELECT pmod(200::int, 60::int) as pmod_large_3;
+SELECT pmod(CAST(200 AS int), CAST(60 AS int)) as pmod_large_3;
 ----
 20
 
 query I
-SELECT pmod(-200::int, 60::int) as pmod_large_4;
+SELECT pmod(-CAST(200 AS int), CAST(60 AS int)) as pmod_large_4;
 ----
 40
 
 # PMOD tests with edge cases
 query I
-SELECT pmod(-1::int, 5::int) as pmod_edge_1;
+SELECT pmod(-CAST(1 AS int), CAST(5 AS int)) as pmod_edge_1;
 ----
 4
 
 query I
-SELECT pmod(1::int, 5::int) as pmod_edge_2;
+SELECT pmod(CAST(1 AS int), CAST(5 AS int)) as pmod_edge_2;
 ----
 1
 
 query I
-SELECT pmod(-5::int, 5::int) as pmod_edge_3;
+SELECT pmod(-CAST(5 AS int), CAST(5 AS int)) as pmod_edge_3;
 ----
 0
 
 query I
-SELECT pmod(5::int, 5::int) as pmod_edge_4;
+SELECT pmod(CAST(5 AS int), CAST(5 AS int)) as pmod_edge_4;
 ----
 0
 
 query I
-SELECT pmod(-6::int, 5::int) as pmod_edge_5;
+SELECT pmod(-CAST(6 AS int), CAST(5 AS int)) as pmod_edge_5;
 ----
 4
 
 query I
-SELECT pmod(6::int, 5::int) as pmod_edge_6;
+SELECT pmod(CAST(6 AS int), CAST(5 AS int)) as pmod_edge_6;
 ----
 1
 
 # PMOD tests with negative divisors
 query I
-SELECT pmod(10::int, -3::int) as pmod_neg_div_1;
+SELECT pmod(CAST(10 AS int), -CAST(3 AS int)) as pmod_neg_div_1;
 ----
 1
 
 query I
-SELECT pmod(-7::int, -3::int) as pmod_neg_div_2;
+SELECT pmod(-CAST(7 AS int), -CAST(3 AS int)) as pmod_neg_div_2;
 ----
 -1
 
 query I
-SELECT pmod(15::int, -4::int) as pmod_neg_div_3;
+SELECT pmod(CAST(15 AS int), -CAST(4 AS int)) as pmod_neg_div_3;
 ----
 3
 
 # PMOD tests with floating point numbers
 query R
-SELECT pmod(10.5::float8, 3.0::float8) as pmod_float_1;
+SELECT pmod(CAST(10.5 AS float8), CAST(3.0 AS float8)) as pmod_float_1;
 ----
 1.5
 
 query R
-SELECT pmod(-7.2::float8, 3.0::float8) as pmod_float_2;
+SELECT pmod(-CAST(7.2 AS float8), CAST(3.0 AS float8)) as pmod_float_2;
 ----
 1.7999999999999998
 
 query R
-SELECT pmod(15.8::float8, 4.2::float8) as pmod_float_3;
+SELECT pmod(CAST(15.8 AS float8), CAST(4.2 AS float8)) as pmod_float_3;
 ----
 3.2
 
 query R
-SELECT pmod(-15.8::float8, 4.2::float8) as pmod_float_4;
+SELECT pmod(-CAST(15.8 AS float8), CAST(4.2 AS float8)) as pmod_float_4;
 ----
 1
 
 query R
-SELECT pmod(5.0::float8, 2.5::float8) as pmod_float_5;
+SELECT pmod(CAST(5.0 AS float8), CAST(2.5 AS float8)) as pmod_float_5;
 ----
 0
 
@@ -238,7 +238,7 @@ SELECT pmod(5.0::float8, 2.5::float8) as pmod_float_5;
 
 # PMOD tests with float32
 query R
-SELECT pmod(10.5::float4, 3.0::float4) as pmod_float32_1;
+SELECT pmod(CAST(10.5 AS float4), CAST(3.0 AS float4)) as pmod_float32_1;
 ----
 1.5
 
@@ -248,69 +248,69 @@ SELECT CAST(pmod(CAST(-7.2 AS float4), CAST(3.0 AS float4)) AS DECIMAL(3,1)) as 
 1.8
 
 query R
-SELECT CAST(pmod(15.8::float4, 4.2::float4) AS DECIMAL(3,1)) as pmod_float32_3;
+SELECT CAST(pmod(CAST(15.8 AS float4), CAST(4.2 AS float4)) AS DECIMAL(3,1)) as pmod_float32_3;
 ----
 3.2
 
 query R
-SELECT CAST(pmod(-15.8::float4, 4.2::float4) AS DECIMAL(3,1)) as pmod_float32_4;
+SELECT CAST(pmod(-CAST(15.8 AS float4), CAST(4.2 AS float4)) AS DECIMAL(3,1)) as pmod_float32_4;
 ----
 1.0
 
 # PMOD tests with special float values
 query R
-SELECT pmod('NaN'::float8, 2.0::float8) as pmod_nan_1;
+SELECT pmod(CAST('NaN' AS float8), CAST(2.0 AS float8)) as pmod_nan_1;
 ----
 NaN
 
 query R
-SELECT pmod(5.0::float8, 'NaN'::float8) as pmod_nan_2;
+SELECT pmod(CAST(5.0 AS float8), CAST('NaN' AS float8)) as pmod_nan_2;
 ----
 NaN
 
 query R
-SELECT pmod('Infinity'::float8, 2.0::float8) as pmod_inf_1;
+SELECT pmod(CAST('Infinity' AS float8), CAST(2.0 AS float8)) as pmod_inf_1;
 ----
 NaN
 
 query R
-SELECT pmod(5.0::float8, 'Infinity'::float8) as pmod_inf_2;
+SELECT pmod(CAST(5.0 AS float8), CAST('Infinity' AS float8)) as pmod_inf_2;
 ----
 5
 
 query R
-SELECT pmod(-5.0::float8, 'Infinity'::float8) as pmod_inf_3;
+SELECT pmod(-CAST(5.0 AS float8), CAST('Infinity' AS float8)) as pmod_inf_3;
 ----
 NaN
 
 query R
-SELECT pmod('NaN'::float8, 'Infinity'::float8) as pmod_nan_inf_1;
+SELECT pmod(CAST('NaN' AS float8), CAST('Infinity' AS float8)) as pmod_nan_inf_1;
 ----
 NaN
 
 query R
-SELECT pmod('Infinity'::float8, 'NaN'::float8) as pmod_inf_nan_1;
+SELECT pmod(CAST('Infinity' AS float8), CAST('NaN' AS float8)) as pmod_inf_nan_1;
 ----
 NaN
 
 # PMOD tests with decimal types
 query R
-SELECT pmod(2.5::decimal(3,1), 1.2::decimal(2,1)) as pmod_decimal_1;
+SELECT pmod(CAST(2.5 AS decimal(3,1)), CAST(1.2 AS decimal(2,1))) as pmod_decimal_1;
 ----
 0.1
 
 query R
-SELECT pmod(-2.5::decimal(3,1), 1.2::decimal(2,1)) as pmod_decimal_2;
+SELECT pmod(-CAST(2.5 AS decimal(3,1)), CAST(1.2 AS decimal(2,1))) as pmod_decimal_2;
 ----
 1.1
 
 query R
-SELECT pmod(10.0::decimal(3,1), 3.0::decimal(2,1)) as pmod_decimal_3;
+SELECT pmod(CAST(10.0 AS decimal(3,1)), CAST(3.0 AS decimal(2,1))) as pmod_decimal_3;
 ----
 1.0
 
 query R
-SELECT pmod(-10.0::decimal(3,1), 3.0::decimal(2,1)) as pmod_decimal_4;
+SELECT pmod(-CAST(10.0 AS decimal(3,1)), CAST(3.0 AS decimal(2,1))) as pmod_decimal_4;
 ----
 2.0
 
@@ -319,31 +319,31 @@ SELECT pmod(-10.0::decimal(3,1), 3.0::decimal(2,1)) as pmod_decimal_4;
 #   scale     = max(s1, s2)
 #   precision = min(p1 - s1, p2 - s2) + scale
 query T
-SELECT arrow_typeof(pmod(2.5::decimal(3,1), 1.2::decimal(2,1)));
+SELECT arrow_typeof(pmod(CAST(2.5 AS decimal(3,1)), CAST(1.2 AS decimal(2,1))));
 ----
 Decimal128(2, 1)
 
 # The divisor bounds the result, so the narrower argument decides the precision
 query T
-SELECT arrow_typeof(pmod(10.0::decimal(5,2), 3.0::decimal(4,1)));
+SELECT arrow_typeof(pmod(CAST(10.0 AS decimal(5,2)), CAST(3.0 AS decimal(4,1))));
 ----
 Decimal128(5, 2)
 
 # Differing scales: the wider scale wins
 query T
-SELECT arrow_typeof(pmod(1.234::decimal(6,3), 2.1::decimal(4,1)));
+SELECT arrow_typeof(pmod(CAST(1.234 AS decimal(6,3)), CAST(2.1 AS decimal(4,1))));
 ----
 Decimal128(6, 3)
 
 # The dividend does not fit the result type, so it must not be narrowed before
 # the remainder is taken
 query T
-SELECT arrow_typeof(pmod(99.9::decimal(3,1), 2.5::decimal(2,1)));
+SELECT arrow_typeof(pmod(CAST(99.9 AS decimal(3,1)), CAST(2.5 AS decimal(2,1))));
 ----
 Decimal128(2, 1)
 
 query R
-SELECT pmod(99.9::decimal(3,1), 2.5::decimal(2,1));
+SELECT pmod(CAST(99.9 AS decimal(3,1)), CAST(2.5 AS decimal(2,1)));
 ----
 2.4
 
@@ -352,43 +352,43 @@ SELECT pmod(99.9::decimal(3,1), 2.5::decimal(2,1));
 # wraps decimal arithmetic in CheckOverflow(nullOnOverflow = !ansiEnabled), so
 # this is NULL in legacy mode; the ANSI error is asserted in the ANSI block above.
 query T
-SELECT arrow_typeof(pmod(-0.1::decimal(3,1), 9999.9::decimal(5,1)));
+SELECT arrow_typeof(pmod(-CAST(0.1 AS decimal(3,1)), CAST(9999.9 AS decimal(5,1))));
 ----
 Decimal128(3, 1)
 
 query R
-SELECT pmod(-0.1::decimal(3,1), 9999.9::decimal(5,1));
+SELECT pmod(-CAST(0.1 AS decimal(3,1)), CAST(9999.9 AS decimal(5,1)));
 ----
 NULL
 
 # PMOD tests with different integer types
 query I
-SELECT pmod(10::int8, 3::int8) as pmod_int8_1;
+SELECT pmod(CAST(10 AS int8), CAST(3 AS int8)) as pmod_int8_1;
 ----
 1
 
 query I
-SELECT pmod(-10::int8, 3::int8) as pmod_int8_2;
+SELECT pmod(-CAST(10 AS int8), CAST(3 AS int8)) as pmod_int8_2;
 ----
 2
 
 query I
-SELECT pmod(10::SMALLINT, 3::SMALLINT) as pmod_int16_1;
+SELECT pmod(CAST(10 AS SMALLINT), CAST(3 AS SMALLINT)) as pmod_int16_1;
 ----
 1
 
 query I
-SELECT pmod((-10)::SMALLINT, 3::SMALLINT) as pmod_int16_2;
+SELECT pmod(CAST(-10 AS SMALLINT), CAST(3 AS SMALLINT)) as pmod_int16_2;
 ----
 2
 
 query I
-SELECT pmod(10::BIGINT, 3::BIGINT) as pmod_int64_1;
+SELECT pmod(CAST(10 AS BIGINT), CAST(3 AS BIGINT)) as pmod_int64_1;
 ----
 1
 
 query I
-SELECT pmod((-10)::BIGINT, 3::BIGINT) as pmod_int64_2;
+SELECT pmod(CAST(-10 AS BIGINT), CAST(3 AS BIGINT)) as pmod_int64_2;
 ----
 2
 
@@ -396,77 +396,77 @@ SELECT pmod((-10)::BIGINT, 3::BIGINT) as pmod_int64_2;
 # Spark evaluates `(r + n) % n` with Java arithmetic: `byte` and `short` are
 # promoted to `int` and never overflow, while `int` and `long` wrap around.
 query I
-SELECT pmod((-1)::INT, (-2147483648)::INT);
+SELECT pmod(CAST(-1 AS INT), CAST(-2147483648 AS INT));
 ----
 2147483647
 
 query I
-SELECT pmod((-2)::INT, (-2147483648)::INT);
+SELECT pmod(CAST(-2 AS INT), CAST(-2147483648 AS INT));
 ----
 2147483646
 
 query I
-SELECT pmod(2147483647::INT, (-2147483648)::INT);
+SELECT pmod(CAST(2147483647 AS INT), CAST(-2147483648 AS INT));
 ----
 2147483647
 
 query I
-SELECT pmod((-2147483648)::INT, (-1)::INT);
+SELECT pmod(CAST(-2147483648 AS INT), CAST(-1 AS INT));
 ----
 0
 
 query I
-SELECT pmod((-2147483648)::INT, 3::INT);
+SELECT pmod(CAST(-2147483648 AS INT), CAST(3 AS INT));
 ----
 1
 
 query I
-SELECT pmod((-1)::BIGINT, (-9223372036854775808)::BIGINT);
+SELECT pmod(CAST(-1 AS BIGINT), CAST(-9223372036854775808 AS BIGINT));
 ----
 9223372036854775807
 
 query I
-SELECT pmod((-9223372036854775808)::BIGINT, (-1)::BIGINT);
+SELECT pmod(CAST(-9223372036854775808 AS BIGINT), CAST(-1 AS BIGINT));
 ----
 0
 
 query I
-SELECT pmod(2::BIGINT, 9223372036854775807::BIGINT);
+SELECT pmod(CAST(2 AS BIGINT), CAST(9223372036854775807 AS BIGINT));
 ----
 2
 
 query I
-SELECT pmod((-1)::TINYINT, (-128)::TINYINT);
+SELECT pmod(CAST(-1 AS TINYINT), CAST(-128 AS TINYINT));
 ----
 -1
 
 query I
-SELECT pmod((-128)::TINYINT, (-1)::TINYINT);
+SELECT pmod(CAST(-128 AS TINYINT), CAST(-1 AS TINYINT));
 ----
 0
 
 query I
-SELECT pmod((-1)::SMALLINT, (-32768)::SMALLINT);
+SELECT pmod(CAST(-1 AS SMALLINT), CAST(-32768 AS SMALLINT));
 ----
 -1
 
 query I
-SELECT pmod((-32768)::SMALLINT, (-1)::SMALLINT);
+SELECT pmod(CAST(-32768 AS SMALLINT), CAST(-1 AS SMALLINT));
 ----
 0
 
 query I
-SELECT pmod(128::SMALLINT, (-32768)::SMALLINT);
+SELECT pmod(CAST(128 AS SMALLINT), CAST(-32768 AS SMALLINT));
 ----
 128
 
 # The same boundary cases on array inputs
 query II
-SELECT a, pmod(a, (-2147483648)::INT) FROM (VALUES
-  ((-1)::INT),
-  ((-2)::INT),
-  (2147483647::INT),
-  (NULL::INT)
+SELECT a, pmod(a, CAST(-2147483648 AS INT)) FROM (VALUES
+  (CAST(-1 AS INT)),
+  (CAST(-2 AS INT)),
+  (CAST(2147483647 AS INT)),
+  (CAST(NULL AS INT))
 ) AS t(a);
 ----
 -1 2147483647
@@ -480,31 +480,31 @@ statement ok
 set datafusion.execution.enable_ansi_mode = true;
 
 query I
-SELECT pmod((-1)::INT, (-2147483648)::INT);
+SELECT pmod(CAST(-1 AS INT), CAST(-2147483648 AS INT));
 ----
 2147483647
 
 query I
-SELECT pmod((-1)::BIGINT, (-9223372036854775808)::BIGINT);
+SELECT pmod(CAST(-1 AS BIGINT), CAST(-9223372036854775808 AS BIGINT));
 ----
 9223372036854775807
 
 query I
-SELECT pmod((-1)::TINYINT, (-128)::TINYINT);
+SELECT pmod(CAST(-1 AS TINYINT), CAST(-128 AS TINYINT));
 ----
 -1
 
 query I
-SELECT pmod((-1)::SMALLINT, (-32768)::SMALLINT);
+SELECT pmod(CAST(-1 AS SMALLINT), CAST(-32768 AS SMALLINT));
 ----
 -1
 
 query II
-SELECT a, pmod(a, (-2147483648)::INT) FROM (VALUES
-  ((-1)::INT),
-  ((-2)::INT),
-  (2147483647::INT),
-  (NULL::INT)
+SELECT a, pmod(a, CAST(-2147483648 AS INT)) FROM (VALUES
+  (CAST(-1 AS INT)),
+  (CAST(-2 AS INT)),
+  (CAST(2147483647 AS INT)),
+  (CAST(NULL AS INT))
 ) AS t(a);
 ----
 -1 2147483647
@@ -554,7 +554,7 @@ SELECT pmod(10.5, 3.0) as pmod_scalar_3;
 
 # DataFusion types the untyped `-7.2` and `3.0` as DOUBLE, while Spark reads them as
 # DECIMAL and returns 1.8 (https://github.com/apache/datafusion-spark/issues/97).
-# The `::float8` query above checks the DOUBLE result.
+# The `float8` cast above checks the DOUBLE result.
 # xfail spark: Spark types the unsuffixed literals as INT/DECIMAL, DataFusion as BIGINT/DOUBLE (https://github.com/apache/datafusion-spark/issues/97)
 query R
 SELECT pmod(-7.2, 3.0) as pmod_scalar_4;

@@ -13,94 +13,94 @@
 
 # Basic tests with different integer types
 query I
-SELECT bit_count(0::int);
+SELECT bit_count(CAST(0 AS int));
 ----
 0
 
 query I
-SELECT bit_count(1::int);
+SELECT bit_count(CAST(1 AS int));
 ----
 1
 
 query I
-SELECT bit_count(7::int);
+SELECT bit_count(CAST(7 AS int));
 ----
 3
 
 query I
-SELECT bit_count(15::int);
+SELECT bit_count(CAST(15 AS int));
 ----
 4
 
 query I
-SELECT bit_count(255::int);
+SELECT bit_count(CAST(255 AS int));
 ----
 8
 
 query I
-SELECT bit_count(1023::int);
+SELECT bit_count(CAST(1023 AS int));
 ----
 10
 
 # Tests with negative numbers (two's complement)
 query I
-SELECT bit_count(-1::int);
+SELECT bit_count(-CAST(1 AS int));
 ----
 64
 
 query I
-SELECT bit_count(-2::int);
+SELECT bit_count(-CAST(2 AS int));
 ----
 63
 
 query I
-SELECT bit_count(-3::int);
+SELECT bit_count(-CAST(3 AS int));
 ----
 63
 
 # Tests with different integer types
 query I
-SELECT bit_count(0::TINYINT);
+SELECT bit_count(CAST(0 AS TINYINT));
 ----
 0
 
 query I
-SELECT bit_count(15::TINYINT);
+SELECT bit_count(CAST(15 AS TINYINT));
 ----
 4
 
 query I
-SELECT bit_count((-1)::TINYINT);
+SELECT bit_count(CAST(-1 AS TINYINT));
 ----
 64
 
 query I
-SELECT bit_count(0::SMALLINT);
+SELECT bit_count(CAST(0 AS SMALLINT));
 ----
 0
 
 query I
-SELECT bit_count(255::SMALLINT);
+SELECT bit_count(CAST(255 AS SMALLINT));
 ----
 8
 
 query I
-SELECT bit_count((-1)::SMALLINT);
+SELECT bit_count(CAST(-1 AS SMALLINT));
 ----
 64
 
 query I
-SELECT bit_count(0::BIGINT);
+SELECT bit_count(CAST(0 AS BIGINT));
 ----
 0
 
 query I
-SELECT bit_count(255::BIGINT);
+SELECT bit_count(CAST(255 AS BIGINT));
 ----
 8
 
 query I
-SELECT bit_count((-1)::BIGINT);
+SELECT bit_count(CAST(-1 AS BIGINT));
 ----
 64
 
@@ -147,12 +147,12 @@ SELECT bit_count(arrow_cast(18446744073709551615, 'UInt64'));
 
 # Tests with NULL values
 query I
-SELECT bit_count(NULL::INT);
+SELECT bit_count(CAST(NULL AS INT));
 ----
 NULL
 
 query I
-SELECT bit_count(NULL::TINYINT);
+SELECT bit_count(CAST(NULL AS TINYINT));
 ----
 NULL
 
@@ -163,53 +163,53 @@ NULL
 
 # Tests with edge cases
 query I
-SELECT bit_count(0::INT) as zero_count;
+SELECT bit_count(CAST(0 AS INT)) as zero_count;
 ----
 0
 
 query I
-SELECT bit_count(1::INT) as one_count;
+SELECT bit_count(CAST(1 AS INT)) as one_count;
 ----
 1
 
 query I
-SELECT bit_count(2::INT) as two_count;
+SELECT bit_count(CAST(2 AS INT)) as two_count;
 ----
 1
 
 query I
-SELECT bit_count(3::INT) as three_count;
+SELECT bit_count(CAST(3 AS INT)) as three_count;
 ----
 2
 
 query I
-SELECT bit_count(4::INT) as four_count;
+SELECT bit_count(CAST(4 AS INT)) as four_count;
 ----
 1
 
 query I
-SELECT bit_count(5::INT) as five_count;
+SELECT bit_count(CAST(5 AS INT)) as five_count;
 ----
 2
 
 # Tests with large numbers
 query I
-SELECT bit_count(2147483647::INT);
+SELECT bit_count(CAST(2147483647 AS INT));
 ----
 31
 
 query I
-SELECT bit_count((-2147483648)::INT);
+SELECT bit_count(CAST(-2147483648 AS INT));
 ----
 33
 
 query I
-SELECT bit_count(9223372036854775807::BIGINT);
+SELECT bit_count(CAST(9223372036854775807 AS BIGINT));
 ----
 63
 
 query I
-SELECT bit_count((-9223372036854775808)::BIGINT);
+SELECT bit_count(CAST(-9223372036854775808 AS BIGINT));
 ----
 1
 

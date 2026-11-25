@@ -211,7 +211,7 @@ statement error Function 'json_array_length' requires String, but received Boole
 SELECT json_array_length(true);
 
 statement error Function 'json_array_length' requires String, but received Binary
-SELECT json_array_length('[1,2]'::BINARY);
+SELECT json_array_length(CAST('[1,2]' AS BINARY));
 
 # ANSI mode does not change the result
 statement ok
@@ -269,7 +269,7 @@ NULL
 NULL
 
 query I
-SELECT json_array_length(column1::STRING) FROM json_array_length_t;
+SELECT json_array_length(CAST(column1 AS STRING)) FROM json_array_length_t;
 ----
 3
 NULL

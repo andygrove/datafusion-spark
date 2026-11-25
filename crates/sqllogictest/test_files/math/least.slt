@@ -11,13 +11,13 @@
 ## Original Query: SELECT least(10, 9, 2, 4, 3);
 ## PySpark 3.5.5 Result: {'least(10, 9, 2, 4, 3)': 2, 'typeof(least(10, 9, 2, 4, 3))': 'int', 'typeof(10)': 'int', 'typeof(9)': 'int', 'typeof(2)': 'int', 'typeof(4)': 'int', 'typeof(3)': 'int'}
 query I
-SELECT least(10::int, 9::int, 2::int, 4::int, 3::int);
+SELECT least(CAST(10 AS int), CAST(9 AS int), CAST(2 AS int), CAST(4 AS int), CAST(3 AS int));
 ----
 2
 
 # NULLs are skipped; the result is NULL only if every argument is NULL
 query III
-SELECT least(NULL::int, 2::int, NULL::int), least(3::int, NULL::int, 1::int), least(NULL::int, NULL::int);
+SELECT least(CAST(NULL AS int), CAST(2 AS int), CAST(NULL AS int)), least(CAST(3 AS int), CAST(NULL AS int), CAST(1 AS int)), least(CAST(NULL AS int), CAST(NULL AS int));
 ----
 2 1 NULL
 
@@ -28,57 +28,57 @@ NULL
 
 # Integers widen to the widest integer type
 query I
-SELECT least(-1::tinyint, 2::bigint);
+SELECT least(-CAST(1 AS tinyint), CAST(2 AS bigint));
 ----
 -1
 
 query T
-SELECT arrow_typeof(least(-1::tinyint, 2::bigint));
+SELECT arrow_typeof(least(-CAST(1 AS tinyint), CAST(2 AS bigint)));
 ----
 Int64
 
 # An integer and a DOUBLE widen to DOUBLE
 query R
-SELECT least(3::int, 2.5::double);
+SELECT least(CAST(3 AS int), CAST(2.5 AS double));
 ----
 2.5
 
 # NaN is greater than every other value, so least returns it only if every argument is NaN or NULL
 query RRRR
-SELECT least('NaN'::double, 'Infinity'::double), least('NaN'::double, 1::double), least('NaN'::double, NULL::double), least('-Infinity'::double, 'NaN'::double);
+SELECT least(CAST('NaN' AS double), CAST('Infinity' AS double)), least(CAST('NaN' AS double), CAST(1 AS double)), least(CAST('NaN' AS double), CAST(NULL AS double)), least(CAST('-Infinity' AS double), CAST('NaN' AS double));
 ----
 Infinity 1 NaN -Infinity
 
 query R
-SELECT least('NaN'::float, 1::float);
+SELECT least(CAST('NaN' AS float), CAST(1 AS float));
 ----
 1
 
 # -0.0 equals 0.0 and the first of equal values wins. The sign of a zero shows in its string
 # form, which starts with '-' only for -0.0.
 query BB
-SELECT CAST(least('-0.0'::double, 0.0::double) AS STRING) LIKE '-%', CAST(least(0.0::double, '-0.0'::double) AS STRING) LIKE '-%';
+SELECT CAST(least(CAST('-0.0' AS double), CAST(0.0 AS double)) AS STRING) LIKE '-%', CAST(least(CAST(0.0 AS double), CAST('-0.0' AS double)) AS STRING) LIKE '-%';
 ----
 true false
 
 # Decimals
 query R
-SELECT least(1.5::decimal(2,1), 2::int);
+SELECT least(CAST(1.5 AS decimal(2,1)), CAST(2 AS int));
 ----
 1.5
 
 query T
-SELECT arrow_typeof(least(1.5::decimal(2,1), 2::int));
+SELECT arrow_typeof(least(CAST(1.5 AS decimal(2,1)), CAST(2 AS int)));
 ----
 Decimal128(11, 1)
 
 query R
-SELECT least(1.25::decimal(3,2), 1.3::decimal(2,1), NULL::decimal(10,0));
+SELECT least(CAST(1.25 AS decimal(3,2)), CAST(1.3 AS decimal(2,1)), CAST(NULL AS decimal(10,0)));
 ----
 1.25
 
 query R
-SELECT least(1.5::decimal(2,1), 0.5::double);
+SELECT least(CAST(1.5 AS decimal(2,1)), CAST(0.5 AS double));
 ----
 0.5
 
@@ -102,7 +102,7 @@ SELECT least(X'01', X'0102');
 
 # Dates and timestamps; a date and a timestamp widen to the timestamp
 query D
-SELECT least(DATE '2024-01-01', DATE '2023-12-31', NULL::date);
+SELECT least(DATE '2024-01-01', DATE '2023-12-31', CAST(NULL AS date));
 ----
 2023-12-31
 
@@ -119,7 +119,7 @@ SELECT least(array(1, 2), array(1, 2, 3)), least(array(1, NULL), array(1, 0));
 [1, 2] [1, NULL]
 
 query ?
-SELECT least(array('NaN'::double), array(1::double));
+SELECT least(array(CAST('NaN' AS double)), array(CAST(1 AS double)));
 ----
 [1.0]
 
@@ -130,20 +130,20 @@ SELECT least(named_struct('a', 1, 'b', 2), named_struct('a', 1, 'b', 3));
 {a: 1, b: 2}
 
 query ?
-SELECT least(named_struct('a', 1, 'b', 2), named_struct('a', 1, 'b', NULL::int));
+SELECT least(named_struct('a', 1, 'b', 2), named_struct('a', 1, 'b', CAST(NULL AS int)));
 ----
 {a: 1, b: NULL}
 
 # Columns
 statement ok
 CREATE TABLE t AS VALUES
-  (1::int, 2::int, 'NaN'::double, 1::double, 'b'),
-  (5::int, NULL::int, -1::double, NULL::double, 'a'),
-  (NULL::int, NULL::int, NULL::double, NULL::double, NULL),
-  (NULL::int, 7::int, 'Infinity'::double, 'NaN'::double, 'c');
+  (CAST(1 AS int), CAST(2 AS int), CAST('NaN' AS double), CAST(1 AS double), 'b'),
+  (CAST(5 AS int), CAST(NULL AS int), -CAST(1 AS double), CAST(NULL AS double), 'a'),
+  (CAST(NULL AS int), CAST(NULL AS int), CAST(NULL AS double), CAST(NULL AS double), NULL),
+  (CAST(NULL AS int), CAST(7 AS int), CAST('Infinity' AS double), CAST('NaN' AS double), 'c');
 
 query IIRRT
-SELECT least(column1, column2), least(column1, 3::int, column2), least(column3, column4), least(column3, 0::double), least(column5, 'b') FROM t;
+SELECT least(column1, column2), least(column1, CAST(3 AS int), column2), least(column3, column4), least(column3, CAST(0 AS double)), least(column5, 'b') FROM t;
 ----
 1 1 1 0 b
 5 3 -1 -1 a
@@ -152,7 +152,7 @@ NULL 3 NULL 0 b
 
 # A constant first argument, followed by columns. A NULL constant is skipped.
 query IIIR
-SELECT least(3::int, column1), least(NULL::int, column1), least(NULL::int, column1, column2), least(0::double, column3) FROM t;
+SELECT least(CAST(3 AS int), column1), least(CAST(NULL AS int), column1), least(CAST(NULL AS int), column1, column2), least(CAST(0 AS double), column3) FROM t;
 ----
 1 1 1 0
 3 5 5 -1
@@ -166,21 +166,21 @@ DROP TABLE t;
 
 # At least two arguments
 query error \[WRONG_NUM_ARGS\.WITHOUT_SUGGESTION\] The `least` requires > 1 parameters but the actual number is 1\. Please, refer to 'https://spark\.apache\.org/docs/latest/sql-ref-functions\.html' for a fix\. SQLSTATE: 42605
-SELECT least(1::int);
+SELECT least(CAST(1 AS int));
 
 query error
 SELECT least();
 
 # Strings are not promoted
 query error \[DATATYPE_MISMATCH\.DATA_DIFF_TYPES\] Input to `least` should all be the same type, but it's \["INT", "STRING"\]\. SQLSTATE: 42K09
-SELECT least(1::int, '2');
+SELECT least(CAST(1 AS int), '2');
 
 query error \[DATATYPE_MISMATCH\.DATA_DIFF_TYPES\]
-SELECT least(1::int, true);
+SELECT least(CAST(1 AS int), true);
 
 # Maps cannot be ordered
 query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `least` does not support ordering on type "MAP<INT, INT>"\. SQLSTATE: 42K09
-SELECT least(map(1::int, 2::int), map(1::int, 3::int));
+SELECT least(map(CAST(1 AS int), CAST(2 AS int)), map(CAST(1 AS int), CAST(3 AS int)));
 
 # Intervals cannot be ordered
 query error \[DATATYPE_MISMATCH\.INVALID_ORDERING_TYPE\] The `least` does not support ordering on type "INTERVAL"\. SQLSTATE: 42K09
@@ -191,7 +191,7 @@ SELECT least(array(make_interval(1)), array(make_interval(2)));
 
 # An integer and a FLOAT widen to FLOAT with ANSI mode off, and to DOUBLE with it on
 query T
-SELECT arrow_typeof(least(1::int, 2.5::float));
+SELECT arrow_typeof(least(CAST(1 AS int), CAST(2.5 AS float)));
 ----
 Float32
 
@@ -199,12 +199,12 @@ statement ok
 set datafusion.execution.enable_ansi_mode = true;
 
 query T
-SELECT arrow_typeof(least(1::int, 2.5::float));
+SELECT arrow_typeof(least(CAST(1 AS int), CAST(2.5 AS float)));
 ----
 Float64
 
 query R
-SELECT least(3::bigint, 2.5::float);
+SELECT least(CAST(3 AS bigint), CAST(2.5 AS float));
 ----
 2.5
 

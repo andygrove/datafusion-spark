@@ -7,37 +7,37 @@
 
 skipif evaluate
 query T
-SELECT base64('Spark SQL'::string);
+SELECT base64(CAST('Spark SQL' AS string));
 ----
 U3BhcmsgU1FM
 
 skipif evaluate
 query T
-SELECT base64('Spark SQ'::string);
+SELECT base64(CAST('Spark SQ' AS string));
 ----
 U3BhcmsgU1E=
 
 skipif evaluate
 query T
-SELECT base64('Spark S'::string);
+SELECT base64(CAST('Spark S' AS string));
 ----
 U3BhcmsgUw==
 
 skipif evaluate
 query T
-SELECT base64('Spark SQL'::bytea);
+SELECT base64(CAST('Spark SQL' AS bytea));
 ----
 U3BhcmsgU1FM
 
 skipif evaluate
 query T
-SELECT base64(NULL::string);
+SELECT base64(CAST(NULL AS string));
 ----
 NULL
 
 skipif evaluate
 query T
-SELECT base64(NULL::bytea);
+SELECT base64(CAST(NULL AS bytea));
 ----
 NULL
 
@@ -45,10 +45,10 @@ skipif evaluate
 query T
 SELECT base64(column1)
 FROM VALUES
-('Spark SQL'::bytea),
-('Spark SQ'::bytea),
-('Spark S'::bytea),
-(NULL::bytea);
+(CAST('Spark SQL' AS bytea)),
+(CAST('Spark SQ' AS bytea)),
+(CAST('Spark S' AS bytea)),
+(CAST(NULL AS bytea));
 ----
 U3BhcmsgU1FM
 U3BhcmsgU1E=
@@ -56,46 +56,46 @@ U3BhcmsgUw==
 NULL
 
 query error Error during planning: Function 'base64' requires Binary, but received Int32 \(DataType: Int32\)
-SELECT base64(12::integer);
+SELECT base64(CAST(12 AS integer));
 
 
 query T
-SELECT arrow_cast(unbase64('U3BhcmsgU1FM'::string), 'Utf8');
+SELECT arrow_cast(unbase64(CAST('U3BhcmsgU1FM' AS string)), 'Utf8');
 ----
 Spark SQL
 
 query T
-SELECT arrow_cast(unbase64('U3BhcmsgU1E='::string), 'Utf8');
+SELECT arrow_cast(unbase64(CAST('U3BhcmsgU1E=' AS string)), 'Utf8');
 ----
 Spark SQ
 
 query T
-SELECT arrow_cast(unbase64('U3BhcmsgUw=='::string), 'Utf8');
+SELECT arrow_cast(unbase64(CAST('U3BhcmsgUw==' AS string)), 'Utf8');
 ----
 Spark S
 
 query T
-SELECT arrow_cast(unbase64('U3BhcmsgU1FM'::bytea), 'Utf8');
+SELECT arrow_cast(unbase64(CAST('U3BhcmsgU1FM' AS bytea)), 'Utf8');
 ----
 Spark SQL
 
 query ?
-SELECT unbase64(NULL::string);
+SELECT unbase64(CAST(NULL AS string));
 ----
 NULL
 
 query ?
-SELECT unbase64(NULL::bytea);
+SELECT unbase64(CAST(NULL AS bytea));
 ----
 NULL
 
 query T
 SELECT arrow_cast(unbase64(column1), 'Utf8')
 FROM VALUES
-('U3BhcmsgU1FM'::string),
-('U3BhcmsgU1E='::string),
-('U3BhcmsgUw=='::string),
-(NULL::string);
+(CAST('U3BhcmsgU1FM' AS string)),
+(CAST('U3BhcmsgU1E=' AS string)),
+(CAST('U3BhcmsgUw==' AS string)),
+(CAST(NULL AS string));
 ----
 Spark SQL
 Spark SQ
@@ -105,26 +105,26 @@ NULL
 # Spark decodes with java.util.Base64.getMimeDecoder: padding is optional
 # and bytes outside the base64 alphabet are skipped
 query T
-SELECT hex(unbase64('123'::string));
+SELECT hex(unbase64(CAST('123' AS string)));
 ----
 D76D
 
 query T
-SELECT hex(unbase64('123'::bytea));
+SELECT hex(unbase64(CAST('123' AS bytea)));
 ----
 D76D
 
 query T
 SELECT hex(unbase64(column1))
 FROM VALUES
-('12'::string),
-('YQ'::string),
-('YW Jj'::string),
-('YWJj!!'::string),
-('YWJj ZGVm'::string),
-('!!!!'::string),
-(''::string),
-(NULL::string);
+(CAST('12' AS string)),
+(CAST('YQ' AS string)),
+(CAST('YW Jj' AS string)),
+(CAST('YWJj!!' AS string)),
+(CAST('YWJj ZGVm' AS string)),
+(CAST('!!!!' AS string)),
+(CAST('' AS string)),
+(CAST(NULL AS string));
 ----
 D7
 61
@@ -146,25 +146,25 @@ Binary NULL
 
 # a single dangling character does not carry a full byte
 query error Failed to decode value using base64: Last unit does not have enough valid bits
-SELECT unbase64('Y'::string);
+SELECT unbase64(CAST('Y' AS string));
 
 query error Failed to decode value using base64: Last unit does not have enough valid bits
-SELECT unbase64('YWJjZ'::bytea);
+SELECT unbase64(CAST('YWJjZ' AS bytea));
 
 # padding must still be well formed
 query error Failed to decode value using base64: Input byte array has wrong 4-byte ending unit
-SELECT unbase64('YQ='::string);
+SELECT unbase64(CAST('YQ=' AS string));
 
 query error Failed to decode value using base64: Input byte array has incorrect ending byte
-SELECT unbase64('YQ==YQ=='::string);
+SELECT unbase64(CAST('YQ==YQ==' AS string));
 
 # xfail spark: unbase64 rejects an INT argument that Spark casts to a string (https://github.com/apache/datafusion-spark/issues/41)
 query error Error during planning: Function 'unbase64' requires Binary, but received Int32 \(DataType: Int32\)
-SELECT unbase64(12::integer);
+SELECT unbase64(CAST(12 AS integer));
 
 # Utf8View, LargeUtf8, BinaryView and LargeBinary inputs, including NULLs
 query T
-SELECT arrow_cast(unbase64('U3BhcmsgU1FM'::STRING), 'Utf8');
+SELECT arrow_cast(unbase64(CAST('U3BhcmsgU1FM' AS STRING)), 'Utf8');
 ----
 Spark SQL
 
@@ -184,12 +184,12 @@ SELECT arrow_cast(unbase64(arrow_cast('U3BhcmsgU1FM', 'LargeBinary')), 'Utf8');
 Spark SQL
 
 query TTTT
-SELECT arrow_typeof(unbase64('YQ=='::STRING)), arrow_typeof(unbase64(arrow_cast('YQ==', 'LargeUtf8'))), arrow_typeof(unbase64(arrow_cast('YQ==', 'BinaryView'))), arrow_typeof(unbase64(arrow_cast('YQ==', 'LargeBinary')));
+SELECT arrow_typeof(unbase64(CAST('YQ==' AS STRING))), arrow_typeof(unbase64(arrow_cast('YQ==', 'LargeUtf8'))), arrow_typeof(unbase64(arrow_cast('YQ==', 'BinaryView'))), arrow_typeof(unbase64(arrow_cast('YQ==', 'LargeBinary')));
 ----
 Binary LargeBinary Binary LargeBinary
 
 query ?
-SELECT unbase64(NULL::STRING);
+SELECT unbase64(CAST(NULL AS STRING));
 ----
 NULL
 
@@ -211,9 +211,9 @@ NULL
 query T
 SELECT arrow_cast(unbase64(column1), 'Utf8')
 FROM VALUES
-('U3BhcmsgU1FM'::STRING),
-('U3BhcmsgU1E='::STRING),
-(NULL::STRING);
+(CAST('U3BhcmsgU1FM' AS STRING)),
+(CAST('U3BhcmsgU1E=' AS STRING)),
+(CAST(NULL AS STRING));
 ----
 Spark SQL
 Spark SQ
@@ -256,30 +256,30 @@ NULL
 # not skip whitespace while reading the second '=', so this is rejected.
 # A space before the padding ('YQ ==') is skipped in the main loop.
 query error Failed to decode value using base64: Input byte array has wrong 4-byte ending unit
-SELECT unbase64('YQ= ='::string);
+SELECT unbase64(CAST('YQ= =' AS string));
 
 query error Failed to decode value using base64: Input byte array has wrong 4-byte ending unit
-SELECT unbase64('YQ= ='::bytea);
+SELECT unbase64(CAST('YQ= =' AS bytea));
 
 query T
-SELECT hex(unbase64('YQ =='::string));
+SELECT hex(unbase64(CAST('YQ ==' AS string)));
 ----
 61
 
 # URL-safe characters are outside the MIME alphabet and are skipped, so
 # 'YQ-_' decodes as 'YQ' ('a'). Standard '+/' is decoded as usual.
 query T
-SELECT hex(unbase64('YQ-_'::string));
+SELECT hex(unbase64(CAST('YQ-_' AS string)));
 ----
 61
 
 query T
-SELECT hex(unbase64('YQ-_'::bytea));
+SELECT hex(unbase64(CAST('YQ-_' AS bytea)));
 ----
 61
 
 query T
-SELECT hex(unbase64('YQ-_'::STRING));
+SELECT hex(unbase64(CAST('YQ-_' AS STRING)));
 ----
 61
 
@@ -294,7 +294,7 @@ SELECT hex(unbase64(arrow_cast('YQ-_', 'BinaryView')));
 61
 
 query T
-SELECT hex(unbase64('YQ+/'::string));
+SELECT hex(unbase64(CAST('YQ+/' AS string)));
 ----
 610FBF
 
@@ -306,28 +306,28 @@ SELECT hex(unbase64(X'59574A6A0D0A5A47566D'));
 
 # trailing non-alphabet after padding is ignored, including extra '='
 query T
-SELECT hex(unbase64('YQ==  '::string));
+SELECT hex(unbase64(CAST('YQ==  ' AS string)));
 ----
 61
 
 query T
-SELECT hex(unbase64('YQ==='::string));
+SELECT hex(unbase64(CAST('YQ===' AS string)));
 ----
 61
 
 query T
-SELECT hex(unbase64('YQ==!!'::string));
+SELECT hex(unbase64(CAST('YQ==!!' AS string)));
 ----
 61
 
 # trailing base64 after padding is still rejected, even with a space
 query error Failed to decode value using base64: Input byte array has incorrect ending byte
-SELECT unbase64('YQ== YQ'::string);
+SELECT unbase64(CAST('YQ== YQ' AS string));
 
 # non-ASCII bytes are skipped. 'YéQ' is Y, U+00E9, Q; both the UTF-8
 # encoding and a raw Latin-1 0xE9 sit outside the alphabet, leaving 'YQ'
 query T
-SELECT hex(unbase64('YéQ'::string));
+SELECT hex(unbase64(CAST('YéQ' AS string)));
 ----
 61
 

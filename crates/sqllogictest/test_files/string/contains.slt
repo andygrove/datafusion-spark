@@ -7,17 +7,17 @@
 ## Examples from Spark's documentation
 
 query B
-SELECT contains('Spark SQL'::string, 'Spark'::string);
+SELECT contains(CAST('Spark SQL' AS string), CAST('Spark' AS string));
 ----
 true
 
 query B
-SELECT contains('Spark SQL'::string, 'SPARK'::string);
+SELECT contains(CAST('Spark SQL' AS string), CAST('SPARK' AS string));
 ----
 false
 
 query B
-SELECT contains('Spark SQL'::string, NULL);
+SELECT contains(CAST('Spark SQL' AS string), NULL);
 ----
 NULL
 
@@ -29,21 +29,21 @@ true
 ## NULL handling
 
 query BBB
-SELECT contains(NULL, 'a'::string), contains(NULL, NULL), contains(X'537061726B', NULL);
+SELECT contains(NULL, CAST('a' AS string)), contains(NULL, NULL), contains(X'537061726B', NULL);
 ----
 NULL NULL NULL
 
 ## Empty strings: an empty needle is found everywhere
 
 query BBBBB
-SELECT contains(''::string, ''::string), contains('abc'::string, ''::string), contains(''::string, 'a'::string), contains(X'', X''), contains(X'01', X'');
+SELECT contains(CAST('' AS string), CAST('' AS string)), contains(CAST('abc' AS string), CAST('' AS string)), contains(CAST('' AS string), CAST('a' AS string)), contains(X'', X''), contains(X'01', X'');
 ----
 true true false true true
 
 ## Case sensitivity, multi-byte characters and needles longer than the haystack
 
 query BBBBB
-SELECT contains('a'::string, 'A'::string), contains('héllo wörld'::string, 'ö'::string), contains('日本語'::string, '本'::string), contains('abc'::string, 'abcd'::string), contains('aaa'::string, 'aa'::string);
+SELECT contains(CAST('a' AS string), CAST('A' AS string)), contains(CAST('héllo wörld' AS string), CAST('ö' AS string)), contains(CAST('日本語' AS string), CAST('本' AS string)), contains(CAST('abc' AS string), CAST('abcd' AS string)), contains(CAST('aaa' AS string), CAST('aa' AS string));
 ----
 false true true false true
 
@@ -62,19 +62,19 @@ true
 ## Mixed string and binary: Spark casts the binary to a string
 
 query BB
-SELECT contains(X'537061726B', 'Spa'::string), contains('Spark'::string, X'537061');
+SELECT contains(X'537061726B', CAST('Spa' AS string)), contains(CAST('Spark' AS string), X'537061');
 ----
 true true
 
 ## Integer, boolean and date arguments are cast to a string
 
 query BBB
-SELECT contains(12345, 23), contains(12345, '34'::string), contains(true, 'ru'::string);
+SELECT contains(12345, 23), contains(12345, CAST('34' AS string)), contains(true, CAST('ru' AS string));
 ----
 true true true
 
 query B
-SELECT contains(DATE '2024-01-15', '-01-'::string);
+SELECT contains(DATE '2024-01-15', CAST('-01-' AS string));
 ----
 true
 
@@ -100,7 +100,7 @@ false
 
 # Literal haystack, column needle
 query B
-SELECT contains('hello world'::string, p) FROM VALUES ('hello'), ('xyz'), (NULL), ('') AS t(p);
+SELECT contains(CAST('hello world' AS string), p) FROM VALUES ('hello'), ('xyz'), (NULL), ('') AS t(p);
 ----
 true
 false
@@ -119,17 +119,17 @@ false
 ## Errors
 
 statement error contains function requires 2 arguments
-SELECT contains('abc'::string);
+SELECT contains(CAST('abc' AS string));
 
 statement error Spark `contains` function expects STRING or BINARY arguments
-SELECT contains(array('a'), 'a'::string);
+SELECT contains(array('a'), CAST('a' AS string));
 
 # Spark casts floating-point, decimal and timestamp arguments to a string, which
 # this version cannot do yet, so it rejects them.
 # https://github.com/apache/datafusion-spark/issues/347
 # xfail spark: contains rejects a DOUBLE argument that Spark casts to a string (https://github.com/apache/datafusion-spark/issues/347)
 statement error Spark `contains` function expects STRING or BINARY arguments, got Float64
-SELECT contains(1.5::double, '.');
+SELECT contains(CAST(1.5 AS double), '.');
 
 # Spark 4.2.0 returns true for these in both ANSI modes
 # query BB
@@ -158,17 +158,17 @@ SELECT contains(1.5::double, '.');
 ## Arrow string and binary variants
 
 query BBB
-SELECT contains(arrow_cast('Spark SQL', 'LargeUtf8'), 'SQL'::string), contains('Spark SQL'::STRING, 'k S'::STRING), contains('Spark SQL'::STRING, arrow_cast('x', 'LargeUtf8'));
+SELECT contains(arrow_cast('Spark SQL', 'LargeUtf8'), CAST('SQL' AS string)), contains(CAST('Spark SQL' AS STRING), CAST('k S' AS STRING)), contains(CAST('Spark SQL' AS STRING), arrow_cast('x', 'LargeUtf8'));
 ----
 true true false
 
 query BBB
-SELECT contains(arrow_cast(X'00FF01', 'LargeBinary'), X'FF01'), contains(arrow_cast(X'00FF01', 'BinaryView'), X'00'), contains(arrow_cast(X'00FF01', 'BinaryView'), 'a'::string);
+SELECT contains(arrow_cast(X'00FF01', 'LargeBinary'), X'FF01'), contains(arrow_cast(X'00FF01', 'BinaryView'), X'00'), contains(arrow_cast(X'00FF01', 'BinaryView'), CAST('a' AS string));
 ----
 true true false
 
 query B
-SELECT contains(s::STRING, arrow_cast(p, 'LargeUtf8')) FROM VALUES ('hello world', 'world'), ('hello', ''), (NULL, 'a'), ('abc', NULL), ('abc', 'd') AS t(s, p);
+SELECT contains(CAST(s AS STRING), arrow_cast(p, 'LargeUtf8')) FROM VALUES ('hello world', 'world'), ('hello', ''), (NULL, 'a'), ('abc', NULL), ('abc', 'd') AS t(s, p);
 ----
 true
 true

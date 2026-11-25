@@ -13,34 +13,34 @@
 
 # Basic dateadd tests (alias for date_add)
 query D
-SELECT dateadd('2016-07-30'::date, 1::int);
+SELECT dateadd(CAST('2016-07-30' AS date), CAST(1 AS int));
 ----
 2016-07-31
 
 query D
-SELECT dateadd('2016-07-30'::date, 0::int);
+SELECT dateadd(CAST('2016-07-30' AS date), CAST(0 AS int));
 ----
 2016-07-30
 
 # Test with negative day values (should subtract days)
 
 query D
-SELECT dateadd('2016-07-30'::date, -5::int);
+SELECT dateadd(CAST('2016-07-30' AS date), -CAST(5 AS int));
 ----
 2016-07-25
 
 # Test with NULL values
 query D
-SELECT dateadd(NULL::date, 1::int);
+SELECT dateadd(CAST(NULL AS date), CAST(1 AS int));
 ----
 NULL
 
 query D
-SELECT dateadd('2016-07-30'::date, NULL::int);
+SELECT dateadd(CAST('2016-07-30' AS date), CAST(NULL AS int));
 ----
 NULL
 
 query D
-SELECT dateadd(NULL::date, NULL::int);
+SELECT dateadd(CAST(NULL AS date), CAST(NULL AS int));
 ----
 NULL

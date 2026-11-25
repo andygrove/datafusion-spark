@@ -4,44 +4,44 @@
 
 # YEAR
 query I
-SELECT date_part('YEAR'::string, '2000-01-01'::date);
+SELECT date_part(CAST('YEAR' AS string), CAST('2000-01-01' AS date));
 ----
 2000
 
 query I
-SELECT date_part('YEARS'::string, '2000-01-01'::date);
+SELECT date_part(CAST('YEARS' AS string), CAST('2000-01-01' AS date));
 ----
 2000
 
 query I
-SELECT date_part('Y'::string, '2000-01-01'::date);
+SELECT date_part(CAST('Y' AS string), CAST('2000-01-01' AS date));
 ----
 2000
 
 query I
-SELECT date_part('YR'::string, '2000-01-01'::date);
+SELECT date_part(CAST('YR' AS string), CAST('2000-01-01' AS date));
 ----
 2000
 
 query I
-SELECT date_part('YRS'::string, '2000-01-01'::date);
+SELECT date_part(CAST('YRS' AS string), CAST('2000-01-01' AS date));
 ----
 2000
 
 # YEAROFWEEK
 query I
-SELECT date_part('YEAROFWEEK'::string, '2000-01-01'::date);
+SELECT date_part(CAST('YEAROFWEEK' AS string), CAST('2000-01-01' AS date));
 ----
 1999
 
 # QUARTER
 query I
-SELECT date_part('QUARTER'::string, '2000-01-01'::date);
+SELECT date_part(CAST('QUARTER' AS string), CAST('2000-01-01' AS date));
 ----
 1
 
 query I
-SELECT date_part('QTR'::string, '2000-01-01'::date);
+SELECT date_part(CAST('QTR' AS string), CAST('2000-01-01' AS date));
 ----
 1
 
@@ -49,7 +49,7 @@ SELECT date_part('QTR'::string, '2000-01-01'::date);
 # so the message differs.
 skipif evaluate
 query error
-SELECT date_part('QUARTERS'::string, '2000-01-01'::date);
+SELECT date_part(CAST('QUARTERS' AS string), CAST('2000-01-01' AS date));
 ----
 DataFusion error: Optimizer rule 'simplify_expressions' failed
 caused by
@@ -58,82 +58,82 @@ Error during planning: Cannot extract `QUARTERS` from Date32. SQLSTATE: 42601
 
 # MONTH
 query I
-SELECT date_part('MONTH'::string, '2000-01-01'::date);
+SELECT date_part(CAST('MONTH' AS string), CAST('2000-01-01' AS date));
 ----
 1
 
 query I
-SELECT date_part('MON'::string, '2000-01-01'::date);
+SELECT date_part(CAST('MON' AS string), CAST('2000-01-01' AS date));
 ----
 1
 
 query I
-SELECT date_part('MONS'::string, '2000-01-01'::date);
+SELECT date_part(CAST('MONS' AS string), CAST('2000-01-01' AS date));
 ----
 1
 
 query I
-SELECT date_part('MONTHS'::string, '2000-01-01'::date);
+SELECT date_part(CAST('MONTHS' AS string), CAST('2000-01-01' AS date));
 ----
 1
 
 # WEEK
 query I
-SELECT date_part('WEEK'::string, '2000-01-01'::date);
+SELECT date_part(CAST('WEEK' AS string), CAST('2000-01-01' AS date));
 ----
 52
 
 query I
-SELECT date_part('WEEKS'::string, '2000-01-01'::date);
+SELECT date_part(CAST('WEEKS' AS string), CAST('2000-01-01' AS date));
 ----
 52
 
 query I
-SELECT date_part('W'::string, '2000-01-01'::date);
+SELECT date_part(CAST('W' AS string), CAST('2000-01-01' AS date));
 ----
 52
 
 # DAYS
 query I
-SELECT date_part('DAY'::string, '2000-01-01'::date);
+SELECT date_part(CAST('DAY' AS string), CAST('2000-01-01' AS date));
 ----
 1
 
 query I
-SELECT date_part('D'::string, '2000-01-01'::date);
+SELECT date_part(CAST('D' AS string), CAST('2000-01-01' AS date));
 ----
 1
 
 query I
-SELECT date_part('DAYS'::string, '2000-01-01'::date);
+SELECT date_part(CAST('DAYS' AS string), CAST('2000-01-01' AS date));
 ----
 1
 
 # DAYOFWEEK
 query I
-SELECT date_part('DAYOFWEEK'::string, '2000-01-01'::date);
+SELECT date_part(CAST('DAYOFWEEK' AS string), CAST('2000-01-01' AS date));
 ----
 7
 
 query I
-SELECT date_part('DOW'::string, '2000-01-01'::date);
+SELECT date_part(CAST('DOW' AS string), CAST('2000-01-01' AS date));
 ----
 7
 
 # DAYOFWEEK_ISO
 query I
-SELECT date_part('DAYOFWEEK_ISO'::string, '2000-01-01'::date);
+SELECT date_part(CAST('DAYOFWEEK_ISO' AS string), CAST('2000-01-01' AS date));
 ----
 6
 
 query I
-SELECT date_part('DOW_ISO'::string, '2000-01-01'::date);
+SELECT date_part(CAST('DOW_ISO' AS string), CAST('2000-01-01' AS date));
 ----
 6
 
 # DOY
 query I
-SELECT date_part('DOY'::string, '2000-01-01'::date);
+SELECT date_part(CAST('DOY' AS string), CAST('2000-01-01' AS date));
 ----
 1
 
@@ -141,7 +141,7 @@ SELECT date_part('DOY'::string, '2000-01-01'::date);
 # so the message differs.
 skipif evaluate
 query error
-SELECT date_part('DAYOFYEAR'::string, '2000-01-01'::date);
+SELECT date_part(CAST('DAYOFYEAR' AS string), CAST('2000-01-01' AS date));
 ----
 DataFusion error: Optimizer rule 'simplify_expressions' failed
 caused by
@@ -150,103 +150,103 @@ Error during planning: Cannot extract `DAYOFYEAR` from Date32. SQLSTATE: 42601
 
 # HOUR
 query I
-SELECT date_part('HOUR'::string, '2000-01-01 12:30:45'::timestamp);
+SELECT date_part(CAST('HOUR' AS string), CAST('2000-01-01 12:30:45' AS timestamp));
 ----
 12
 
 query I
-SELECT date_part('H'::string, '2000-01-01 12:30:45'::timestamp);
+SELECT date_part(CAST('H' AS string), CAST('2000-01-01 12:30:45' AS timestamp));
 ----
 12
 
 query I
-SELECT date_part('HOURS'::string, '2000-01-01 12:30:45'::timestamp);
+SELECT date_part(CAST('HOURS' AS string), CAST('2000-01-01 12:30:45' AS timestamp));
 ----
 12
 
 query I
-SELECT date_part('HR'::string, '2000-01-01 12:30:45'::timestamp);
+SELECT date_part(CAST('HR' AS string), CAST('2000-01-01 12:30:45' AS timestamp));
 ----
 12
 
 query I
-SELECT date_part('HRS'::string, '2000-01-01 12:30:45'::timestamp);
+SELECT date_part(CAST('HRS' AS string), CAST('2000-01-01 12:30:45' AS timestamp));
 ----
 12
 
 # MINUTE
 query I
-SELECT date_part('MINUTE'::string, '2000-01-01 12:30:45'::timestamp);
+SELECT date_part(CAST('MINUTE' AS string), CAST('2000-01-01 12:30:45' AS timestamp));
 ----
 30
 
 query I
-SELECT date_part('M'::string, '2000-01-01 12:30:45'::timestamp);
+SELECT date_part(CAST('M' AS string), CAST('2000-01-01 12:30:45' AS timestamp));
 ----
 30
 
 query I
-SELECT date_part('MIN'::string, '2000-01-01 12:30:45'::timestamp);
+SELECT date_part(CAST('MIN' AS string), CAST('2000-01-01 12:30:45' AS timestamp));
 ----
 30
 
 query I
-SELECT date_part('MINS'::string, '2000-01-01 12:30:45'::timestamp);
+SELECT date_part(CAST('MINS' AS string), CAST('2000-01-01 12:30:45' AS timestamp));
 ----
 30
 
 query I
-SELECT date_part('MINUTES'::string, '2000-01-01 12:30:45'::timestamp);
+SELECT date_part(CAST('MINUTES' AS string), CAST('2000-01-01 12:30:45' AS timestamp));
 ----
 30
 
 # SECOND
 # xfail spark: date_part('SECOND', ts) returns INT, Spark returns DECIMAL(8,6) with the fraction (https://github.com/apache/datafusion-spark/issues/38)
 query I
-SELECT date_part('SECOND'::string, '2000-01-01 12:30:45'::timestamp);
+SELECT date_part(CAST('SECOND' AS string), CAST('2000-01-01 12:30:45' AS timestamp));
 ----
 45
 
 # xfail spark: date_part('SECOND', ts) returns INT, Spark returns DECIMAL(8,6) with the fraction (https://github.com/apache/datafusion-spark/issues/38)
 query I
-SELECT date_part('S'::string, '2000-01-01 12:30:45'::timestamp);
+SELECT date_part(CAST('S' AS string), CAST('2000-01-01 12:30:45' AS timestamp));
 ----
 45
 
 # xfail spark: date_part('SECOND', ts) returns INT, Spark returns DECIMAL(8,6) with the fraction (https://github.com/apache/datafusion-spark/issues/38)
 query I
-SELECT date_part('SEC'::string, '2000-01-01 12:30:45'::timestamp);
+SELECT date_part(CAST('SEC' AS string), CAST('2000-01-01 12:30:45' AS timestamp));
 ----
 45
 
 # xfail spark: date_part('SECOND', ts) returns INT, Spark returns DECIMAL(8,6) with the fraction (https://github.com/apache/datafusion-spark/issues/38)
 query I
-SELECT date_part('SECONDS'::string, '2000-01-01 12:30:45'::timestamp);
+SELECT date_part(CAST('SECONDS' AS string), CAST('2000-01-01 12:30:45' AS timestamp));
 ----
 45
 
 # xfail spark: date_part('SECOND', ts) returns INT, Spark returns DECIMAL(8,6) with the fraction (https://github.com/apache/datafusion-spark/issues/38)
 query I
-SELECT date_part('SECS'::string, '2000-01-01 12:30:45'::timestamp);
+SELECT date_part(CAST('SECS' AS string), CAST('2000-01-01 12:30:45' AS timestamp));
 ----
 45
 
 # Known difference: Spark returns DECIMAL(8, 6) including the fraction (45.999000)
 # xfail spark: date_part('SECOND', ts) returns INT, Spark returns DECIMAL(8,6) with the fraction (https://github.com/apache/datafusion-spark/issues/38)
 query I
-SELECT date_part('SECOND'::string, '2000-01-01 12:30:45.999'::timestamp);
+SELECT date_part(CAST('SECOND' AS string), CAST('2000-01-01 12:30:45.999' AS timestamp));
 ----
 45
 
 # NULL input
 query I
-SELECT date_part('year'::string, NULL::timestamp);
+SELECT date_part(CAST('year' AS string), CAST(NULL AS timestamp));
 ----
 NULL
 
 # xfail spark: date_part with a NULL field returns a NULL INT, Spark returns a NULL DOUBLE (https://github.com/apache/datafusion-spark/issues/363)
 query I
-SELECT date_part(NULL::string, '2000-01-01'::date);
+SELECT date_part(CAST(NULL AS string), CAST('2000-01-01' AS date));
 ----
 NULL
 
@@ -255,7 +255,7 @@ NULL
 # so the message differs.
 skipif evaluate
 query error
-SELECT date_part('test'::string, '2000-01-01'::date);
+SELECT date_part(CAST('test' AS string), CAST('2000-01-01' AS date));
 ----
 DataFusion error: Optimizer rule 'simplify_expressions' failed
 caused by
@@ -265,10 +265,10 @@ Error during planning: Cannot extract `test` from Date32. SQLSTATE: 42601
 query I
 SELECT date_part('year', column1)
 FROM VALUES
-('2022-03-15'::date),
-('1999-12-31'::date),
-('2000-01-01'::date),
-(NULL::date);
+(CAST('2022-03-15' AS date)),
+(CAST('1999-12-31' AS date)),
+(CAST('2000-01-01' AS date)),
+(CAST(NULL AS date));
 ----
 2022
 1999
@@ -278,10 +278,10 @@ NULL
 query I
 SELECT date_part('minutes', column1)
 FROM VALUES
-('2022-03-15 12:30:45'::timestamp),
-('1999-12-31 12:32:45'::timestamp),
-('2000-01-01 12:00:45'::timestamp),
-(NULL::timestamp);
+(CAST('2022-03-15 12:30:45' AS timestamp)),
+(CAST('1999-12-31 12:32:45' AS timestamp)),
+(CAST('2000-01-01 12:00:45' AS timestamp)),
+(CAST(NULL AS timestamp));
 ----
 30
 32
@@ -290,17 +290,17 @@ NULL
 
 # alias datepart
 query I
-SELECT datepart('YEAR'::string, '2000-01-01'::date);
+SELECT datepart(CAST('YEAR' AS string), CAST('2000-01-01' AS date));
 ----
 2000
 
 query I
 SELECT datepart('year', column1)
 FROM VALUES
-('2022-03-15'::date),
-('1999-12-31'::date),
-('2000-01-01'::date),
-(NULL::date);
+(CAST('2022-03-15' AS date)),
+(CAST('1999-12-31' AS date)),
+(CAST('2000-01-01' AS date)),
+(CAST(NULL AS date));
 ----
 2022
 1999
@@ -310,7 +310,7 @@ NULL
 # Nullable even for a non-null input, like the integer parts of the date_part
 # this simplifies to
 query TTT
-DESCRIBE SELECT date_part('SECOND'::string, ts) AS s FROM (VALUES (timestamp '2020-01-01')) AS t(ts)
+DESCRIBE SELECT date_part(CAST('SECOND' AS string), ts) AS s FROM (VALUES (timestamp '2020-01-01')) AS t(ts)
 ----
 s Int32 YES
 
@@ -318,7 +318,7 @@ s Int32 YES
 # mode rejects it at execution instead, so the message differs.
 skipif evaluate
 query error
-SELECT date_part(column1, column2) FROM VALUES ('year', '2000-01-01'::date);
+SELECT date_part(column1, column2) FROM VALUES ('year', CAST('2000-01-01' AS date));
 ----
 DataFusion error: Optimizer rule 'simplify_expressions' failed
 caused by
@@ -328,7 +328,7 @@ Error during planning: First argument of `DATE_PART` must be a constant string
 # Also for an empty input. Evaluate mode runs nothing, so it does not fail.
 skipif evaluate
 query error
-SELECT date_part(column1, column2) FROM VALUES ('year', '2000-01-01'::date) WHERE false;
+SELECT date_part(column1, column2) FROM VALUES ('year', CAST('2000-01-01' AS date)) WHERE false;
 ----
 DataFusion error: Optimizer rule 'simplify_expressions' failed
 caused by
@@ -337,7 +337,7 @@ Error during planning: First argument of `DATE_PART` must be a constant string
 
 # A field that is only known at execution time, such as a prepared statement parameter
 statement ok
-PREPARE extract_field(VARCHAR) AS SELECT date_part($1, '2000-01-01'::date);
+PREPARE extract_field(VARCHAR) AS SELECT date_part($1, CAST('2000-01-01' AS date));
 
 query I
 EXECUTE extract_field('YEAR');

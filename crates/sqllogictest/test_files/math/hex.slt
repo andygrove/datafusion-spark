@@ -8,12 +8,12 @@ SELECT hex('Spark SQL');
 537061726B2053514C
 
 query T
-SELECT hex(1234::INT);
+SELECT hex(CAST(1234 AS INT));
 ----
 4D2
 
 query T
-SELECT hex(a) from VALUES (1234::INT), (NULL), (456::INT) AS t(a);
+SELECT hex(a) from VALUES (CAST(1234 AS INT)), (NULL), (CAST(456 AS INT)) AS t(a);
 ----
 4D2
 NULL
@@ -27,7 +27,7 @@ NULL
 666F6F62617262617A
 
 statement ok
-CREATE TABLE t_utf8view as VALUES ('foo'::STRING), (NULL), ('foobarbaz'::STRING);
+CREATE TABLE t_utf8view as VALUES (CAST('foo' AS STRING)), (NULL), (CAST('foobarbaz' AS STRING));
 
 query T
 SELECT hex(column1) FROM t_utf8view;

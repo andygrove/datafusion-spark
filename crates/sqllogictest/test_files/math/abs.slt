@@ -14,14 +14,14 @@
 # Scalar input
 ## Scalar input: signed int and NULL
 query IIIIR
-SELECT abs(-127::TINYINT), abs(-32767::SMALLINT), abs(-2147483647::INT), abs(-9223372036854775807::BIGINT), abs(NULL);
+SELECT abs(-CAST(127 AS TINYINT)), abs(-CAST(32767 AS SMALLINT)), abs(-CAST(2147483647 AS INT)), abs(-CAST(9223372036854775807 AS BIGINT)), abs(NULL);
 ----
 127 32767 2147483647 9223372036854775807 NULL
 
 ## Scalar input: signed int minimal values
 ## See https://github.com/apache/datafusion/issues/18794 for operator precedence
 query IIII
-select abs((-128)::TINYINT), abs((-32768)::SMALLINT), abs((-2147483648)::INT), abs((-9223372036854775808)::BIGINT);
+select abs(CAST(-128 AS TINYINT)), abs(CAST(-32768 AS SMALLINT)), abs(CAST(-2147483648 AS INT)), abs(CAST(-9223372036854775808 AS BIGINT));
 ----
 -128 -32768 -2147483648 -9223372036854775808
 
@@ -30,25 +30,25 @@ statement ok
 set datafusion.execution.enable_ansi_mode = true;
 
 query error
-select abs((-128)::TINYINT);
+select abs(CAST(-128 AS TINYINT));
 ----
 DataFusion error: Arrow error: Compute error: [ARITHMETIC_OVERFLOW] overflow. If necessary set "spark.sql.ansi.enabled" to "false" to bypass this error. SQLSTATE: 22003
 
 
 query error
-select abs((-32768)::SMALLINT);
+select abs(CAST(-32768 AS SMALLINT));
 ----
 DataFusion error: Arrow error: Compute error: [ARITHMETIC_OVERFLOW] overflow. If necessary set "spark.sql.ansi.enabled" to "false" to bypass this error. SQLSTATE: 22003
 
 
 query error
-select abs((-2147483648)::INT);
+select abs(CAST(-2147483648 AS INT));
 ----
 DataFusion error: Arrow error: Compute error: [ARITHMETIC_OVERFLOW] overflow. If necessary set "spark.sql.ansi.enabled" to "false" to bypass this error. SQLSTATE: 22003
 
 
 query error
-select abs((-9223372036854775808)::BIGINT);
+select abs(CAST(-9223372036854775808 AS BIGINT));
 ----
 DataFusion error: Arrow error: Compute error: [ARITHMETIC_OVERFLOW] overflow. If necessary set "spark.sql.ansi.enabled" to "false" to bypass this error. SQLSTATE: 22003
 
@@ -58,36 +58,36 @@ set datafusion.execution.enable_ansi_mode = false;
 
 ## Scalar input: float, NULL, NaN, -0, infinity, -infinity
 query RRRRRRRRRRRR
-SELECT abs(-1.0::FLOAT), abs(0.::FLOAT), abs(-0.::FLOAT), abs(-0::FLOAT), abs(NULL::FLOAT), abs('NaN'::FLOAT), abs('inf'::FLOAT), abs('+inf'::FLOAT), abs('-inf'::FLOAT), abs('infinity'::FLOAT), abs('+infinity'::FLOAT), abs('-infinity'::FLOAT);
+SELECT abs(-CAST(1.0 AS FLOAT)), abs(CAST(0. AS FLOAT)), abs(-CAST(0. AS FLOAT)), abs(-CAST(0 AS FLOAT)), abs(CAST(NULL AS FLOAT)), abs(CAST('NaN' AS FLOAT)), abs(CAST('inf' AS FLOAT)), abs(CAST('+inf' AS FLOAT)), abs(CAST('-inf' AS FLOAT)), abs(CAST('infinity' AS FLOAT)), abs(CAST('+infinity' AS FLOAT)), abs(CAST('-infinity' AS FLOAT));
 ----
 1 0 0 0 NULL NaN Infinity Infinity Infinity Infinity Infinity Infinity
 
 ## Scalar input: double, NULL, NaN, -0, infinity, -infinity
 query RRRRRRRRRRRR
-SELECT abs(-1.0::DOUBLE), abs(0.::DOUBLE), abs(-0.::DOUBLE), abs(-0::DOUBLE), abs(NULL::DOUBLE), abs('NaN'::DOUBLE), abs('inf'::DOUBLE), abs('+inf'::DOUBLE), abs('-inf'::DOUBLE), abs('infinity'::DOUBLE), abs('+infinity'::DOUBLE), abs('-infinity'::DOUBLE);
+SELECT abs(-CAST(1.0 AS DOUBLE)), abs(CAST(0. AS DOUBLE)), abs(-CAST(0. AS DOUBLE)), abs(-CAST(0 AS DOUBLE)), abs(CAST(NULL AS DOUBLE)), abs(CAST('NaN' AS DOUBLE)), abs(CAST('inf' AS DOUBLE)), abs(CAST('+inf' AS DOUBLE)), abs(CAST('-inf' AS DOUBLE)), abs(CAST('infinity' AS DOUBLE)), abs(CAST('+infinity' AS DOUBLE)), abs(CAST('-infinity' AS DOUBLE));
 ----
 1 0 0 0 NULL NaN Infinity Infinity Infinity Infinity Infinity Infinity
 
 ## Scalar input: decimal128
 query RRR
-SELECT abs(('-99999999.99')::DECIMAL(10, 2)), abs(0::DECIMAL(10, 2)), abs(NULL::DECIMAL(10, 2));
+SELECT abs(CAST(('-99999999.99') AS DECIMAL(10, 2))), abs(CAST(0 AS DECIMAL(10, 2))), abs(CAST(NULL AS DECIMAL(10, 2)));
 ----
 99999999.99 0.00 NULL
 
 # xfail spark: intended: Spark's abs rounds DECIMAL to 34 digits and overflows, DataFusion returns the exact value
 query RRR
-SELECT abs(('-9999999999999999999999999999.9999999999')::DECIMAL(38, 10)), abs(0::DECIMAL(38, 10)), abs(NULL::DECIMAL(38, 10));
+SELECT abs(CAST(('-9999999999999999999999999999.9999999999') AS DECIMAL(38, 10))), abs(CAST(0 AS DECIMAL(38, 10))), abs(CAST(NULL AS DECIMAL(38, 10)));
 ----
 9999999999999999999999999999.9999999999 0.0000000000 NULL
 
 ## Scalar input: decimal256
 query RRR
-SELECT abs(('-99999999999999999999999999999999999999.99')::DECIMAL(40, 2)), abs(0::DECIMAL(40, 2)), abs(NULL::DECIMAL(40, 2));
+SELECT abs(CAST(('-99999999999999999999999999999999999999.99') AS DECIMAL(40, 2))), abs(CAST(0 AS DECIMAL(40, 2))), abs(CAST(NULL AS DECIMAL(40, 2)));
 ----
 99999999999999999999999999999999999999.99 0.00 NULL
 
 query RRR
-SELECT abs(('-999999999999999999999999999999999999999999999999999999999999999999.9999999999')::DECIMAL(76, 10)), abs(0::DECIMAL(76, 10)), abs(NULL::DECIMAL(76, 10));
+SELECT abs(CAST(('-999999999999999999999999999999999999999999999999999999999999999999.9999999999') AS DECIMAL(76, 10))), abs(CAST(0 AS DECIMAL(76, 10))), abs(CAST(NULL AS DECIMAL(76, 10)));
 ----
 999999999999999999999999999999999999999999999999999999999999999999.9999999999 0.0000000000 NULL
 
@@ -95,28 +95,28 @@ SELECT abs(('-999999999999999999999999999999999999999999999999999999999999999999
 # Array input
 ## Array input: signed int, signed int minimal values and NULL
 query I
-SELECT abs(a) FROM (VALUES (-127::TINYINT), ((-128)::TINYINT), (NULL)) AS t(a);
+SELECT abs(a) FROM (VALUES (-CAST(127 AS TINYINT)), (CAST(-128 AS TINYINT)), (NULL)) AS t(a);
 ----
 127
 -128
 NULL
 
 query I
-select abs(a) FROM (VALUES (-32767::SMALLINT), ((-32768)::SMALLINT), (NULL)) AS t(a);
+select abs(a) FROM (VALUES (-CAST(32767 AS SMALLINT)), (CAST(-32768 AS SMALLINT)), (NULL)) AS t(a);
 ----
 32767
 -32768
 NULL
 
 query I
-select abs(a) FROM (VALUES (-2147483647::INT), ((-2147483648)::INT), (NULL)) AS t(a);
+select abs(a) FROM (VALUES (-CAST(2147483647 AS INT)), (CAST(-2147483648 AS INT)), (NULL)) AS t(a);
 ----
 2147483647
 -2147483648
 NULL
 
 query I
-select abs(a) FROM (VALUES (-9223372036854775807::BIGINT), ((-9223372036854775808)::BIGINT), (NULL)) AS t(a);
+select abs(a) FROM (VALUES (-CAST(9223372036854775807 AS BIGINT)), (CAST(-9223372036854775808 AS BIGINT)), (NULL)) AS t(a);
 ----
 9223372036854775807
 -9223372036854775808
@@ -127,25 +127,25 @@ statement ok
 set datafusion.execution.enable_ansi_mode = true;
 
 query error
-SELECT abs(a) FROM (VALUES (-127::TINYINT), ((-128)::TINYINT)) AS t(a);
+SELECT abs(a) FROM (VALUES (-CAST(127 AS TINYINT)), (CAST(-128 AS TINYINT))) AS t(a);
 ----
 DataFusion error: Arrow error: Compute error: [ARITHMETIC_OVERFLOW] overflow. If necessary set "spark.sql.ansi.enabled" to "false" to bypass this error. SQLSTATE: 22003
 
 
 query error
-select abs(a) FROM (VALUES (-32767::SMALLINT), ((-32768)::SMALLINT)) AS t(a);
+select abs(a) FROM (VALUES (-CAST(32767 AS SMALLINT)), (CAST(-32768 AS SMALLINT))) AS t(a);
 ----
 DataFusion error: Arrow error: Compute error: [ARITHMETIC_OVERFLOW] overflow. If necessary set "spark.sql.ansi.enabled" to "false" to bypass this error. SQLSTATE: 22003
 
 
 query error
-select abs(a) FROM (VALUES (-2147483647::INT), ((-2147483648)::INT)) AS t(a);
+select abs(a) FROM (VALUES (-CAST(2147483647 AS INT)), (CAST(-2147483648 AS INT))) AS t(a);
 ----
 DataFusion error: Arrow error: Compute error: [ARITHMETIC_OVERFLOW] overflow. If necessary set "spark.sql.ansi.enabled" to "false" to bypass this error. SQLSTATE: 22003
 
 
 query error
-select abs(a) FROM (VALUES (-9223372036854775807::BIGINT), ((-9223372036854775808)::BIGINT)) AS t(a);
+select abs(a) FROM (VALUES (-CAST(9223372036854775807 AS BIGINT)), (CAST(-9223372036854775808 AS BIGINT))) AS t(a);
 ----
 DataFusion error: Arrow error: Compute error: [ARITHMETIC_OVERFLOW] overflow. If necessary set "spark.sql.ansi.enabled" to "false" to bypass this error. SQLSTATE: 22003
 
@@ -155,7 +155,7 @@ set datafusion.execution.enable_ansi_mode = false;
 
 ## Array input: float, NULL, NaN, -0, infinity, -infinity
 query R
-SELECT abs(a) FROM (VALUES (-1.0::FLOAT), (0.::FLOAT), (-0.::FLOAT), (-0::FLOAT), (NULL::FLOAT), ('NaN'::FLOAT), ('inf'::FLOAT), ('+inf'::FLOAT), ('-inf'::FLOAT), ('infinity'::FLOAT), ('+infinity'::FLOAT), ('-infinity'::FLOAT)) AS t(a);
+SELECT abs(a) FROM (VALUES (-CAST(1.0 AS FLOAT)), (CAST(0. AS FLOAT)), (-CAST(0. AS FLOAT)), (-CAST(0 AS FLOAT)), (CAST(NULL AS FLOAT)), (CAST('NaN' AS FLOAT)), (CAST('inf' AS FLOAT)), (CAST('+inf' AS FLOAT)), (CAST('-inf' AS FLOAT)), (CAST('infinity' AS FLOAT)), (CAST('+infinity' AS FLOAT)), (CAST('-infinity' AS FLOAT))) AS t(a);
 ----
 1
 0
@@ -173,7 +173,7 @@ Infinity
 
 ## Array input: double, NULL, NaN, -0, infinity, -infinity
 query R
-SELECT abs(a) FROM (VALUES (-1.0::DOUBLE), (0.::DOUBLE), (-0.::DOUBLE), (-0::DOUBLE), (NULL::DOUBLE), ('NaN'::DOUBLE), ('inf'::DOUBLE), ('+inf'::DOUBLE), ('-inf'::DOUBLE), ('infinity'::DOUBLE), ('+infinity'::DOUBLE), ('-infinity'::DOUBLE)) AS t(a);
+SELECT abs(a) FROM (VALUES (-CAST(1.0 AS DOUBLE)), (CAST(0. AS DOUBLE)), (-CAST(0. AS DOUBLE)), (-CAST(0 AS DOUBLE)), (CAST(NULL AS DOUBLE)), (CAST('NaN' AS DOUBLE)), (CAST('inf' AS DOUBLE)), (CAST('+inf' AS DOUBLE)), (CAST('-inf' AS DOUBLE)), (CAST('infinity' AS DOUBLE)), (CAST('+infinity' AS DOUBLE)), (CAST('-infinity' AS DOUBLE))) AS t(a);
 ----
 1
 0
@@ -190,7 +190,7 @@ Infinity
 
 ## Array input: decimal128
 query R
-SELECT abs(a) FROM (VALUES (('-99999999.99')::DECIMAL(10, 2)), (0::DECIMAL(10, 2)), (NULL::DECIMAL(10, 2))) AS t(a);
+SELECT abs(a) FROM (VALUES (CAST(('-99999999.99') AS DECIMAL(10, 2))), (CAST(0 AS DECIMAL(10, 2))), (CAST(NULL AS DECIMAL(10, 2)))) AS t(a);
 ----
 99999999.99
 0.00
@@ -198,7 +198,7 @@ NULL
 
 # xfail spark: intended: Spark's abs rounds DECIMAL to 34 digits and overflows, DataFusion returns the exact value
 query R
-SELECT abs(a) FROM (VALUES (('-9999999999999999999999999999.9999999999')::DECIMAL(38, 10)), (0::DECIMAL(38, 10)), (NULL::DECIMAL(38, 10))) AS t(a);
+SELECT abs(a) FROM (VALUES (CAST(('-9999999999999999999999999999.9999999999') AS DECIMAL(38, 10))), (CAST(0 AS DECIMAL(38, 10))), (CAST(NULL AS DECIMAL(38, 10)))) AS t(a);
 ----
 9999999999999999999999999999.9999999999
 0.0000000000
@@ -206,14 +206,14 @@ NULL
 
 ## Array input: decimal256
 query R
-SELECT abs(a) FROM (VALUES (('-99999999999999999999999999999999999999.99')::DECIMAL(40, 2)), (0::DECIMAL(40, 2)), (NULL::DECIMAL(40, 2))) AS t(a);
+SELECT abs(a) FROM (VALUES (CAST(('-99999999999999999999999999999999999999.99') AS DECIMAL(40, 2))), (CAST(0 AS DECIMAL(40, 2))), (CAST(NULL AS DECIMAL(40, 2)))) AS t(a);
 ----
 99999999999999999999999999999999999999.99
 0.00
 NULL
 
 query R
-SELECT abs(a) FROM (VALUES (('-999999999999999999999999999999999999999999999999999999999999999999.9999999999')::DECIMAL(76, 10)), (0::DECIMAL(76, 10)), (NULL::DECIMAL(76, 10))) AS t(a);
+SELECT abs(a) FROM (VALUES (CAST(('-999999999999999999999999999999999999999999999999999999999999999999.9999999999') AS DECIMAL(76, 10))), (CAST(0 AS DECIMAL(76, 10))), (CAST(NULL AS DECIMAL(76, 10)))) AS t(a);
 ----
 999999999999999999999999999999999999999999999999999999999999999999.9999999999
 0.0000000000

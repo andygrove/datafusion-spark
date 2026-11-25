@@ -9,80 +9,80 @@
 #   https://github.com/apache/datafusion/issues/15914
 
 query D
-SELECT last_day('2009-01-12'::DATE);
+SELECT last_day(CAST('2009-01-12' AS DATE));
 ----
 2009-01-31
 
 
 query D
-SELECT last_day('2015-02-28'::DATE);
+SELECT last_day(CAST('2015-02-28' AS DATE));
 ----
 2015-02-28
 
 query D
-SELECT last_day('2015-03-27'::DATE);
+SELECT last_day(CAST('2015-03-27' AS DATE));
 ----
 2015-03-31
 
 query D
-SELECT last_day('2015-04-26'::DATE);
+SELECT last_day(CAST('2015-04-26' AS DATE));
 ----
 2015-04-30
 
 query D
-SELECT last_day('2015-05-25'::DATE);
+SELECT last_day(CAST('2015-05-25' AS DATE));
 ----
 2015-05-31
 
 query D
-SELECT last_day('2015-06-24'::DATE);
+SELECT last_day(CAST('2015-06-24' AS DATE));
 ----
 2015-06-30
 
 query D
-SELECT last_day('2015-07-23'::DATE);
+SELECT last_day(CAST('2015-07-23' AS DATE));
 ----
 2015-07-31
 
 query D
-SELECT last_day('2015-08-01'::DATE);
+SELECT last_day(CAST('2015-08-01' AS DATE));
 ----
 2015-08-31
 
 query D
-SELECT last_day('2015-09-02'::DATE);
+SELECT last_day(CAST('2015-09-02' AS DATE));
 ----
 2015-09-30
 
 query D
-SELECT last_day('2015-10-03'::DATE);
+SELECT last_day(CAST('2015-10-03' AS DATE));
 ----
 2015-10-31
 
 query D
-SELECT last_day('2015-11-04'::DATE);
+SELECT last_day(CAST('2015-11-04' AS DATE));
 ----
 2015-11-30
 
 query D
-SELECT last_day('2015-12-05'::DATE);
+SELECT last_day(CAST('2015-12-05' AS DATE));
 ----
 2015-12-31
 
 
 query D
-SELECT last_day('2016-01-06'::DATE);
+SELECT last_day(CAST('2016-01-06' AS DATE));
 ----
 2016-01-31
 
 query D
-SELECT last_day('2016-02-07'::DATE);
+SELECT last_day(CAST('2016-02-07' AS DATE));
 ----
 2016-02-29
 
 
 query D
-SELECT last_day(null::DATE);
+SELECT last_day(CAST(null AS DATE));
 ----
 NULL
 
@@ -100,11 +100,11 @@ statement error 'last_day' does not support zero arguments
 select last_day();
 
 statement error Failed to coerce arguments to satisfy a call to 'last_day' function
-select last_day(last_day('2016-02-07'::string, 'foo'));
+select last_day(last_day(CAST('2016-02-07' AS string), 'foo'));
 
 # xfail spark: Spark implicitly casts a string argument to DATE/TIMESTAMP, invalid strings give NULL (https://github.com/apache/datafusion-spark/issues/41)
 statement error Failed to coerce arguments to satisfy a call to 'last_day' function
-select last_day(last_day('2016-02-31'::string));
+select last_day(last_day(CAST('2016-02-31' AS string)));
 
 # Spark implicitly casts a string to DATE and returns 2016-02-29 (https://github.com/apache/datafusion-spark/issues/41)
 # xfail spark: Spark implicitly casts a string argument to DATE/TIMESTAMP, invalid strings give NULL (https://github.com/apache/datafusion-spark/issues/41)

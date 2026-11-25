@@ -3,22 +3,22 @@
 # SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 query T
-SELECT concat(space(1::INT), 'Spark');
+SELECT concat(space(CAST(1 AS INT)), 'Spark');
 ----
  Spark
 
 query T
-SELECT concat(space(5::INT), 'Spark');
+SELECT concat(space(CAST(5 AS INT)), 'Spark');
 ----
      Spark
 
 query T
-SELECT space(0::INT);
+SELECT space(CAST(0 AS INT));
 ----
 (empty)
 
 query T
-SELECT space(-1::INT);
+SELECT space(-CAST(1 AS INT));
 ----
 (empty)
 

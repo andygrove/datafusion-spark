@@ -11,34 +11,34 @@
 ## Original Query: SELECT elt(1, 'scala', 'java');
 ## PySpark 3.5.5 Result: {'elt(1, scala, java)': 'scala', 'typeof(elt(1, scala, java))': 'string', 'typeof(1)': 'int', 'typeof(scala)': 'string', 'typeof(java)': 'string'}
 query T
-SELECT elt(1::int, 'scala'::string, 'java'::string);
+SELECT elt(CAST(1 AS int), CAST('scala' AS string), CAST('java' AS string));
 ----
 scala
 
 ## Original Query: SELECT elt(2, 'a', 1);
 ## PySpark 3.5.5 Result: {'elt(2, a, 1)': '1', 'typeof(elt(2, a, 1))': 'string', 'typeof(2)': 'int', 'typeof(a)': 'string', 'typeof(1)': 'int'}
 query T
-SELECT elt(2::int, 'a'::string, 1::int);
+SELECT elt(CAST(2 AS int), CAST('a' AS string), CAST(1 AS int));
 ----
 1
 
 query T
-SELECT elt(11::int, 10, 20)
+SELECT elt(CAST(11 AS int), 10, 20)
 ----
 NULL
 
 query T
-SELECT elt(1::int, 10, 20)
+SELECT elt(CAST(1 AS int), 10, 20)
 ----
 10
 
 query T
-SELECT elt(1::int, null, 20)
+SELECT elt(CAST(1 AS int), null, 20)
 ----
 NULL
 
 query T
-SELECT elt(1::int, 10, null)
+SELECT elt(CAST(1 AS int), 10, null)
 ----
 10
 
@@ -53,49 +53,49 @@ SELECT elt(1, 10, null)
 
 # Index 0 -> NULL (Spark returns NULL when ANSI is off)
 query T
-SELECT elt(0::int, 'a', 'b');
+SELECT elt(CAST(0 AS int), 'a', 'b');
 ----
 NULL
 
 # Negative index -> NULL
 query T
-SELECT elt(-1::int, 'a', 'b');
+SELECT elt(-CAST(1 AS int), 'a', 'b');
 ----
 NULL
 
 # Index far beyond the input list -> NULL
 query T
-SELECT elt(100::int, 'a', 'b', 'c');
+SELECT elt(CAST(100 AS int), 'a', 'b', 'c');
 ----
 NULL
 
 # NULL index -> NULL regardless of mode
 query T
-SELECT elt(NULL::int, 'a', 'b');
+SELECT elt(CAST(NULL AS int), 'a', 'b');
 ----
 NULL
 
 # NULL value at the selected index -> NULL
 query T
-SELECT elt(2::int, 'a', NULL);
+SELECT elt(CAST(2 AS int), 'a', NULL);
 ----
 NULL
 
 # Three-argument list, pick middle element
 query T
-SELECT elt(2::int, 'scala', 'java', 'python');
+SELECT elt(CAST(2 AS int), 'scala', 'java', 'python');
 ----
 java
 
 # Three-argument list, pick last element
 query T
-SELECT elt(3::int, 'scala', 'java', 'python');
+SELECT elt(CAST(3 AS int), 'scala', 'java', 'python');
 ----
 python
 
 # Mixed types get cast to string (Spark returns string)
 query T
-SELECT elt(2::int, 1, 2, 3);
+SELECT elt(CAST(2 AS int), 1, 2, 3);
 ----
 2
 
@@ -133,51 +133,51 @@ set datafusion.execution.enable_ansi_mode = true;
 
 # Valid indices still work
 query T
-SELECT elt(1::int, 'scala', 'java');
+SELECT elt(CAST(1 AS int), 'scala', 'java');
 ----
 scala
 
 query T
-SELECT elt(2::int, 'scala', 'java');
+SELECT elt(CAST(2 AS int), 'scala', 'java');
 ----
 java
 
 # NULL index still returns NULL (matches Spark: no error when index itself is NULL)
 query T
-SELECT elt(NULL::int, 'a', 'b');
+SELECT elt(CAST(NULL AS int), 'a', 'b');
 ----
 NULL
 
 # NULL value at valid index still returns NULL (only invalid indices error)
 query T
-SELECT elt(1::int, NULL, 'b');
+SELECT elt(CAST(1 AS int), NULL, 'b');
 ----
 NULL
 
 # Out-of-range positive index errors
 statement error
-SELECT elt(3::int, 'scala', 'java');
+SELECT elt(CAST(3 AS int), 'scala', 'java');
 ----
 DataFusion error: Execution error: The index 3 is out of bounds. The array has 2 elements.
 
 
 # Zero index errors
 statement error
-SELECT elt(0::int, 'scala', 'java');
+SELECT elt(CAST(0 AS int), 'scala', 'java');
 ----
 DataFusion error: Execution error: The index 0 is out of bounds. The array has 2 elements.
 
 
 # Negative index errors
 statement error
-SELECT elt(-1::int, 'scala', 'java');
+SELECT elt(-CAST(1 AS int), 'scala', 'java');
 ----
 DataFusion error: Execution error: The index -1 is out of bounds. The array has 2 elements.
 
 
 # Large positive index errors
 statement error
-SELECT elt(100::int, 'a', 'b', 'c');
+SELECT elt(CAST(100 AS int), 'a', 'b', 'c');
 ----
 DataFusion error: Execution error: The index 100 is out of bounds. The array has 3 elements.
 

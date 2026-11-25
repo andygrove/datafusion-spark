@@ -3,17 +3,17 @@
 # SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 query R
-SELECT avg(a) FROM (VALUES (10::INT), (20::INT), (30::INT), (40::INT), (50::INT)) AS t(a);
+SELECT avg(a) FROM (VALUES (CAST(10 AS INT)), (CAST(20 AS INT)), (CAST(30 AS INT)), (CAST(40 AS INT)), (CAST(50 AS INT))) AS t(a);
 ----
 30
 
 query R
-SELECT avg(a) FROM (VALUES (40::INT), (23::INT), (17::INT), (40::INT), (NULL)) AS t(a);
+SELECT avg(a) FROM (VALUES (CAST(40 AS INT)), (CAST(23 AS INT)), (CAST(17 AS INT)), (CAST(40 AS INT)), (NULL)) AS t(a);
 ----
 30
 
 query R
-SELECT avg(a) FROM (VALUES (0::INT), (0::INT)) AS t(a);
+SELECT avg(a) FROM (VALUES (CAST(0 AS INT)), (CAST(0 AS INT))) AS t(a);
 ----
 0
 
@@ -28,7 +28,7 @@ ORDER BY g;
 
 query IR
 SELECT a % 2 AS g, avg(a)
-FROM (VALUES (10::INT), (20::INT), (30::INT), (40::INT), (50::INT)) AS t(a)
+FROM (VALUES (CAST(10 AS INT)), (CAST(20 AS INT)), (CAST(30 AS INT)), (CAST(40 AS INT)), (CAST(50 AS INT))) AS t(a)
 GROUP BY g
 ORDER BY g;
 ----
@@ -36,7 +36,7 @@ ORDER BY g;
 
 query IR
 SELECT a, avg(a)
-FROM (VALUES (0::INT), (0::INT)) AS t(a)
+FROM (VALUES (CAST(0 AS INT)), (CAST(0 AS INT))) AS t(a)
 GROUP BY a
 ORDER BY a;
 ----
@@ -54,6 +54,6 @@ ORDER BY g;
 
 # DECIMAL input is cast to DOUBLE. Spark returns 1.500000 as DECIMAL(14, 6) (https://github.com/apache/datafusion-spark/issues/111)
 query TR
-SELECT arrow_typeof(avg(a)), avg(a) FROM (VALUES (1.00::DECIMAL(10, 2)), (2.00::DECIMAL(10, 2))) AS t(a);
+SELECT arrow_typeof(avg(a)), avg(a) FROM (VALUES (CAST(1.00 AS DECIMAL(10, 2))), (CAST(2.00 AS DECIMAL(10, 2)))) AS t(a);
 ----
 Float64 1.5

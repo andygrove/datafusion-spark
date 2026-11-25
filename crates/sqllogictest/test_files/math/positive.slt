@@ -11,29 +11,29 @@
 ## Original Query: SELECT positive(1);
 ## PySpark 3.5.5 Result: {'(+ 1)': 1, 'typeof((+ 1))': 'int', 'typeof(1)': 'int'}
 query IT
-SELECT positive(1::int), arrow_typeof(positive(1::int));
+SELECT positive(CAST(1 AS int)), arrow_typeof(positive(CAST(1 AS int)));
 ----
 1 Int32
 
 # Integers keep their type and value, including the minimum value
 query IIII
-SELECT positive((-128)::tinyint), positive((-32768)::smallint), positive((-2147483648)::int), positive(CAST('-9223372036854775808' AS BIGINT));
+SELECT positive(CAST(-128 AS tinyint)), positive(CAST(-32768 AS smallint)), positive(CAST(-2147483648 AS int)), positive(CAST('-9223372036854775808' AS BIGINT));
 ----
 -128 -32768 -2147483648 -9223372036854775808
 
 query TTTT
-SELECT arrow_typeof(positive(1::tinyint)) AS a, arrow_typeof(positive(1::smallint)) AS b, arrow_typeof(positive(1::int)) AS c, arrow_typeof(positive(1::bigint)) AS d;
+SELECT arrow_typeof(positive(CAST(1 AS tinyint))) AS a, arrow_typeof(positive(CAST(1 AS smallint))) AS b, arrow_typeof(positive(CAST(1 AS int))) AS c, arrow_typeof(positive(CAST(1 AS bigint))) AS d;
 ----
 Int8 Int16 Int32 Int64
 
 # Floating point values are returned unchanged
 query RRRR
-SELECT positive(1.5::float), positive(CAST('NaN' AS DOUBLE)), positive(CAST('Infinity' AS DOUBLE)), positive(CAST('-Infinity' AS DOUBLE));
+SELECT positive(CAST(1.5 AS float)), positive(CAST('NaN' AS DOUBLE)), positive(CAST('Infinity' AS DOUBLE)), positive(CAST('-Infinity' AS DOUBLE));
 ----
 1.5 NaN Infinity -Infinity
 
 query T
-SELECT arrow_typeof(positive(1.5::float));
+SELECT arrow_typeof(positive(CAST(1.5 AS float)));
 ----
 Float32
 
@@ -63,7 +63,7 @@ NULL
 
 # Intervals are returned unchanged
 query BT
-SELECT positive(make_dt_interval(1::int, 2::int)) = make_dt_interval(1::int, 2::int), arrow_typeof(positive(make_dt_interval(1::int, 2::int)));
+SELECT positive(make_dt_interval(CAST(1 AS int), CAST(2 AS int))) = make_dt_interval(CAST(1 AS int), CAST(2 AS int)), arrow_typeof(positive(make_dt_interval(CAST(1 AS int), CAST(2 AS int))));
 ----
 true Duration(µs)
 
@@ -79,7 +79,7 @@ SELECT positive(NULL);
 NULL
 
 query IT
-SELECT positive(NULL::int), arrow_typeof(positive(NULL::int));
+SELECT positive(CAST(NULL AS int)), arrow_typeof(positive(CAST(NULL AS int)));
 ----
 NULL Int32
 
@@ -87,9 +87,9 @@ NULL Int32
 query I
 SELECT positive(column1)
 FROM VALUES
-(1::int),
-((-2)::int),
-(NULL::int);
+(CAST(1 AS int)),
+(CAST(-2 AS int)),
+(CAST(NULL AS int));
 ----
 1
 -2
@@ -153,10 +153,10 @@ set datafusion.explain.logical_plan_only = false;
 
 # DATE, TIMESTAMP, BOOLEAN and BINARY are rejected
 query error positive requires a numeric, interval or string input, got Date32
-SELECT positive('1999-01-01'::date);
+SELECT positive(CAST('1999-01-01' AS date));
 
 query error positive requires a numeric, interval or string input, got Timestamp
-SELECT positive('1999-01-01 00:00:00'::timestamp);
+SELECT positive(CAST('1999-01-01 00:00:00' AS timestamp));
 
 query error positive requires a numeric, interval or string input, got Boolean
 SELECT positive(true);

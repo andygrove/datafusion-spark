@@ -28,7 +28,7 @@ SELECT array_repeat(123, 3);
 [123, 123, 123]
 
 query ?
-SELECT array_repeat('2001-09-28T01:00:00'::timestamp, 2);
+SELECT array_repeat(CAST('2001-09-28T01:00:00' AS timestamp), 2);
 ----
 [2001-09-28T01:00:00, 2001-09-28T01:00:00]
 
@@ -110,19 +110,19 @@ NULL
 # cast to INT, because DataFusion types `2` as BIGINT.
 # xfail spark: intended: Spark rejects a non-INT integer count, it is accepted here because DataFusion types an integer literal as BIGINT (https://github.com/apache/datafusion-spark/issues/97)
 query ?
-SELECT array_repeat('a', 2::TINYINT);
+SELECT array_repeat('a', CAST(2 AS TINYINT));
 ----
 [a, a]
 
 # xfail spark: intended: Spark rejects a non-INT integer count, it is accepted here because DataFusion types an integer literal as BIGINT (https://github.com/apache/datafusion-spark/issues/97)
 query ?
-SELECT array_repeat('a', 2::SMALLINT);
+SELECT array_repeat('a', CAST(2 AS SMALLINT));
 ----
 [a, a]
 
 # xfail spark: intended: Spark rejects a non-INT integer count, it is accepted here because DataFusion types an integer literal as BIGINT (https://github.com/apache/datafusion-spark/issues/97)
 query ?
-SELECT array_repeat('a', 2::BIGINT);
+SELECT array_repeat('a', CAST(2 AS BIGINT));
 ----
 [a, a]
 
@@ -159,10 +159,10 @@ query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The second parameter of
 SELECT array_repeat('a', '2');
 
 query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The second parameter of `array_repeat` requires the "INT" type, however it has the type "DOUBLE"\. SQLSTATE: 42K09
-SELECT array_repeat('a', 2.7::DOUBLE);
+SELECT array_repeat('a', CAST(2.7 AS DOUBLE));
 
 query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The second parameter of `array_repeat` requires the "INT" type, however it has the type "DECIMAL\(2,1\)"\. SQLSTATE: 42K09
-SELECT array_repeat('a', 2.7::DECIMAL(2, 1));
+SELECT array_repeat('a', CAST(2.7 AS DECIMAL(2, 1)));
 
 query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The second parameter of `array_repeat` requires the "INT" type, however it has the type "BOOLEAN"\. SQLSTATE: 42K09
 SELECT array_repeat('a', true);

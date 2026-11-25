@@ -4,49 +4,49 @@
 
 # HOUR - zero out minute and second with fraction
 query D
-SELECT time_trunc('HOUR', '09:32:05.123456'::time);
+SELECT time_trunc('HOUR', CAST('09:32:05.123456' AS time));
 ----
 09:00:00
 
 # MINUTE - zero out second with fraction
 query D
-SELECT time_trunc('MINUTE', '09:32:05.123456'::time);
+SELECT time_trunc('MINUTE', CAST('09:32:05.123456' AS time));
 ----
 09:32:00
 
 query D
-SELECT time_trunc('minute', '09:32:05.123456'::time);
+SELECT time_trunc('minute', CAST('09:32:05.123456' AS time));
 ----
 09:32:00
 
 query error `unit` in `time_trunc` is invalid: expects one of the units 'HOUR', 'MINUTE', 'SECOND', 'MILLISECOND', 'MICROSECOND', but got 'MINS'. SQLSTATE: 22023
-SELECT time_trunc('MINS', '09:32:05.123456'::time);
+SELECT time_trunc('MINS', CAST('09:32:05.123456' AS time));
 
 # SECOND - zero out fraction
 query D
-SELECT time_trunc('SECOND', '09:32:05.123456'::time);
+SELECT time_trunc('SECOND', CAST('09:32:05.123456' AS time));
 ----
 09:32:05
 
 # MILLISECOND - zero out microseconds
 query D
-SELECT time_trunc('MILLISECOND', '09:32:05.123456'::time);
+SELECT time_trunc('MILLISECOND', CAST('09:32:05.123456' AS time));
 ----
 09:32:05.123
 
 # MICROSECOND - everything remains
 query D
-SELECT time_trunc('MICROSECOND', '09:32:05.123456'::time);
+SELECT time_trunc('MICROSECOND', CAST('09:32:05.123456' AS time));
 ----
 09:32:05.123456
 
 query D
 SELECT time_trunc('HOUR', column1)
 FROM VALUES
-('09:32:05.123456'::time),
-('22:45:30.654321'::time),
-('14:20:10.000001'::time),
-(NULL::time);
+(CAST('09:32:05.123456' AS time)),
+(CAST('22:45:30.654321' AS time)),
+(CAST('14:20:10.000001' AS time)),
+(CAST(NULL AS time));
 ----
 09:00:00
 22:00:00
@@ -56,15 +56,15 @@ NULL
 
 # Null handling
 query D
-SELECT time_trunc(NULL, '09:32:05.123456'::time);
+SELECT time_trunc(NULL, CAST('09:32:05.123456' AS time));
 ----
 NULL
 
 query D
-SELECT time_trunc('HOUR', NULL::time);
+SELECT time_trunc('HOUR', CAST(NULL AS time));
 ----
 NULL
 
 # incorrect format
 query error `unit` in `time_trunc` is invalid: expects one of the units 'HOUR', 'MINUTE', 'SECOND', 'MILLISECOND', 'MICROSECOND', but got 'test'. SQLSTATE: 22023
-SELECT time_trunc('test', '09:32:05.123456'::time);
+SELECT time_trunc('test', CAST('09:32:05.123456' AS time));

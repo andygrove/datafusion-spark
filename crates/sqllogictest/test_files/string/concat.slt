@@ -9,7 +9,7 @@ SparkSQL
 
 # Test two Utf8View inputs: value and return type
 query TT
-SELECT concat('Spark'::STRING, 'SQL'::STRING), arrow_typeof(concat('Spark'::STRING, 'SQL'::STRING));
+SELECT concat(CAST('Spark' AS STRING), CAST('SQL' AS STRING)), arrow_typeof(concat(CAST('Spark' AS STRING), CAST('SQL' AS STRING)));
 ----
 SparkSQL Utf8View
 
@@ -43,7 +43,7 @@ NULL
 
 # Test mixed types: Utf8View + Utf8
 query TT
-SELECT concat('hello'::STRING, ' world'), arrow_typeof(concat('hello'::STRING, ' world'));
+SELECT concat(CAST('hello' AS STRING), ' world'), arrow_typeof(concat(CAST('hello' AS STRING), ' world'));
 ----
 hello world Utf8View
 
@@ -55,25 +55,25 @@ ab LargeUtf8
 
 # Test all three types mixed together
 query TT
-SELECT concat('a', arrow_cast('b', 'LargeUtf8'), 'c'::STRING), arrow_typeof(concat('a', arrow_cast('b', 'LargeUtf8'), 'c'::STRING));
+SELECT concat('a', arrow_cast('b', 'LargeUtf8'), CAST('c' AS STRING)), arrow_typeof(concat('a', arrow_cast('b', 'LargeUtf8'), CAST('c' AS STRING)));
 ----
 abc Utf8View
 
 # Test mixed types: Utf8 + Binary
 query TT
-SELECT concat(arrow_cast('hello', 'Utf8'), ' world'::BINARY), arrow_typeof(concat(arrow_cast('hello', 'Utf8'), ' world'::BINARY));
+SELECT concat(arrow_cast('hello', 'Utf8'), CAST(' world' AS BINARY)), arrow_typeof(concat(arrow_cast('hello', 'Utf8'), CAST(' world' AS BINARY)));
 ----
 hello world Utf8
 
 # Test mixed types: Utf8View + Binary
 query TT
-SELECT concat('hello'::STRING, ' world'::BINARY), arrow_typeof(concat('hello'::STRING, ' world'::BINARY));
+SELECT concat(CAST('hello' AS STRING), CAST(' world' AS BINARY)), arrow_typeof(concat(CAST('hello' AS STRING), CAST(' world' AS BINARY)));
 ----
 hello world Utf8View
 
 # Test Binary + Binary
 query ?T
-SELECT concat('hello'::BINARY, ' world'::BINARY), arrow_typeof(concat('hello'::BINARY, ' world'::BINARY));
+SELECT concat(CAST('hello' AS BINARY), CAST(' world' AS BINARY)), arrow_typeof(concat(CAST('hello' AS BINARY), CAST(' world' AS BINARY)));
 ----
 68656c6c6f20776f726c64 Binary
 

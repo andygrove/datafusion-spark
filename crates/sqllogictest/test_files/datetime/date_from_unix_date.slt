@@ -43,12 +43,12 @@ true true
 
 # Other integer types are cast to INT
 query D
-SELECT date_from_unix_date(100::TINYINT);
+SELECT date_from_unix_date(CAST(100 AS TINYINT));
 ----
 1970-04-11
 
 query D
-SELECT date_from_unix_date(1000::BIGINT);
+SELECT date_from_unix_date(CAST(1000 AS BIGINT));
 ----
 1972-09-27
 
@@ -72,17 +72,17 @@ set datafusion.execution.enable_ansi_mode = false;
 
 # Floating-point and decimal inputs are truncated toward zero
 query DD
-SELECT date_from_unix_date(1.7::DOUBLE), date_from_unix_date(-1.7::DOUBLE);
+SELECT date_from_unix_date(CAST(1.7 AS DOUBLE)), date_from_unix_date(-CAST(1.7 AS DOUBLE));
 ----
 1970-01-02 1969-12-31
 
 query DD
-SELECT date_from_unix_date(1.7::DECIMAL(2, 1)), date_from_unix_date(-1.7::DECIMAL(2, 1));
+SELECT date_from_unix_date(CAST(1.7 AS DECIMAL(2, 1))), date_from_unix_date(-CAST(1.7 AS DECIMAL(2, 1)));
 ----
 1970-01-02 1969-12-31
 
 query D
-SELECT date_from_unix_date(1.7::FLOAT);
+SELECT date_from_unix_date(CAST(1.7 AS FLOAT));
 ----
 1970-01-02
 
@@ -132,8 +132,8 @@ true
 # Column input, including NULL
 statement ok
 CREATE TABLE date_from_unix_date_t AS VALUES
-  (0::INT), (1000::INT), (NULL::INT), (-365::INT), (1::INT), (18993::INT),
-  (-25567::INT), (-719162::INT), (2932896::INT), (20::INT), (300::INT);
+  (CAST(0 AS INT)), (CAST(1000 AS INT)), (CAST(NULL AS INT)), (-CAST(365 AS INT)), (CAST(1 AS INT)), (CAST(18993 AS INT)),
+  (-CAST(25567 AS INT)), (-CAST(719162 AS INT)), (CAST(2932896 AS INT)), (CAST(20 AS INT)), (CAST(300 AS INT));
 
 query D
 SELECT date_from_unix_date(column1) FROM date_from_unix_date_t;
@@ -155,7 +155,7 @@ NULL
 skipif evaluate
 query B
 SELECT unix_date(date_from_unix_date(column1)) = column1
-FROM (VALUES (CAST(-2147483648 AS INT)), (2147483647::INT)) AS t(column1);
+FROM (VALUES (CAST(-2147483648 AS INT)), (CAST(2147483647 AS INT))) AS t(column1);
 ----
 true
 true
@@ -169,7 +169,7 @@ SELECT date_from_unix_date(column1) FROM (VALUES ('100'), ('-1'), (NULL)) AS t(c
 NULL
 
 query D
-SELECT date_from_unix_date(column1) FROM (VALUES (1.7::DOUBLE), (-1.7::DOUBLE), (NULL::DOUBLE)) AS t(column1);
+SELECT date_from_unix_date(column1) FROM (VALUES (CAST(1.7 AS DOUBLE)), (-CAST(1.7 AS DOUBLE)), (CAST(NULL AS DOUBLE))) AS t(column1);
 ----
 1970-01-02
 1969-12-31
@@ -178,7 +178,7 @@ NULL
 # The result is nullable only when the input is, as in Spark
 query TTT
 DESCRIBE SELECT date_from_unix_date(a) AS not_null_result, date_from_unix_date(b) AS nullable_result
-FROM VALUES (1::INT, NULL::INT), (2::INT, 3::INT) AS t(a, b);
+FROM VALUES (CAST(1 AS INT), CAST(NULL AS INT)), (CAST(2 AS INT), CAST(3 AS INT)) AS t(a, b);
 ----
 not_null_result Date32 NO
 nullable_result Date32 YES

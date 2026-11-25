@@ -11,7 +11,7 @@
 ## Original Query: SELECT ilike('Spark', '_Park');
 ## PySpark 3.5.5 Result: {'ilike(Spark, _Park)': True, 'typeof(ilike(Spark, _Park))': 'boolean', 'typeof(Spark)': 'string', 'typeof(_Park)': 'string'}
 query B
-SELECT ilike('Spark'::string, '_Park'::string);
+SELECT ilike(CAST('Spark' AS string), CAST('_Park' AS string));
 ----
 true
 
@@ -21,41 +21,41 @@ SELECT ilike('Spark',  arrow_cast('_Park', 'LargeUtf8'));
 true
 
 query B
-SELECT ilike('Spark'::STRING,  arrow_cast('_Park', 'LargeUtf8'));
+SELECT ilike(CAST('Spark' AS STRING),  arrow_cast('_Park', 'LargeUtf8'));
 ----
 true
 
 query B
-SELECT ilike('Spark'::string, '_park'::string);
+SELECT ilike(CAST('Spark' AS string), CAST('_park' AS string));
 ----
 true
 
 query B
-SELECT ilike('SPARK'::string, '_park'::string);
+SELECT ilike(CAST('SPARK' AS string), CAST('_park' AS string));
 ----
 true
 
 query B
-SELECT ilike('Spark'::string, 'SP%'::string);
+SELECT ilike(CAST('Spark' AS string), CAST('SP%' AS string));
 ----
 true
 
 query B
-SELECT ilike('Spark'::string, '%ARK'::string);
+SELECT ilike(CAST('Spark' AS string), CAST('%ARK' AS string));
 ----
 true
 
 query B
-SELECT ilike('Spark'::string, 'xyz'::string);
+SELECT ilike(CAST('Spark' AS string), CAST('xyz' AS string));
 ----
 false
 
 query B
-SELECT ilike(NULL::string, '_park'::string);
+SELECT ilike(CAST(NULL AS string), CAST('_park' AS string));
 ----
 NULL
 
 query B
-SELECT ilike('Spark'::string, NULL::string);
+SELECT ilike(CAST('Spark' AS string), CAST(NULL AS string));
 ----
 NULL

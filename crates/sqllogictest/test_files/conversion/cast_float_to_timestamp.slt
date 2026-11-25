@@ -49,44 +49,44 @@ SELECT spark_cast(1704067200.123456, 'timestamp');
 
 # Test spark_cast from float32 to timestamp
 query P
-SELECT spark_cast(0.0::FLOAT, 'timestamp');
+SELECT spark_cast(CAST(0.0 AS FLOAT), 'timestamp');
 ----
 1970-01-01T00:00:00Z
 
 query P
-SELECT spark_cast(1.5::FLOAT, 'timestamp');
+SELECT spark_cast(CAST(1.5 AS FLOAT), 'timestamp');
 ----
 1970-01-01T00:00:01.500Z
 
 query P
-SELECT spark_cast((-1.5)::FLOAT, 'timestamp');
+SELECT spark_cast(CAST(-1.5 AS FLOAT), 'timestamp');
 ----
 1969-12-31T23:59:58.500Z
 
 # Test NULL handling
 query P
-SELECT spark_cast(NULL::FLOAT, 'timestamp');
+SELECT spark_cast(CAST(NULL AS FLOAT), 'timestamp');
 ----
 NULL
 
 query P
-SELECT spark_cast(NULL::DOUBLE, 'timestamp');
+SELECT spark_cast(CAST(NULL AS DOUBLE), 'timestamp');
 ----
 NULL
 
 # Test NaN and Infinity in non-ANSI mode (default) - should return NULL
 query P
-SELECT spark_cast('NaN'::DOUBLE, 'timestamp');
+SELECT spark_cast(CAST('NaN' AS DOUBLE), 'timestamp');
 ----
 NULL
 
 query P
-SELECT spark_cast('Infinity'::DOUBLE, 'timestamp');
+SELECT spark_cast(CAST('Infinity' AS DOUBLE), 'timestamp');
 ----
 NULL
 
 query P
-SELECT spark_cast('-Infinity'::DOUBLE, 'timestamp');
+SELECT spark_cast(CAST('-Infinity' AS DOUBLE), 'timestamp');
 ----
 NULL
 
@@ -126,7 +126,7 @@ SET datafusion.execution.time_zone = 'UTC';
 # Create test table with float columns
 statement ok
 CREATE TABLE float_test AS SELECT
-    column1::FLOAT as f32_col,
+    CAST(column1 AS FLOAT) as f32_col,
     column2 as f64_col
 FROM (VALUES
     (NULL, NULL),
@@ -152,9 +152,9 @@ CREATE TABLE float_special AS SELECT
     column1 as f64_col
 FROM (VALUES
     (1.0),
-    ('NaN'::DOUBLE),
-    ('Infinity'::DOUBLE),
-    ('-Infinity'::DOUBLE),
+    (CAST('NaN' AS DOUBLE)),
+    (CAST('Infinity' AS DOUBLE)),
+    (CAST('-Infinity' AS DOUBLE)),
     (2.0)
 );
 
@@ -193,11 +193,11 @@ SET datafusion.execution.enable_ansi_mode = true;
 
 # NaN should error in ANSI mode
 statement error \[CAST_INVALID_INPUT\] The value NaN of the type "DOUBLE" cannot be cast to "TIMESTAMP" because it is malformed
-SELECT spark_cast('NaN'::DOUBLE, 'timestamp');
+SELECT spark_cast(CAST('NaN' AS DOUBLE), 'timestamp');
 
 # Infinity should error in ANSI mode
 statement error \[CAST_INVALID_INPUT\] The value Infinity of the type "DOUBLE" cannot be cast to "TIMESTAMP"
-SELECT spark_cast('Infinity'::DOUBLE, 'timestamp');
+SELECT spark_cast(CAST('Infinity' AS DOUBLE), 'timestamp');
 
 # Very large value should error due to overflow
 statement error \[CAST_OVERFLOW\] The value 1.0E25D of the type "DOUBLE" cannot be cast to "BIGINT" due to an overflow

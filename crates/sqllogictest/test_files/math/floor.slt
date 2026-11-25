@@ -24,57 +24,57 @@ SELECT floor(0.0), arrow_typeof(floor(0.0));
 
 # Float32 tests - returns Int64
 query IT
-SELECT floor(1.5::FLOAT), arrow_typeof(floor(1.5::FLOAT));
+SELECT floor(CAST(1.5 AS FLOAT)), arrow_typeof(floor(CAST(1.5 AS FLOAT)));
 ----
 1 Int64
 
 query IT
-SELECT floor((-1.5)::FLOAT), arrow_typeof(floor((-1.5)::FLOAT));
+SELECT floor(CAST(-1.5 AS FLOAT)), arrow_typeof(floor(CAST(-1.5 AS FLOAT)));
 ----
 -2 Int64
 
 # Integer tests - returns Int64
 query IT
-SELECT floor(5::TINYINT), arrow_typeof(floor(5::TINYINT));
+SELECT floor(CAST(5 AS TINYINT)), arrow_typeof(floor(CAST(5 AS TINYINT)));
 ----
 5 Int64
 
 query IT
-SELECT floor((-5)::SMALLINT), arrow_typeof(floor((-5)::SMALLINT));
+SELECT floor(CAST(-5 AS SMALLINT)), arrow_typeof(floor(CAST(-5 AS SMALLINT)));
 ----
 -5 Int64
 
 query IT
-SELECT floor(1000::INT), arrow_typeof(floor(1000::INT));
+SELECT floor(CAST(1000 AS INT)), arrow_typeof(floor(CAST(1000 AS INT)));
 ----
 1000 Int64
 
 query IT
-SELECT floor((-1000)::BIGINT), arrow_typeof(floor((-1000)::BIGINT));
+SELECT floor(CAST(-1000 AS BIGINT)), arrow_typeof(floor(CAST(-1000 AS BIGINT)));
 ----
 -1000 Int64
 
 # Decimal128 tests - returns Decimal128(p-s+1, 0)
 # Decimal(5,2) -> Decimal(4,0)
 query RT
-SELECT floor(123.45::DECIMAL(5, 2)), arrow_typeof(floor(123.45::DECIMAL(5, 2)));
+SELECT floor(CAST(123.45 AS DECIMAL(5, 2))), arrow_typeof(floor(CAST(123.45 AS DECIMAL(5, 2))));
 ----
 123 Decimal128(4, 0)
 
 query RT
-SELECT floor((-123.45)::DECIMAL(5, 2)), arrow_typeof(floor((-123.45)::DECIMAL(5, 2)));
+SELECT floor(CAST(-123.45 AS DECIMAL(5, 2))), arrow_typeof(floor(CAST(-123.45 AS DECIMAL(5, 2))));
 ----
 -124 Decimal128(4, 0)
 
 # Decimal with scale 0 - unchanged precision
 query RT
-SELECT floor(123::DECIMAL(10, 0)), arrow_typeof(floor(123::DECIMAL(10, 0)));
+SELECT floor(CAST(123 AS DECIMAL(10, 0))), arrow_typeof(floor(CAST(123 AS DECIMAL(10, 0))));
 ----
 123 Decimal128(10, 0)
 
 # NULL handling
 query IT
-SELECT floor(NULL::double), arrow_typeof(floor(NULL::double));
+SELECT floor(CAST(NULL AS double)), arrow_typeof(floor(CAST(NULL AS double)));
 ----
 NULL Int64
 
@@ -150,38 +150,36 @@ DROP TABLE floor_test;
 
 # Float scalar — floor rounds toward negative infinity for fractional values
 query II
-SELECT floor(1.9::DOUBLE), floor(-1.9::DOUBLE);
+SELECT floor(CAST(1.9 AS DOUBLE)), floor(-CAST(1.9 AS DOUBLE));
 ----
 1 -2
 
 query II
-SELECT floor(1.9::FLOAT), floor(-1.9::FLOAT);
+SELECT floor(CAST(1.9 AS FLOAT)), floor(-CAST(1.9 AS FLOAT));
 ----
 1 -2
 
 # Int8 boundaries (i8::MAX, i8::MIN) pass through as Int64
-# Note: `::` binds tighter than unary minus, so -128::TINYINT would be
-# -(128::TINYINT) and 128 overflows TINYINT. The parentheses cast -128 itself.
 query III
-SELECT floor(127::TINYINT), floor((-128)::TINYINT), floor(NULL::TINYINT);
+SELECT floor(CAST(127 AS TINYINT)), floor(CAST(-128 AS TINYINT)), floor(CAST(NULL AS TINYINT));
 ----
 127 -128 NULL
 
 # Int64 boundary values pass through unchanged
 query II
-SELECT floor(9223372036854775807::BIGINT), floor((-9223372036854775808)::BIGINT);
+SELECT floor(CAST(9223372036854775807 AS BIGINT)), floor(CAST(-9223372036854775808 AS BIGINT));
 ----
 9223372036854775807 -9223372036854775808
 
 # Decimal128 negative NULL scalar at given precision/scale
 query RT
-SELECT floor(NULL::DECIMAL(5,2)), arrow_typeof(floor(NULL::DECIMAL(5,2)));
+SELECT floor(CAST(NULL AS DECIMAL(5,2))), arrow_typeof(floor(CAST(NULL AS DECIMAL(5,2))));
 ----
 NULL Decimal128(4, 0)
 
 # Decimal128 array with explicit precision (5,2) — values 123.45, 125.00, -129.99
 query R
-SELECT floor(a) FROM (VALUES (123.45::DECIMAL(5,2)), (125.00::DECIMAL(5,2)), (-129.99::DECIMAL(5,2)), (NULL::DECIMAL(5,2))) AS t(a);
+SELECT floor(a) FROM (VALUES (CAST(123.45 AS DECIMAL(5,2))), (CAST(125.00 AS DECIMAL(5,2))), (-CAST(129.99 AS DECIMAL(5,2))), (CAST(NULL AS DECIMAL(5,2)))) AS t(a);
 ----
 123
 125
@@ -191,7 +189,7 @@ NULL
 # Decimal128 array with scale 0 — passes through unchanged
 query RT
 SELECT floor(a), arrow_typeof(floor(a))
-FROM (VALUES (123::DECIMAL(10,0)), (-456::DECIMAL(10,0)), (NULL::DECIMAL(10,0))) AS t(a);
+FROM (VALUES (CAST(123 AS DECIMAL(10,0))), (-CAST(456 AS DECIMAL(10,0))), (CAST(NULL AS DECIMAL(10,0)))) AS t(a);
 ----
 123 Decimal128(10, 0)
 -456 Decimal128(10, 0)
@@ -199,31 +197,31 @@ NULL Decimal128(10, 0)
 
 # Decimal128 scale > 0 returns Decimal128(p-s+1, 0)
 query RT
-SELECT floor(56.7::DECIMAL(3,1)), arrow_typeof(floor(56.7::DECIMAL(3,1)));
+SELECT floor(CAST(56.7 AS DECIMAL(3,1))), arrow_typeof(floor(CAST(56.7 AS DECIMAL(3,1))));
 ----
 56 Decimal128(3, 0)
 
 query RT
-SELECT floor(-56.7::DECIMAL(3,1)), arrow_typeof(floor(-56.7::DECIMAL(3,1)));
+SELECT floor(-CAST(56.7 AS DECIMAL(3,1))), arrow_typeof(floor(-CAST(56.7 AS DECIMAL(3,1))));
 ----
 -57 Decimal128(3, 0)
 
 # NaN and Infinity (Float64)
 # Matches Spark: (long)Math.floor(x) — NaN → 0, +Inf → Long.MAX_VALUE, -Inf → Long.MIN_VALUE
 query III
-SELECT floor('NaN'::DOUBLE), floor('Infinity'::DOUBLE), floor('-Infinity'::DOUBLE);
+SELECT floor(CAST('NaN' AS DOUBLE)), floor(CAST('Infinity' AS DOUBLE)), floor(CAST('-Infinity' AS DOUBLE));
 ----
 0 9223372036854775807 -9223372036854775808
 
 # NaN and Infinity (Float32) — same saturating behavior
 query III
-SELECT floor('NaN'::FLOAT), floor('Infinity'::FLOAT), floor('-Infinity'::FLOAT);
+SELECT floor(CAST('NaN' AS FLOAT)), floor(CAST('Infinity' AS FLOAT)), floor(CAST('-Infinity' AS FLOAT));
 ----
 0 9223372036854775807 -9223372036854775808
 
 # NaN/Infinity in array form
 query I
-SELECT floor(a) FROM (VALUES ('NaN'::DOUBLE), ('Infinity'::DOUBLE), ('-Infinity'::DOUBLE), (NULL::DOUBLE)) AS t(a);
+SELECT floor(a) FROM (VALUES (CAST('NaN' AS DOUBLE)), (CAST('Infinity' AS DOUBLE)), (CAST('-Infinity' AS DOUBLE)), (CAST(NULL AS DOUBLE))) AS t(a);
 ----
 0
 9223372036854775807
@@ -235,52 +233,48 @@ NULL
 ####################
 
 # Int16 boundaries (i16::MAX, i16::MIN) pass through as Int64
-# Note: `::` binds tighter than unary minus, so -32768::SMALLINT would be
-# -(32768::SMALLINT) and 32768 overflows SMALLINT. The parentheses cast -32768 itself.
 query III
-SELECT floor(32767::SMALLINT), floor((-32768)::SMALLINT), floor(NULL::SMALLINT);
+SELECT floor(CAST(32767 AS SMALLINT)), floor(CAST(-32768 AS SMALLINT)), floor(CAST(NULL AS SMALLINT));
 ----
 32767 -32768 NULL
 
 # Int32 boundaries (i32::MAX, i32::MIN) pass through as Int64
-# Note: `::` binds tighter than unary minus, so -2147483648::INT would be
-# -(2147483648::INT) and 2147483648 overflows INT. The parentheses cast -2147483648 itself.
 query III
-SELECT floor(2147483647::INT), floor((-2147483648)::INT), floor(NULL::INT);
+SELECT floor(CAST(2147483647 AS INT)), floor(CAST(-2147483648 AS INT)), floor(CAST(NULL AS INT));
 ----
 2147483647 -2147483648 NULL
 
 # Float values exceeding Int64 range saturate at Int64 boundaries
 query II
-SELECT floor(1e20::DOUBLE), floor(-1e20::DOUBLE);
+SELECT floor(CAST(1e20 AS DOUBLE)), floor(-CAST(1e20 AS DOUBLE));
 ----
 9223372036854775807 -9223372036854775808
 
 query II
-SELECT floor(1e20::FLOAT), floor(-1e20::FLOAT);
+SELECT floor(CAST(1e20 AS FLOAT)), floor(-CAST(1e20 AS FLOAT));
 ----
 9223372036854775807 -9223372036854775808
 
 # Negative zero floors to 0 (not -1) since -0.0 == 0.0
 query II
-SELECT floor(-0.0::DOUBLE) AS f64, floor(-0.0::FLOAT) AS f32;
+SELECT floor(-CAST(0.0 AS DOUBLE)) AS f64, floor(-CAST(0.0 AS FLOAT)) AS f32;
 ----
 0 0
 
 # Tiny negative float still rounds toward negative infinity → -1
 query I
-SELECT floor(-1e-300::DOUBLE);
+SELECT floor(-CAST(1e-300 AS DOUBLE));
 ----
 -1
 
 # Decimal precision lower-bound clamp: DECIMAL(38, 38) → Decimal128(1, 0)
 query RT
-SELECT floor(0.5::DECIMAL(38,38)), arrow_typeof(floor(0.5::DECIMAL(38,38)));
+SELECT floor(CAST(0.5 AS DECIMAL(38,38))), arrow_typeof(floor(CAST(0.5 AS DECIMAL(38,38))));
 ----
 0 Decimal128(1, 0)
 
 # Decimal value at the boundary between two integers (just under .5 vs just over)
 query RR
-SELECT floor(0.49::DECIMAL(3,2)), floor(-0.49::DECIMAL(3,2));
+SELECT floor(CAST(0.49 AS DECIMAL(3,2))), floor(-CAST(0.49 AS DECIMAL(3,2)));
 ----
 0 -1

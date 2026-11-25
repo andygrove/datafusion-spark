@@ -14,34 +14,34 @@
 ## Original Query: SELECT dayofweek('2009-07-30');
 ## PySpark 3.5.5 Result: {'dayofweek(2009-07-30)': 5, 'typeof(dayofweek(2009-07-30))': 'int', 'typeof(2009-07-30)': 'string'}
 query I
-SELECT dayofweek('2009-07-30'::string);
+SELECT dayofweek(CAST('2009-07-30' AS string));
 ----
 5
 
 query I
-SELECT dayofweek('2009-07-30'::DATE);
+SELECT dayofweek(CAST('2009-07-30' AS DATE));
 ----
 5
 
 # All seven days of one week (2024-01-07 is a Sunday)
 query IIIIIII
-SELECT dayofweek('2024-01-07'::DATE), dayofweek('2024-01-08'::DATE), dayofweek('2024-01-09'::DATE),
-       dayofweek('2024-01-10'::DATE), dayofweek('2024-01-11'::DATE), dayofweek('2024-01-12'::DATE),
-       dayofweek('2024-01-13'::DATE);
+SELECT dayofweek(CAST('2024-01-07' AS DATE)), dayofweek(CAST('2024-01-08' AS DATE)), dayofweek(CAST('2024-01-09' AS DATE)),
+       dayofweek(CAST('2024-01-10' AS DATE)), dayofweek(CAST('2024-01-11' AS DATE)), dayofweek(CAST('2024-01-12' AS DATE)),
+       dayofweek(CAST('2024-01-13' AS DATE));
 ----
 1 2 3 4 5 6 7
 
 # Epoch, the day before it, and a leap day
 query III
-SELECT dayofweek('1970-01-01'::DATE), dayofweek('1969-12-31'::DATE), dayofweek('2024-02-29'::DATE);
+SELECT dayofweek(CAST('1970-01-01' AS DATE)), dayofweek(CAST('1969-12-31' AS DATE)), dayofweek(CAST('2024-02-29' AS DATE));
 ----
 5 4 5
 
 # Calendar boundaries. Spark uses the proleptic Gregorian calendar, so
 # 1582-10-04 (the last Julian day before the switch) is a Monday.
 query IIII
-SELECT dayofweek('0001-01-01'::DATE), dayofweek('9999-12-31'::DATE),
-       dayofweek('1582-10-04'::DATE), dayofweek('1582-10-15'::DATE);
+SELECT dayofweek(CAST('0001-01-01' AS DATE)), dayofweek(CAST('9999-12-31' AS DATE)),
+       dayofweek(CAST('1582-10-04' AS DATE)), dayofweek(CAST('1582-10-15' AS DATE));
 ----
 2 6 2 6
 
@@ -60,7 +60,7 @@ SELECT dayofweek(d) FROM (VALUES (date_from_unix_date(-2147483648)), (date_from_
 
 # NULL
 query I
-SELECT dayofweek(NULL::DATE);
+SELECT dayofweek(CAST(NULL AS DATE));
 ----
 NULL
 
@@ -72,13 +72,13 @@ NULL Int32
 
 # Result type
 query T
-SELECT arrow_typeof(dayofweek('2024-01-01'::DATE));
+SELECT arrow_typeof(dayofweek(CAST('2024-01-01' AS DATE)));
 ----
 Int32
 
 # Column input, including NULL
 query I
-SELECT dayofweek(d) FROM (VALUES ('2024-01-01'::DATE), (NULL::DATE), ('2024-01-07'::DATE)) AS t(d);
+SELECT dayofweek(d) FROM (VALUES (CAST('2024-01-01' AS DATE)), (CAST(NULL AS DATE)), (CAST('2024-01-07' AS DATE))) AS t(d);
 ----
 2
 NULL
@@ -86,12 +86,12 @@ NULL
 
 # Strings are implicitly cast to dates
 query I
-SELECT dayofweek('2024-05-20 23:30:00'::STRING);
+SELECT dayofweek(CAST('2024-05-20 23:30:00' AS STRING));
 ----
 2
 
 query I
-SELECT dayofweek(d) FROM (VALUES ('2024-01-01'::STRING), (NULL::STRING), ('2024-01-07'::STRING)) AS t(d);
+SELECT dayofweek(d) FROM (VALUES (CAST('2024-01-01' AS STRING)), (CAST(NULL AS STRING)), (CAST('2024-01-07' AS STRING))) AS t(d);
 ----
 2
 NULL
@@ -115,12 +115,12 @@ NULL
 
 # Date64 is cast to epoch days
 query II
-SELECT dayofweek(arrow_cast('2024-01-07'::DATE, 'Date64')), dayofweek(arrow_cast('1969-12-31'::DATE, 'Date64'));
+SELECT dayofweek(arrow_cast(CAST('2024-01-07' AS DATE), 'Date64')), dayofweek(arrow_cast(CAST('1969-12-31' AS DATE), 'Date64'));
 ----
 1 4
 
 query I
-SELECT dayofweek(d) FROM (VALUES (arrow_cast('2024-01-07'::DATE, 'Date64')), (arrow_cast(NULL::DATE, 'Date64'))) AS t(d);
+SELECT dayofweek(d) FROM (VALUES (arrow_cast(CAST('2024-01-07' AS DATE), 'Date64')), (arrow_cast(CAST(NULL AS DATE), 'Date64'))) AS t(d);
 ----
 1
 NULL
@@ -146,7 +146,7 @@ statement ok
 set datafusion.execution.enable_ansi_mode = true;
 
 query error Cannot cast string 'abc' to value of Date32 type
-SELECT dayofweek('abc'::STRING);
+SELECT dayofweek(CAST('abc' AS STRING));
 
 statement ok
 set datafusion.execution.enable_ansi_mode = false;
@@ -159,10 +159,10 @@ SELECT dayofweek(arrow_cast('2024-01-07 23:59:59', 'Timestamp(Microsecond, None)
 
 query I
 SELECT dayofweek(ts) FROM (VALUES
-  ('2024-01-01 01:02:03'::TIMESTAMP),
-  ('2024-01-06 10:20:30'::TIMESTAMP),
-  ('2024-01-07 23:59:59'::TIMESTAMP),
-  (NULL::TIMESTAMP)
+  (CAST('2024-01-01 01:02:03' AS TIMESTAMP)),
+  (CAST('2024-01-06 10:20:30' AS TIMESTAMP)),
+  (CAST('2024-01-07 23:59:59' AS TIMESTAMP)),
+  (CAST(NULL AS TIMESTAMP))
 ) AS t(ts);
 ----
 2
@@ -200,9 +200,9 @@ reset datafusion.execution.time_zone;
 skipif spark
 query IT
 SELECT dayofweek(d), arrow_typeof(dayofweek(d)) FROM (VALUES
-  (arrow_cast('2024-01-01'::DATE, 'Dictionary(Int32, Date32)')),
-  (arrow_cast(NULL::DATE, 'Dictionary(Int32, Date32)')),
-  (arrow_cast('2024-01-07'::DATE, 'Dictionary(Int32, Date32)'))
+  (arrow_cast(CAST('2024-01-01' AS DATE), 'Dictionary(Int32, Date32)')),
+  (arrow_cast(CAST(NULL AS DATE), 'Dictionary(Int32, Date32)')),
+  (arrow_cast(CAST('2024-01-07' AS DATE), 'Dictionary(Int32, Date32)'))
 ) AS t(d);
 ----
 2 Int32
@@ -211,7 +211,7 @@ NULL Int32
 
 # Spark raises DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE for an integer
 statement error Function 'dayofweek' requires Date, but received Int32
-SELECT dayofweek(1::INT);
+SELECT dayofweek(CAST(1 AS INT));
 
 statement error 'dayofweek' does not support zero arguments
 SELECT dayofweek();

@@ -12,71 +12,71 @@
 
 # round(double) default scale = 0
 query R
-SELECT round(2.5::double);
+SELECT round(CAST(2.5 AS double));
 ----
 3
 
 query R
-SELECT round(3.5::double);
+SELECT round(CAST(3.5 AS double));
 ----
 4
 
 query R
-SELECT round(-2.5::double);
+SELECT round(-CAST(2.5 AS double));
 ----
 -3
 
 query R
-SELECT round(-3.5::double);
+SELECT round(-CAST(3.5 AS double));
 ----
 -4
 
 query R
-SELECT round(1.4::double);
+SELECT round(CAST(1.4 AS double));
 ----
 1
 
 query R
-SELECT round(1.6::double);
+SELECT round(CAST(1.6 AS double));
 ----
 2
 
 # round(double, scale)
 query R
-SELECT round(2.345::double, 2::int);
+SELECT round(CAST(2.345 AS double), CAST(2 AS int));
 ----
 2.35
 
 query R
-SELECT round(2.355::double, 2::int);
+SELECT round(CAST(2.355 AS double), CAST(2 AS int));
 ----
 2.36
 
 query R
-SELECT round(123.456::double, 1::int);
+SELECT round(CAST(123.456 AS double), CAST(1 AS int));
 ----
 123.5
 
 # round(float)
 query R
-SELECT round(2.5::FLOAT);
+SELECT round(CAST(2.5 AS FLOAT));
 ----
 3
 
 query R
-SELECT round((-2.5)::FLOAT);
+SELECT round(CAST(-2.5 AS FLOAT));
 ----
 -3
 
 # round(float) with scale
 query R
-SELECT round(2.345::FLOAT, 2::int);
+SELECT round(CAST(2.345 AS FLOAT), CAST(2 AS int));
 ----
 2.35
 
 # round(float32) with negative scale
 query R
-SELECT round(125.0::FLOAT, -1::int);
+SELECT round(CAST(125.0 AS FLOAT), -CAST(1 AS int));
 ----
 130
 
@@ -97,61 +97,61 @@ SELECT round(arrow_cast(-2.5, 'Float16'));
 
 # round(float16) with negative scale
 query R
-SELECT round(arrow_cast(125, 'Float16'), -1::int);
+SELECT round(arrow_cast(125, 'Float16'), -CAST(1 AS int));
 ----
 130
 
 # round(double) with negative scale
 query R
-SELECT round(125.0::double, -1::int);
+SELECT round(CAST(125.0 AS double), -CAST(1 AS int));
 ----
 130
 
 query R
-SELECT round(125.0::double, -2::int);
+SELECT round(CAST(125.0 AS double), -CAST(2 AS int));
 ----
 100
 
 query R
-SELECT round(0.0::double);
+SELECT round(CAST(0.0 AS double));
 ----
 0
 
 # round(double) with Infinity and NaN
 query R
-SELECT round('Infinity'::double);
+SELECT round(CAST('Infinity' AS double));
 ----
 Infinity
 
 query R
-SELECT round('-Infinity'::double);
+SELECT round(CAST('-Infinity' AS double));
 ----
 -Infinity
 
 query R
-SELECT round('NaN'::double);
+SELECT round(CAST('NaN' AS double));
 ----
 NaN
 
 query R
-SELECT round('Infinity'::double, 2::int);
+SELECT round(CAST('Infinity' AS double), CAST(2 AS int));
 ----
 Infinity
 
 query R
-SELECT round('NaN'::double, 2::int);
+SELECT round(CAST('NaN' AS double), CAST(2 AS int));
 ----
 NaN
 
 # round(double) with extreme negative scale — should return 0, not NaN
 query R
-SELECT round(42.0::double, -400::int);
+SELECT round(CAST(42.0 AS double), -CAST(400 AS int));
 ----
 0
 
 # round(double) with extreme positive scale — should return value as-is
 query R
-SELECT round(2.5::double, 400::int);
+SELECT round(CAST(2.5 AS double), CAST(400 AS int));
 ----
 2.5
 
@@ -161,81 +161,81 @@ SELECT round(2.5::double, 400::int);
 
 # round(int, -1) — round to nearest 10
 query I
-SELECT round(25::int, -1::int);
+SELECT round(CAST(25 AS int), -CAST(1 AS int));
 ----
 30
 
 query I
-SELECT round(24::int, -1::int);
+SELECT round(CAST(24 AS int), -CAST(1 AS int));
 ----
 20
 
 query I
-SELECT round(-25::int, -1::int);
+SELECT round(-CAST(25 AS int), -CAST(1 AS int));
 ----
 -30
 
 query I
-SELECT round(123::int, -1::int);
+SELECT round(CAST(123 AS int), -CAST(1 AS int));
 ----
 120
 
 # round(int, -2) — round to nearest 100
 query I
-SELECT round(150::int, -2::int);
+SELECT round(CAST(150 AS int), -CAST(2 AS int));
 ----
 200
 
 query I
-SELECT round(149::int, -2::int);
+SELECT round(CAST(149 AS int), -CAST(2 AS int));
 ----
 100
 
 # round(int, positive scale) — no-op for integers
 query I
-SELECT round(42::int, 2::int);
+SELECT round(CAST(42 AS int), CAST(2 AS int));
 ----
 42
 
 # round(int) default scale = 0 — returns unchanged
 query I
-SELECT round(42::int);
+SELECT round(CAST(42 AS int));
 ----
 42
 
 # round(bigint, -1)
 query I
-SELECT round(25::bigint, -1::int);
+SELECT round(CAST(25 AS bigint), -CAST(1 AS int));
 ----
 30
 
 # round(bigint) should preserve exact values above Float64's exact integer range
 query IT
-SELECT round(9007199254740993::BIGINT), arrow_typeof(round(9007199254740993::BIGINT));
+SELECT round(CAST(9007199254740993 AS BIGINT)), arrow_typeof(round(CAST(9007199254740993 AS BIGINT)));
 ----
 9007199254740993 Int64
 
 # round(bigint, positive scale) should also preserve exact values above Float64's exact integer range
 query IT
-SELECT round(9007199254740993::BIGINT, 2::int), arrow_typeof(round(9007199254740993::BIGINT, 2::int));
+SELECT round(CAST(9007199254740993 AS BIGINT), CAST(2 AS int)), arrow_typeof(round(CAST(9007199254740993 AS BIGINT), CAST(2 AS int)));
 ----
 9007199254740993 Int64
 
 # round(smallint, -1)
 query I
-SELECT round(25::smallint, -1::int);
+SELECT round(CAST(25 AS smallint), -CAST(1 AS int));
 ----
 30
 
 # round(tinyint, -1)
 query I
-SELECT round(25::TINYINT, -1::int);
+SELECT round(CAST(25 AS TINYINT), -CAST(1 AS int));
 ----
 30
 
 # round(int) with very large negative scale — should return 0
 query I
-SELECT round(42::int, -10::int);
+SELECT round(CAST(42 AS int), -CAST(10 AS int));
 ----
 0
 
@@ -245,25 +245,25 @@ SELECT round(42::int, -10::int);
 
 # round(uint8, -1)
 query I
-SELECT round(arrow_cast(25, 'UInt8'), -1::int);
+SELECT round(arrow_cast(25, 'UInt8'), -CAST(1 AS int));
 ----
 30
 
 # round(uint16, -1)
 query I
-SELECT round(arrow_cast(25, 'UInt16'), -1::int);
+SELECT round(arrow_cast(25, 'UInt16'), -CAST(1 AS int));
 ----
 30
 
 # round(uint32, -1)
 query I
-SELECT round(arrow_cast(150, 'UInt32'), -2::int);
+SELECT round(arrow_cast(150, 'UInt32'), -CAST(2 AS int));
 ----
 200
 
 # round(uint64, -1)
 query I
-SELECT round(arrow_cast(25, 'UInt64'), -1::int);
+SELECT round(arrow_cast(25, 'UInt64'), -CAST(1 AS int));
 ----
 30
 
@@ -275,13 +275,13 @@ SELECT round(arrow_cast(18446744073709551615, 'UInt64')), arrow_typeof(round(arr
 
 # round(uint64, positive scale) should also preserve exact values above Float64's exact integer range
 query IT
-SELECT round(arrow_cast(18446744073709551615, 'UInt64'), 2::int), arrow_typeof(round(arrow_cast(18446744073709551615, 'UInt64'), 2::int));
+SELECT round(arrow_cast(18446744073709551615, 'UInt64'), CAST(2 AS int)), arrow_typeof(round(arrow_cast(18446744073709551615, 'UInt64'), CAST(2 AS int)));
 ----
 18446744073709551615 UInt64
 
 # round(uint32, positive scale) — no-op for integers
 query I
-SELECT round(arrow_cast(42, 'UInt32'), 2::int);
+SELECT round(arrow_cast(42, 'UInt32'), CAST(2 AS int));
 ----
 42
 
@@ -294,20 +294,20 @@ SELECT round(arrow_cast(42, 'UInt32'), 2::int);
 # round(decimal32, 0) — round to integer
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(arrow_cast(2.5, 'Decimal32(9, 1)'), 0::int);
+SELECT round(arrow_cast(2.5, 'Decimal32(9, 1)'), CAST(0 AS int));
 ----
 3.0
 
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(arrow_cast(-2.5, 'Decimal32(9, 1)'), 0::int);
+SELECT round(arrow_cast(-2.5, 'Decimal32(9, 1)'), CAST(0 AS int));
 ----
 -3.0
 
 # round(decimal32, 2)
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(arrow_cast(2.345, 'Decimal32(9, 3)'), 2::int);
+SELECT round(arrow_cast(2.345, 'Decimal32(9, 3)'), CAST(2 AS int));
 ----
 2.350
 
@@ -323,20 +323,20 @@ SELECT round(arrow_cast(3.5, 'Decimal32(9, 1)'));
 # round(decimal64, 0) — round to integer
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(arrow_cast(2.5, 'Decimal64(18, 1)'), 0::int);
+SELECT round(arrow_cast(2.5, 'Decimal64(18, 1)'), CAST(0 AS int));
 ----
 3.0
 
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(arrow_cast(-2.5, 'Decimal64(18, 1)'), 0::int);
+SELECT round(arrow_cast(-2.5, 'Decimal64(18, 1)'), CAST(0 AS int));
 ----
 -3.0
 
 # round(decimal64, 2)
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(arrow_cast(2.345, 'Decimal64(18, 3)'), 2::int);
+SELECT round(arrow_cast(2.345, 'Decimal64(18, 3)'), CAST(2 AS int));
 ----
 2.350
 
@@ -352,26 +352,26 @@ SELECT round(arrow_cast(3.5, 'Decimal64(18, 1)'));
 # round(decimal, 0) — round to integer
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(2.5::decimal(2,1), 0::int);
+SELECT round(CAST(2.5 AS decimal(2,1)), CAST(0 AS int));
 ----
 3.0
 
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(3.5::decimal(2,1), 0::int);
+SELECT round(CAST(3.5 AS decimal(2,1)), CAST(0 AS int));
 ----
 4.0
 
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(-2.5::decimal(2,1), 0::int);
+SELECT round(-CAST(2.5 AS decimal(2,1)), CAST(0 AS int));
 ----
 -3.0
 
 # round(decimal) default scale = 0
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(2.5::decimal(2,1));
+SELECT round(CAST(2.5 AS decimal(2,1)));
 ----
 3.0
 
@@ -379,40 +379,40 @@ SELECT round(2.5::decimal(2,1));
 # Spark reduces the scale and returns 2.35 as DECIMAL(10, 2) (https://github.com/apache/datafusion-spark/issues/37)
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(2.345::decimal(10,3), 2::int);
+SELECT round(CAST(2.345 AS decimal(10,3)), CAST(2 AS int));
 ----
 2.350
 
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(2.355::decimal(10,3), 2::int);
+SELECT round(CAST(2.355 AS decimal(10,3)), CAST(2 AS int));
 ----
 2.360
 
 # round(decimal, scale larger than input scale) — no change
 query R
-SELECT round(2.5::decimal(2,1), 5::int);
+SELECT round(CAST(2.5 AS decimal(2,1)), CAST(5 AS int));
 ----
 2.5
 
 # round(decimal, 1)
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(123.456::decimal(10,3), 1::int);
+SELECT round(CAST(123.456 AS decimal(10,3)), CAST(1 AS int));
 ----
 123.500
 
 # round(decimal, negative scale) — round to tens
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(125.0::decimal(10,1), -1::int);
+SELECT round(CAST(125.0 AS decimal(10,1)), -CAST(1 AS int));
 ----
 130.0
 
 # round(decimal, extreme negative scale) — should return 0, not error
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(2.5::decimal(10,1), -400::int);
+SELECT round(CAST(2.5 AS decimal(10,1)), -CAST(400 AS int));
 ----
 0.0
 
@@ -421,20 +421,20 @@ SELECT round(2.5::decimal(10,1), -400::int);
 # round(decimal256, 0) — round to integer
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(arrow_cast(2.5, 'Decimal256(38, 1)'), 0::int);
+SELECT round(arrow_cast(2.5, 'Decimal256(38, 1)'), CAST(0 AS int));
 ----
 3.0
 
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(arrow_cast(-2.5, 'Decimal256(38, 1)'), 0::int);
+SELECT round(arrow_cast(-2.5, 'Decimal256(38, 1)'), CAST(0 AS int));
 ----
 -3.0
 
 # round(decimal256, 2)
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(arrow_cast(2.345, 'Decimal256(38, 3)'), 2::int);
+SELECT round(arrow_cast(2.345, 'Decimal256(38, 3)'), CAST(2 AS int));
 ----
 2.350
 
@@ -450,28 +450,28 @@ SELECT round(arrow_cast(3.5, 'Decimal256(38, 1)'));
 # -------------------------------------------------------------------
 
 query I
-SELECT round(NULL::int);
+SELECT round(CAST(NULL AS int));
 ----
 NULL
 
 query R
-SELECT round(NULL::double);
+SELECT round(CAST(NULL AS double));
 ----
 NULL
 
 query R
-SELECT round(NULL::decimal(10,2));
+SELECT round(CAST(NULL AS decimal(10,2)));
 ----
 NULL
 
 # round with NULL scale — Spark returns NULL
 query I
-SELECT round(42::int, NULL::int);
+SELECT round(CAST(42 AS int), CAST(NULL AS int));
 ----
 NULL
 
 query R
-SELECT round(2.5::double, NULL::int);
+SELECT round(CAST(2.5 AS double), CAST(NULL AS int));
 ----
 NULL
 
@@ -489,7 +489,7 @@ CREATE TABLE test_round (id int, int_val int, float_val double, dec_val decimal(
 
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query IIRR rowsort
-SELECT id, round(int_val, -1::int), round(float_val), round(dec_val, 2::int) FROM test_round;
+SELECT id, round(int_val, -CAST(1 AS int)), round(float_val), round(dec_val, CAST(2 AS int)) FROM test_round;
 ----
 1 30 3 2.350
 2 40 4 3.560
@@ -505,7 +505,7 @@ DROP TABLE test_round;
 # -------------------------------------------------------------------
 
 query R
-SELECT round(3.14159::double, 2::int) + 1.0;
+SELECT round(CAST(3.14159 AS double), CAST(2 AS int)) + 1.0;
 ----
 4.140000000000001
 
@@ -514,27 +514,27 @@ SELECT round(3.14159::double, 2::int) + 1.0;
 # When ANSI mode is off, integer overflow wraps silently.
 # -------------------------------------------------------------------
 
-# round(127::tinyint, -1) → 130, wraps as i8 → -126
+# round(CAST(127 AS tinyint), -1) → 130, wraps as i8 → -126
 query I
-SELECT round(127::TINYINT, -1::int);
+SELECT round(CAST(127 AS TINYINT), -CAST(1 AS int));
 ----
 -126
 
-# round(32767::smallint, -1) → 32770, wraps as i16 → -32766
+# round(CAST(32767 AS smallint), -1) → 32770, wraps as i16 → -32766
 query I
-SELECT round(32767::SMALLINT, -1::int);
+SELECT round(CAST(32767 AS SMALLINT), -CAST(1 AS int));
 ----
 -32766
 
-# round(2147483647::int, -1) → 2147483650, wraps as i32 → -2147483646
+# round(CAST(2147483647 AS int), -1) → 2147483650, wraps as i32 → -2147483646
 query I
-SELECT round(2147483647::int, -1::int);
+SELECT round(CAST(2147483647 AS int), -CAST(1 AS int));
 ----
 -2147483646
 
 # round(i64::MAX, -1) wraps as i64 → -9223372036854775806
 query I
-SELECT round(9223372036854775807::bigint, -1::int);
+SELECT round(CAST(9223372036854775807 AS bigint), -CAST(1 AS int));
 ----
 -9223372036854775806
 
@@ -547,53 +547,53 @@ set datafusion.execution.enable_ansi_mode = true;
 
 # ANSI mode: normal rounding should still work
 query I
-SELECT round(25::int, -1::int);
+SELECT round(CAST(25 AS int), -CAST(1 AS int));
 ----
 30
 
 query I
-SELECT round(-25::int, -1::int);
+SELECT round(-CAST(25 AS int), -CAST(1 AS int));
 ----
 -30
 
 query I
-SELECT round(150::int, -2::int);
+SELECT round(CAST(150 AS int), -CAST(2 AS int));
 ----
 200
 
 # ANSI mode: positive scale on integers — no-op, no overflow
 query I
-SELECT round(42::int, 2::int);
+SELECT round(CAST(42 AS int), CAST(2 AS int));
 ----
 42
 
 # ANSI mode: floats and decimals should work normally
 query R
-SELECT round(2.5::double);
+SELECT round(CAST(2.5 AS double));
 ----
 3
 
 # xfail spark: round on a DECIMAL keeps the input scale, Spark reduces the result scale (https://github.com/apache/datafusion-spark/issues/37)
 query R
-SELECT round(2.5::decimal(2,1), 0::int);
+SELECT round(CAST(2.5 AS decimal(2,1)), CAST(0 AS int));
 ----
 3.0
 
 # ANSI mode: integer overflow should error
 query error DataFusion error: Execution error: Int64 overflow on round
-SELECT round(9223372036854775807::bigint, -1::int);
+SELECT round(CAST(9223372036854775807 AS bigint), -CAST(1 AS int));
 
 # ANSI mode: Int32 overflow should error
 query error DataFusion error: Execution error: Int32 overflow on round
-SELECT round(2147483647::int, -1::int);
+SELECT round(CAST(2147483647 AS int), -CAST(1 AS int));
 
 # ANSI mode: Int16 overflow should error
 query error DataFusion error: Execution error: Int16 overflow on round
-SELECT round(32767::SMALLINT, -1::int);
+SELECT round(CAST(32767 AS SMALLINT), -CAST(1 AS int));
 
 # ANSI mode: Int8 overflow should error
 query error DataFusion error: Execution error: Int8 overflow on round
-SELECT round(127::TINYINT, -1::int);
+SELECT round(CAST(127 AS TINYINT), -CAST(1 AS int));
 
 # Reset ANSI mode
 statement ok
@@ -606,7 +606,7 @@ set datafusion.execution.enable_ansi_mode = false;
 # round(string) should fail
 # xfail spark: round rejects a STRING argument, Spark casts it to DOUBLE (NULL for 'hello') (https://github.com/apache/datafusion-spark/issues/41)
 query error Error during planning: Function 'round' failed to match any signature
-SELECT round('hello'::varchar);
+SELECT round(CAST('hello' AS varchar));
 
 # round(boolean) should fail
 query error Error during planning: Function 'round' failed to match any signature
@@ -614,4 +614,4 @@ SELECT round(true);
 
 # round(timestamp) should fail
 query error Error during planning: Function 'round' failed to match any signature
-SELECT round('2023-01-01T00:00:00'::timestamp);
+SELECT round(CAST('2023-01-01T00:00:00' AS timestamp));

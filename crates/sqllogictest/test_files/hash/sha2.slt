@@ -3,49 +3,49 @@
 # SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 query T
-SELECT sha2('Spark', 0::INT);
+SELECT sha2('Spark', CAST(0 AS INT));
 ----
 529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
 
 query T
-SELECT sha2('Spark', 256::INT);
+SELECT sha2('Spark', CAST(256 AS INT));
 ----
 529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
 
 query T
-SELECT sha2('Spark', 224::INT);
+SELECT sha2('Spark', CAST(224 AS INT));
 ----
 dbeab94971678d36af2195851c0f7485775a2a7c60073d62fc04549c
 
 query T
-SELECT sha2('Spark', 384::INT);
+SELECT sha2('Spark', CAST(384 AS INT));
 ----
 1e40b8d06c248a1cc32428c22582b6219d072283078fa140d9ad297ecadf2cabefc341b857ad36226aa8d6d79f2ab67d
 
 query T
-SELECT sha2('Spark', 512::INT);
+SELECT sha2('Spark', CAST(512 AS INT));
 ----
 44844a586c54c9a212da1dbfe05c5f1705de1af5fda1f0d36297623249b279fd8f0ccec03f888f4fb13bf7cd83fdad58591c797f81121a23cfdd5e0897795238
 
 query T
-SELECT sha2('Spark', 128::INT);
+SELECT sha2('Spark', CAST(128 AS INT));
 ----
 NULL
 
 query T
-SELECT sha2(expr, 256::INT) FROM VALUES ('foo'), ('bar') AS t(expr);
+SELECT sha2(expr, CAST(256 AS INT)) FROM VALUES ('foo'), ('bar') AS t(expr);
 ----
 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
 fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9
 
 query T
-SELECT sha2(expr, 128::INT) FROM VALUES ('foo'), ('bar') AS t(expr);
+SELECT sha2(expr, CAST(128 AS INT)) FROM VALUES ('foo'), ('bar') AS t(expr);
 ----
 NULL
 NULL
 
 query T
-SELECT sha2('foo', bit_length) FROM VALUES (0::INT), (256::INT), (224::INT), (384::INT), (512::INT), (128::INT) AS t(bit_length);
+SELECT sha2('foo', bit_length) FROM VALUES (CAST(0 AS INT)), (CAST(256 AS INT)), (CAST(224 AS INT)), (CAST(384 AS INT)), (CAST(512 AS INT)), (CAST(128 AS INT)) AS t(bit_length);
 ----
 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
@@ -55,7 +55,7 @@ f7fbba6e0636f890e56fbbf3283e524c6fa3204ae298382d624741d0dc6638326e282c41be5e4254
 NULL
 
 query T
-SELECT sha2(expr, bit_length) FROM VALUES ('foo',0::INT), ('bar',224::INT), ('baz',384::INT), ('qux',512::INT), ('qux',128::INT) AS t(expr, bit_length);
+SELECT sha2(expr, bit_length) FROM VALUES ('foo',CAST(0 AS INT)), ('bar',CAST(224 AS INT)), ('baz',CAST(384 AS INT)), ('qux',CAST(512 AS INT)), ('qux',CAST(128 AS INT)) AS t(expr, bit_length);
 ----
 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
 07daf010de7f7f0d8d76a76eb8d1eb40182c8d1e7a3877a6686c9bf0
@@ -65,38 +65,38 @@ NULL
 
 # All string types
 query T
-SELECT sha2(arrow_cast('foo', 'Utf8'), bit_length) FROM VALUES (224::INT), (256::INT) AS t(bit_length);
+SELECT sha2(arrow_cast('foo', 'Utf8'), bit_length) FROM VALUES (CAST(224 AS INT)), (CAST(256 AS INT)) AS t(bit_length);
 ----
 0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db
 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
 
 query T
-SELECT sha2(arrow_cast('foo', 'LargeUtf8'), bit_length) FROM VALUES (224::INT), (256::INT) AS t(bit_length);
+SELECT sha2(arrow_cast('foo', 'LargeUtf8'), bit_length) FROM VALUES (CAST(224 AS INT)), (CAST(256 AS INT)) AS t(bit_length);
 ----
 0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db
 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
 
 query T
-SELECT sha2('foo'::STRING, bit_length) FROM VALUES (224::INT), (256::INT) AS t(bit_length);
+SELECT sha2(CAST('foo' AS STRING), bit_length) FROM VALUES (CAST(224 AS INT)), (CAST(256 AS INT)) AS t(bit_length);
 ----
 0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db
 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
 
 # All binary types
 query T
-SELECT sha2('foo'::BINARY, bit_length) FROM VALUES (224::INT), (256::INT) AS t(bit_length);
+SELECT sha2(CAST('foo' AS BINARY), bit_length) FROM VALUES (CAST(224 AS INT)), (CAST(256 AS INT)) AS t(bit_length);
 ----
 0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db
 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
 
 query T
-SELECT sha2(arrow_cast('foo', 'LargeBinary'), bit_length) FROM VALUES (224::INT), (256::INT) AS t(bit_length);
+SELECT sha2(arrow_cast('foo', 'LargeBinary'), bit_length) FROM VALUES (CAST(224 AS INT)), (CAST(256 AS INT)) AS t(bit_length);
 ----
 0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db
 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
 
 query T
-SELECT sha2(arrow_cast('foo', 'BinaryView'), bit_length) FROM VALUES (224::INT), (256::INT) AS t(bit_length);
+SELECT sha2(arrow_cast('foo', 'BinaryView'), bit_length) FROM VALUES (CAST(224 AS INT)), (CAST(256 AS INT)) AS t(bit_length);
 ----
 0808f64e60d58979fcb676c96ec938270dea42445aeefcd3a4e6f8db
 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
@@ -114,7 +114,7 @@ select sha2('a', null);
 NULL
 
 query T
-select sha2('a', null::int);
+select sha2('a', CAST(null AS int));
 ----
 NULL
 
@@ -132,32 +132,32 @@ SELECT sha2('Spark', '256');
 529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
 
 query T
-SELECT sha2('Spark', 256::SMALLINT);
+SELECT sha2('Spark', CAST(256 AS SMALLINT));
 ----
 529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
 
 query T
-SELECT sha2('Spark', 0::TINYINT);
+SELECT sha2('Spark', CAST(0 AS TINYINT));
 ----
 529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
 
 query T
-SELECT sha2('Spark', 256.7::DOUBLE);
+SELECT sha2('Spark', CAST(256.7 AS DOUBLE));
 ----
 529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
 
 query T
-SELECT sha2('Spark', 256.7::FLOAT);
+SELECT sha2('Spark', CAST(256.7 AS FLOAT));
 ----
 529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
 
 query T
-SELECT sha2('Spark', 256.0::DECIMAL(10, 2));
+SELECT sha2('Spark', CAST(256.0 AS DECIMAL(10, 2)));
 ----
 529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
 
 query T
-SELECT sha2(NULL::STRING, 256);
+SELECT sha2(CAST(NULL AS STRING), 256);
 ----
 NULL
 
@@ -179,10 +179,10 @@ SELECT sha2(c, 256) FROM (VALUES (arrow_cast(X'537061726b', 'FixedSizeBinary(5)'
 bf83b9ea169e80880e11056e2e3e7624635321a1d3805fbc5e62e82fc2568b05
 
 query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha2` requires the "BINARY" type, however it has the type "INT"\. SQLSTATE: 42K09
-SELECT sha2(1::INT, 256);
+SELECT sha2(CAST(1 AS INT), 256);
 
 query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha2` requires the "BINARY" type, however it has the type "DOUBLE"\. SQLSTATE: 42K09
-SELECT sha2(1.5::DOUBLE, 256);
+SELECT sha2(CAST(1.5 AS DOUBLE), 256);
 
 query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha2` requires the "BINARY" type, however it has the type "BOOLEAN"\. SQLSTATE: 42K09
 SELECT sha2(true, 256);
@@ -225,12 +225,12 @@ SELECT sha2('Spark', '256');
 529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
 
 query T
-SELECT sha2('Spark', 256.7::DOUBLE);
+SELECT sha2('Spark', CAST(256.7 AS DOUBLE));
 ----
 529bc3b07127ecb7e53a4dcf1991d9152c24537d919178022b2c42657f79a26b
 
 query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha2` requires the "BINARY" type, however it has the type "INT"\. SQLSTATE: 42K09
-SELECT sha2(1::INT, 256);
+SELECT sha2(CAST(1 AS INT), 256);
 
 query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The second parameter of `sha2` requires the "INT" type, however it has the type "BOOLEAN"\. SQLSTATE: 42K09
 SELECT sha2('Spark', true);

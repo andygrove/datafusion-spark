@@ -24,8 +24,10 @@ When testing Spark functions:
 
 - Functions must be tested on both `Scalar` and `Array` inputs
 - Test cases should only contain `SELECT` statements with the function being tested
-- Add explicit casts to input values to ensure the correct data type is used (e.g., `0::INT`)
+- Add explicit casts to input values to ensure the correct data type is used (e.g., `CAST(0 AS INT)`)
   - Explicit casting is necessary because DataFusion and Spark do not infer data types in the same way
+  - Write casts as `CAST(x AS type)`, not `x::type`. Spark 3.5 does not parse `::`, and DataFusion and Spark 4
+    disagree on whether `-1::INT` casts `-1` or `1`, so the PySpark runner rejects `::`
 - If the Spark built-in function under test behaves differently in ANSI SQL mode, please wrap your test cases like this example:
 
 ```sql
@@ -33,7 +35,7 @@ statement ok
 set datafusion.execution.enable_ansi_mode = true;
 
 # Functions under test
-select abs((-128)::TINYINT)
+select abs(CAST(-128 AS TINYINT))
 
 statement ok
 set datafusion.execution.enable_ansi_mode = false;
@@ -62,13 +64,13 @@ of `NAME`).
 ### Scalar Example:
 
 ```sql
-SELECT expm1(0::INT);
+SELECT expm1(CAST(0 AS INT));
 ```
 
 ### Array Example:
 
 ```sql
-SELECT expm1(a) FROM (VALUES (0::INT), (1::INT)) AS t(a);
+SELECT expm1(a) FROM (VALUES (CAST(0 AS INT)), (CAST(1 AS INT))) AS t(a);
 ```
 
 ## Simplify and evaluate modes
@@ -76,7 +78,7 @@ SELECT expm1(a) FROM (VALUES (0::INT), (1::INT)) AS t(a);
 `cargo test -p datafusion-spark-sqllogictest` runs every file twice:
 
 - `simplify` uses the default optimizer, so a call whose arguments are all literals,
-  such as `SELECT expm1(0::INT)`, is constant-folded while planning. This calls the
+  such as `SELECT expm1(CAST(0 AS INT))`, is constant-folded while planning. This calls the
   function's `simplify` (if it has one) and evaluates it on a one-row batch.
 - `evaluate` replaces the `simplify_expressions` optimizer rule, so a call that reaches
   the physical plan runs through `invoke_with_args` during execution, as it does in
@@ -86,7 +88,7 @@ SELECT expm1(a) FROM (VALUES (0::INT), (1::INT)) AS t(a);
 `evaluate` mode only changes the optimizer. SQL planning still runs first and can
 evaluate or simplify some expressions before the optimizer sees them, for example the
 arguments of a table function. A call in a projection or filter over rows, such as
-`SELECT expm1(a) FROM (VALUES (0::INT), (1::INT)) AS t(a)`, is the reliable way to test
+`SELECT expm1(a) FROM (VALUES (CAST(0 AS INT)), (CAST(1 AS INT))) AS t(a)`, is the reliable way to test
 `invoke_with_args` directly.
 
 Every function must work in both modes: `invoke_with_args` is required, and `simplify`

@@ -13,85 +13,85 @@
 
 # Test negative with integer
 query I
-SELECT negative(1::int);
+SELECT negative(CAST(1 AS int));
 ----
 -1
 
 # Test negative with positive integer
 query I
-SELECT negative(42::int);
+SELECT negative(CAST(42 AS int));
 ----
 -42
 
 # Test negative with negative integer
 query I
-SELECT negative(-10::int);
+SELECT negative(-CAST(10 AS int));
 ----
 10
 
 # Test negative with zero
 query I
-SELECT negative(0::int);
+SELECT negative(CAST(0 AS int));
 ----
 0
 
 # Test negative with bigint
 query I
-SELECT negative(9223372036854775807::bigint);
+SELECT negative(CAST(9223372036854775807 AS bigint));
 ----
 -9223372036854775807
 
 # Test negative with negative bigint
 query I
-SELECT negative(-100::bigint);
+SELECT negative(-CAST(100 AS bigint));
 ----
 100
 
 # Test negative with smallint
 query I
-SELECT negative(32767::smallint);
+SELECT negative(CAST(32767 AS smallint));
 ----
 -32767
 
 # Test negative with float
 query R
-SELECT negative(3.14::float);
+SELECT negative(CAST(3.14 AS float));
 ----
 -3.14
 
 # Test negative with negative float
 query R
-SELECT negative(-2.5::float);
+SELECT negative(-CAST(2.5 AS float));
 ----
 2.5
 
 # Test negative with double
 query R
-SELECT negative(3.14159265358979::double);
+SELECT negative(CAST(3.14159265358979 AS double));
 ----
 -3.14159265358979
 
 # Test negative with negative double
 query R
-SELECT negative(-1.5::double);
+SELECT negative(-CAST(1.5 AS double));
 ----
 1.5
 
 # Test negative with decimal
 query R
-SELECT negative(123.456::decimal(10,3));
+SELECT negative(CAST(123.456 AS decimal(10,3)));
 ----
 -123.456
 
 # Test negative with negative decimal
 query R
-SELECT negative(-99.99::decimal(10,2));
+SELECT negative(-CAST(99.99 AS decimal(10,2)));
 ----
 99.99
 
 # Test negative with NULL
 query I
-SELECT negative(NULL::int);
+SELECT negative(CAST(NULL AS int));
 ----
 NULL
 
@@ -102,7 +102,7 @@ CREATE TABLE decimal_negative AS
 SELECT
   arrow_cast(column1, 'Decimal32(7, 2)') AS d32,
   arrow_cast(column1, 'Decimal64(10, 2)') AS d64,
-  column1::DECIMAL(10, 2) AS d128,
+  CAST(column1 AS DECIMAL(10, 2)) AS d128,
   arrow_cast(column1, 'Decimal256(42, 2)') AS d256
 FROM (VALUES (1.23), (-4.50), (0.00), (NULL));
 
@@ -174,7 +174,7 @@ SELECT negative(negative(7));
 
 # Test negative with large numbers
 query R
-SELECT negative(1234567890.123456::double);
+SELECT negative(CAST(1234567890.123456 AS double));
 ----
 -1234567890.123456
 
@@ -184,7 +184,7 @@ statement ok
 CREATE TABLE min_values_int AS VALUES (-2147483648);
 
 query I
-SELECT negative(column1::int) FROM min_values_int;
+SELECT negative(CAST(column1 AS int)) FROM min_values_int;
 ----
 -2147483648
 
@@ -196,7 +196,7 @@ statement ok
 CREATE TABLE min_values_bigint AS VALUES (-9223372036854775808);
 
 query I
-SELECT negative(column1::bigint) FROM min_values_bigint;
+SELECT negative(CAST(column1 AS bigint)) FROM min_values_bigint;
 ----
 -9223372036854775808
 
@@ -208,7 +208,7 @@ statement ok
 CREATE TABLE min_values_smallint AS VALUES (-32768);
 
 query I
-SELECT negative(column1::smallint) FROM min_values_smallint;
+SELECT negative(CAST(column1 AS smallint)) FROM min_values_smallint;
 ----
 -32768
 
@@ -220,7 +220,7 @@ statement ok
 CREATE TABLE min_values_tinyint AS VALUES (-128);
 
 query I
-SELECT negative(column1::tinyint) FROM min_values_tinyint;
+SELECT negative(CAST(column1 AS tinyint)) FROM min_values_tinyint;
 ----
 -128
 
@@ -229,61 +229,61 @@ DROP TABLE min_values_tinyint;
 
 # Test overflow: negative of positive infinity (float)
 query R
-SELECT negative('Infinity'::float);
+SELECT negative(CAST('Infinity' AS float));
 ----
 -Infinity
 
 # Test overflow: negative of negative infinity (float)
 query R
-SELECT negative('-Infinity'::float);
+SELECT negative(CAST('-Infinity' AS float));
 ----
 Infinity
 
 # Test overflow: negative of positive infinity (double)
 query R
-SELECT negative('Infinity'::double);
+SELECT negative(CAST('Infinity' AS double));
 ----
 -Infinity
 
 # Test overflow: negative of negative infinity (double)
 query R
-SELECT negative('-Infinity'::double);
+SELECT negative(CAST('-Infinity' AS double));
 ----
 Infinity
 
 # Test overflow: negative of NaN (float)
 query R
-SELECT negative('NaN'::float);
+SELECT negative(CAST('NaN' AS float));
 ----
 NaN
 
 # Test overflow: negative of NaN (double)
 query R
-SELECT negative('NaN'::double);
+SELECT negative(CAST('NaN' AS double));
 ----
 NaN
 
 # Test overflow: negative of maximum float value
 query R
-SELECT negative(3.4028235e38::float);
+SELECT negative(CAST(3.4028235e38 AS float));
 ----
 -340282350000000000000000000000000000000
 
 # Test overflow: negative of minimum float value
 query R
-SELECT negative(-3.4028235e38::float);
+SELECT negative(-CAST(3.4028235e38 AS float));
 ----
 340282350000000000000000000000000000000
 
 # Test overflow: negative of maximum double value
 query R
-SELECT negative(1.7976931348623157e308::double);
+SELECT negative(CAST(1.7976931348623157e308 AS double));
 ----
 -179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
 # Test overflow: negative of minimum double value
 query R
-SELECT negative(-1.7976931348623157e308::double);
+SELECT negative(-CAST(1.7976931348623157e308 AS double));
 ----
 179769313486231570000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 
@@ -356,47 +356,47 @@ DROP TABLE decimal_negative_scales;
 
 # Test ANSI mode: negative of minimum values should error (overflow)
 query error
-SELECT negative((-128)::tinyint);
+SELECT negative(CAST(-128 AS tinyint));
 ----
 DataFusion error: Execution error: Int8 overflow on negative(-128)
 
 
 query error
-SELECT negative((-32768)::smallint);
+SELECT negative(CAST(-32768 AS smallint));
 ----
 DataFusion error: Execution error: Int16 overflow on negative(-32768)
 
 
 query error
-SELECT negative((-2147483648)::int);
+SELECT negative(CAST(-2147483648 AS int));
 ----
 DataFusion error: Execution error: Int32 overflow on negative(-2147483648)
 
 
 query error
-SELECT negative((-9223372036854775808)::bigint);
+SELECT negative(CAST(-9223372036854775808 AS bigint));
 ----
 DataFusion error: Execution error: Int64 overflow on negative(-9223372036854775808)
 
 
 # Test ANSI mode: negative of (MIN+1) should succeed (boundary test)
 query I
-SELECT negative((-127)::tinyint);
+SELECT negative(CAST(-127 AS tinyint));
 ----
 127
 
 query I
-SELECT negative((-32767)::smallint);
+SELECT negative(CAST(-32767 AS smallint));
 ----
 32767
 
 query I
-SELECT negative((-2147483647)::int);
+SELECT negative(CAST(-2147483647 AS int));
 ----
 2147483647
 
 query I
-SELECT negative((-9223372036854775807)::bigint);
+SELECT negative(CAST(-9223372036854775807 AS bigint));
 ----
 9223372036854775807
 
@@ -405,7 +405,7 @@ statement ok
 CREATE TABLE min_values_ansi AS VALUES (-2147483648);
 
 query error
-SELECT negative(column1::int) FROM min_values_ansi;
+SELECT negative(CAST(column1 AS int)) FROM min_values_ansi;
 ----
 DataFusion error: Execution error: Int32 overflow on negative(-2147483648)
 

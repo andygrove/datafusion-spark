@@ -23,7 +23,7 @@ SELECT ascii('😀');
 128512
 
 query I
-SELECT ascii(2::INT);
+SELECT ascii(CAST(2 AS INT));
 ----
 50
 

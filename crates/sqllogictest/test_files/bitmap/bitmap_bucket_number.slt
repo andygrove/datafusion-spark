@@ -3,106 +3,106 @@
 # SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 query I
-SELECT bitmap_bucket_number(1::TINYINT);
+SELECT bitmap_bucket_number(CAST(1 AS TINYINT));
 ----
 1
 
 query I
-SELECT bitmap_bucket_number(127::TINYINT);
+SELECT bitmap_bucket_number(CAST(127 AS TINYINT));
 ----
 1
 
 query I
-SELECT bitmap_bucket_number((-1)::TINYINT);
+SELECT bitmap_bucket_number(CAST(-1 AS TINYINT));
 ----
 0
 
 query I
-SELECT bitmap_bucket_number((-64)::TINYINT);
+SELECT bitmap_bucket_number(CAST(-64 AS TINYINT));
 ----
 0
 
 query I
-SELECT bitmap_bucket_number((-65)::TINYINT);
+SELECT bitmap_bucket_number(CAST(-65 AS TINYINT));
 ----
 0
 
 query I
-SELECT bitmap_bucket_number(1::SMALLINT);
+SELECT bitmap_bucket_number(CAST(1 AS SMALLINT));
 ----
 1
 
 query I
-SELECT bitmap_bucket_number(257::SMALLINT);
+SELECT bitmap_bucket_number(CAST(257 AS SMALLINT));
 ----
 1
 
 query I
-SELECT bitmap_bucket_number(32767::SMALLINT);
+SELECT bitmap_bucket_number(CAST(32767 AS SMALLINT));
 ----
 1
 
 query I
-SELECT bitmap_bucket_number((-1)::SMALLINT);
+SELECT bitmap_bucket_number(CAST(-1 AS SMALLINT));
 ----
 0
 
 query I
-SELECT bitmap_bucket_number((-256)::SMALLINT);
+SELECT bitmap_bucket_number(CAST(-256 AS SMALLINT));
 ----
 0
 
 query I
-SELECT bitmap_bucket_number(1::INT);
+SELECT bitmap_bucket_number(CAST(1 AS INT));
 ----
 1
 
 query I
-SELECT bitmap_bucket_number(65537::INT);
+SELECT bitmap_bucket_number(CAST(65537 AS INT));
 ----
 3
 
 query I
-SELECT bitmap_bucket_number(2147483647::INT);
+SELECT bitmap_bucket_number(CAST(2147483647 AS INT));
 ----
 65536
 
 query I
-SELECT bitmap_bucket_number((-1)::INT);
+SELECT bitmap_bucket_number(CAST(-1 AS INT));
 ----
 0
 
 query I
-SELECT bitmap_bucket_number((-65536)::INT);
+SELECT bitmap_bucket_number(CAST(-65536 AS INT));
 ----
 -2
 
 query I
-SELECT bitmap_bucket_number(1::BIGINT);
+SELECT bitmap_bucket_number(CAST(1 AS BIGINT));
 ----
 1
 
 query I
-SELECT bitmap_bucket_number(4294967297::BIGINT);
+SELECT bitmap_bucket_number(CAST(4294967297 AS BIGINT));
 ----
 131073
 
 query I
-SELECT bitmap_bucket_number(9223372036854775807::BIGINT);
+SELECT bitmap_bucket_number(CAST(9223372036854775807 AS BIGINT));
 ----
 281474976710656
 
 query I
-SELECT bitmap_bucket_number((-1)::BIGINT);
+SELECT bitmap_bucket_number(CAST(-1 AS BIGINT));
 ----
 0
 
 query I
-SELECT bitmap_bucket_number((-4294967296)::BIGINT);
+SELECT bitmap_bucket_number(CAST(-4294967296 AS BIGINT));
 ----
 -131072
 
 query I
-SELECT bitmap_bucket_number((-9223372036854775808)::BIGINT);
+SELECT bitmap_bucket_number(CAST(-9223372036854775808 AS BIGINT));
 ----
 -281474976710656

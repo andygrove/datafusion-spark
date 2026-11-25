@@ -4,79 +4,79 @@
 
 # String inputs
 query P
-SELECT to_utc_timestamp('2016-08-31'::string, 'UTC'::string);
+SELECT to_utc_timestamp(CAST('2016-08-31' AS string), CAST('UTC' AS string));
 ----
 2016-08-31T00:00:00
 
 query P
-SELECT to_utc_timestamp('2016-08-31'::string, 'Asia/Seoul'::string);
+SELECT to_utc_timestamp(CAST('2016-08-31' AS string), CAST('Asia/Seoul' AS string));
 ----
 2016-08-30T15:00:00
 
 query P
-SELECT to_utc_timestamp('2016-08-31'::string, 'America/New_York'::string);
+SELECT to_utc_timestamp(CAST('2016-08-31' AS string), CAST('America/New_York' AS string));
 ----
 2016-08-31T04:00:00
 
 # String inputs with offsets
 query P
-SELECT to_utc_timestamp('2018-03-13T06:18:23+02:00'::string, 'UTC'::string);
+SELECT to_utc_timestamp(CAST('2018-03-13T06:18:23+02:00' AS string), CAST('UTC' AS string));
 ----
 2018-03-13T04:18:23
 
 query P
-SELECT to_utc_timestamp('2018-03-13T06:18:23+02:00'::string, 'Asia/Seoul'::string);
+SELECT to_utc_timestamp(CAST('2018-03-13T06:18:23+02:00' AS string), CAST('Asia/Seoul' AS string));
 ----
 2018-03-12T19:18:23
 
 query P
-SELECT to_utc_timestamp('2018-03-13T06:18:23+02:00'::string, 'America/New_York'::string);
+SELECT to_utc_timestamp(CAST('2018-03-13T06:18:23+02:00' AS string), CAST('America/New_York' AS string));
 ----
 2018-03-13T08:18:23
 
 # Timestamp inputs
 query P
-SELECT to_utc_timestamp('2018-03-13T06:18:23+02:00'::timestamp, 'UTC'::string);
+SELECT to_utc_timestamp(CAST('2018-03-13T06:18:23+02:00' AS timestamp), CAST('UTC' AS string));
 ----
 2018-03-13T04:18:23
 
 query P
-SELECT to_utc_timestamp('2018-03-13T06:18:23+02:00'::timestamp, 'Asia/Seoul'::string);
+SELECT to_utc_timestamp(CAST('2018-03-13T06:18:23+02:00' AS timestamp), CAST('Asia/Seoul' AS string));
 ----
 2018-03-12T19:18:23
 
 query P
-SELECT to_utc_timestamp('2018-03-13T06:18:23+02:00'::timestamp, 'America/New_York'::string);
+SELECT to_utc_timestamp(CAST('2018-03-13T06:18:23+02:00' AS timestamp), CAST('America/New_York' AS string));
 ----
 2018-03-13T08:18:23
 
 # Null inputs
 query P
-SELECT to_utc_timestamp(NULL::string, 'Asia/Seoul'::string);
+SELECT to_utc_timestamp(CAST(NULL AS string), CAST('Asia/Seoul' AS string));
 ----
 NULL
 
 query P
-SELECT to_utc_timestamp(NULL::timestamp, 'Asia/Seoul'::string);
+SELECT to_utc_timestamp(CAST(NULL AS timestamp), CAST('Asia/Seoul' AS string));
 ----
 NULL
 
 query P
-SELECT to_utc_timestamp('2016-08-31'::string, NULL::string);
+SELECT to_utc_timestamp(CAST('2016-08-31' AS string), CAST(NULL AS string));
 ----
 NULL
 
 query P
 SELECT to_utc_timestamp(column1, column2)
 FROM VALUES
-('2016-08-31'::string, 'Asia/Seoul'::string),
-('2018-03-13T06:18:23+02:00'::string, 'Asia/Seoul'::string),
-('2016-08-31'::string, 'UTC'::string),
-('2018-03-13T06:18:23+02:00'::string, 'UTC'::string),
-('2016-08-31'::string, 'America/New_York'::string),
-('2018-03-13T06:18:23+02:00'::string, 'America/New_York'::string),
-(NULL::string, 'Asia/Seoul'::string),
-('2016-08-31'::string, NULL::string);
+(CAST('2016-08-31' AS string), CAST('Asia/Seoul' AS string)),
+(CAST('2018-03-13T06:18:23+02:00' AS string), CAST('Asia/Seoul' AS string)),
+(CAST('2016-08-31' AS string), CAST('UTC' AS string)),
+(CAST('2018-03-13T06:18:23+02:00' AS string), CAST('UTC' AS string)),
+(CAST('2016-08-31' AS string), CAST('America/New_York' AS string)),
+(CAST('2018-03-13T06:18:23+02:00' AS string), CAST('America/New_York' AS string)),
+(CAST(NULL AS string), CAST('Asia/Seoul' AS string)),
+(CAST('2016-08-31' AS string), CAST(NULL AS string));
 ----
 2016-08-30T15:00:00
 2018-03-12T19:18:23
@@ -90,14 +90,14 @@ NULL
 query P
 SELECT to_utc_timestamp(column1, column2)
 FROM VALUES
-('2016-08-31'::timestamp, 'Asia/Seoul'::string),
-('2018-03-13T06:18:23+02:00'::timestamp, 'Asia/Seoul'::string),
-('2016-08-31'::timestamp, 'UTC'::string),
-('2018-03-13T06:18:23+02:00'::timestamp, 'UTC'::string),
-('2016-08-31'::timestamp, 'America/New_York'::string),
-('2018-03-13T06:18:23+02:00'::timestamp, 'America/New_York'::string),
-(NULL::timestamp, 'Asia/Seoul'::string),
-('2018-03-13T06:18:23+00:00'::timestamp, NULL::string);
+(CAST('2016-08-31' AS timestamp), CAST('Asia/Seoul' AS string)),
+(CAST('2018-03-13T06:18:23+02:00' AS timestamp), CAST('Asia/Seoul' AS string)),
+(CAST('2016-08-31' AS timestamp), CAST('UTC' AS string)),
+(CAST('2018-03-13T06:18:23+02:00' AS timestamp), CAST('UTC' AS string)),
+(CAST('2016-08-31' AS timestamp), CAST('America/New_York' AS string)),
+(CAST('2018-03-13T06:18:23+02:00' AS timestamp), CAST('America/New_York' AS string)),
+(CAST(NULL AS timestamp), CAST('Asia/Seoul' AS string)),
+(CAST('2018-03-13T06:18:23+00:00' AS timestamp), CAST(NULL AS string));
 ----
 2016-08-30T15:00:00
 2018-03-12T19:18:23
@@ -111,14 +111,14 @@ NULL
 query P
 SELECT to_utc_timestamp(arrow_cast(column1, 'Timestamp(Microsecond, Some("Asia/Seoul"))'), column2)
 FROM VALUES
-('2016-08-31'::timestamp, 'Asia/Seoul'::string),
-('2018-03-13T06:18:23+02:00'::timestamp, 'Asia/Seoul'::string),
-('2016-08-31'::timestamp, 'UTC'::string),
-('2018-03-13T06:18:23+02:00'::timestamp, 'UTC'::string),
-('2016-08-31'::timestamp, 'America/New_York'::string),
-('2018-03-13T06:18:23+02:00'::timestamp, 'America/New_York'::string),
-(NULL::timestamp, 'Asia/Seoul'::string),
-('2018-03-13T06:18:23+00:00'::timestamp, NULL::string);
+(CAST('2016-08-31' AS timestamp), CAST('Asia/Seoul' AS string)),
+(CAST('2018-03-13T06:18:23+02:00' AS timestamp), CAST('Asia/Seoul' AS string)),
+(CAST('2016-08-31' AS timestamp), CAST('UTC' AS string)),
+(CAST('2018-03-13T06:18:23+02:00' AS timestamp), CAST('UTC' AS string)),
+(CAST('2016-08-31' AS timestamp), CAST('America/New_York' AS string)),
+(CAST('2018-03-13T06:18:23+02:00' AS timestamp), CAST('America/New_York' AS string)),
+(CAST(NULL AS timestamp), CAST('Asia/Seoul' AS string)),
+(CAST('2018-03-13T06:18:23+00:00' AS timestamp), CAST(NULL AS string));
 ----
 2016-08-30T15:00:00+09:00
 2018-03-12T19:18:23+09:00
@@ -132,13 +132,13 @@ NULL
 
 # DST edge cases
 query P
-SELECT to_utc_timestamp('2020-03-31T13:40:00'::timestamp, 'America/New_York'::string);
+SELECT to_utc_timestamp(CAST('2020-03-31T13:40:00' AS timestamp), CAST('America/New_York' AS string));
 ----
 2020-03-31T17:40:00
 
 
 query P
-SELECT to_utc_timestamp('2020-11-04T14:06:40'::timestamp, 'America/New_York'::string);
+SELECT to_utc_timestamp(CAST('2020-11-04T14:06:40' AS timestamp), CAST('America/New_York' AS string));
 ----
 2020-11-04T19:06:40
 
@@ -146,12 +146,12 @@ SELECT to_utc_timestamp('2020-11-04T14:06:40'::timestamp, 'America/New_York'::st
 # Spark returns 2024-03-10T07:30:00 and 2024-11-03T07:30:00 (https://github.com/apache/datafusion-spark/issues/110).
 # xfail spark: to_utc_timestamp takes the offset from the wrong side of a DST change (https://github.com/apache/datafusion-spark/issues/110)
 query P
-SELECT to_utc_timestamp('2024-03-10T03:30:00'::timestamp, 'America/New_York');
+SELECT to_utc_timestamp(CAST('2024-03-10T03:30:00' AS timestamp), 'America/New_York');
 ----
 2024-03-10T08:30:00
 
 # xfail spark: to_utc_timestamp takes the offset from the wrong side of a DST change (https://github.com/apache/datafusion-spark/issues/110)
 query P
-SELECT to_utc_timestamp('2024-11-03T02:30:00'::timestamp, 'America/New_York');
+SELECT to_utc_timestamp(CAST('2024-11-03T02:30:00' AS timestamp), 'America/New_York');
 ----
 2024-11-03T06:30:00

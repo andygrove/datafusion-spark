@@ -82,7 +82,7 @@ ORDER BY g;
 # collect_set with GROUP BY: group where all values are NULL returns empty list
 query I?
 SELECT g, array_sort(collect_set(a))
-FROM (VALUES (1::INT, 10::INT), (1::INT, 20::INT), (2::INT, NULL::INT), (2::INT, NULL::INT)) AS t(g, a)
+FROM (VALUES (CAST(1 AS INT), CAST(10 AS INT)), (CAST(1 AS INT), CAST(20 AS INT)), (CAST(2 AS INT), CAST(NULL AS INT)), (CAST(2 AS INT), CAST(NULL AS INT))) AS t(g, a)
 GROUP BY g
 ORDER BY g;
 ----
@@ -92,7 +92,7 @@ ORDER BY g;
 # collect_set with GROUP BY: string values with duplicates
 query T?
 SELECT g, array_sort(collect_set(v))
-FROM (VALUES ('a'::TEXT, 'x'::TEXT), ('a'::TEXT, 'y'::TEXT), ('a'::TEXT, 'x'::TEXT), ('b'::TEXT, 'z'::TEXT), ('b'::TEXT, 'z'::TEXT)) AS t(g, v)
+FROM (VALUES (CAST('a' AS TEXT), CAST('x' AS TEXT)), (CAST('a' AS TEXT), CAST('y' AS TEXT)), (CAST('a' AS TEXT), CAST('x' AS TEXT)), (CAST('b' AS TEXT), CAST('z' AS TEXT)), (CAST('b' AS TEXT), CAST('z' AS TEXT))) AS t(g, v)
 GROUP BY g
 ORDER BY g;
 ----
@@ -102,7 +102,7 @@ b [z]
 # collect_set with GROUP BY: multiple groups with mixed NULLs and duplicates
 query I?
 SELECT g, array_sort(collect_set(a))
-FROM (VALUES (1::INT, 5::INT), (1::INT, 5::INT), (1::INT, NULL::INT), (2::INT, 10::INT), (2::INT, 20::INT), (2::INT, 10::INT), (3::INT, NULL::INT), (3::INT, NULL::INT)) AS t(g, a)
+FROM (VALUES (CAST(1 AS INT), CAST(5 AS INT)), (CAST(1 AS INT), CAST(5 AS INT)), (CAST(1 AS INT), CAST(NULL AS INT)), (CAST(2 AS INT), CAST(10 AS INT)), (CAST(2 AS INT), CAST(20 AS INT)), (CAST(2 AS INT), CAST(10 AS INT)), (CAST(3 AS INT), CAST(NULL AS INT)), (CAST(3 AS INT), CAST(NULL AS INT))) AS t(g, a)
 GROUP BY g
 ORDER BY g;
 ----

@@ -23,7 +23,7 @@ SELECT crc32('');
 0
 
 query I
-SELECT crc32(''::BINARY);
+SELECT crc32(CAST('' AS BINARY));
 ----
 0
 
@@ -39,7 +39,7 @@ SELECT crc32(arrow_cast('Spark', 'LargeUtf8'));
 1557323817
 
 query I
-SELECT crc32('Spark'::STRING);
+SELECT crc32(CAST('Spark' AS STRING));
 ----
 1557323817
 
@@ -49,12 +49,12 @@ SELECT crc32(arrow_cast('Spark', 'Utf8'));
 1557323817
 
 query I
-SELECT crc32('Spark'::BINARY);
+SELECT crc32(CAST('Spark' AS BINARY));
 ----
 1557323817
 
 query I
-SELECT crc32(arrow_cast('Spark'::BINARY, 'FixedSizeBinary(5)'));
+SELECT crc32(arrow_cast(CAST('Spark' AS BINARY), 'FixedSizeBinary(5)'));
 ----
 1557323817
 
@@ -87,13 +87,13 @@ NULL
 
 # Spark's `Crc32.inputTypes` is BINARY. Only a STRING argument is cast to it.
 query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `crc32` requires the "BINARY" type, however it has the type "INT"\. SQLSTATE: 42K09
-SELECT crc32(1::INT);
+SELECT crc32(CAST(1 AS INT));
 
 query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `crc32` requires the "BINARY" type, however it has the type "BIGINT"\. SQLSTATE: 42K09
 SELECT crc32(1);
 
 query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `crc32` requires the "BINARY" type, however it has the type "DOUBLE"\. SQLSTATE: 42K09
-SELECT crc32(1.5::DOUBLE);
+SELECT crc32(CAST(1.5 AS DOUBLE));
 
 query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `crc32` requires the "BINARY" type, however it has the type "BOOLEAN"\. SQLSTATE: 42K09
 SELECT crc32(true);
@@ -117,7 +117,7 @@ SELECT crc32('Spark');
 1557323817
 
 query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `crc32` requires the "BINARY" type, however it has the type "INT"\. SQLSTATE: 42K09
-SELECT crc32(1::INT);
+SELECT crc32(CAST(1 AS INT));
 
 statement ok
 set datafusion.execution.enable_ansi_mode = false;

@@ -57,7 +57,7 @@ SELECT bit_get(NULL, 0);
 NULL
 
 query I
-SELECT bit_get(NULL::int, 0);
+SELECT bit_get(CAST(NULL AS int), 0);
 ----
 NULL
 
@@ -67,21 +67,21 @@ SELECT bit_get(11, NULL);
 NULL
 
 query I
-SELECT bit_get(11, NULL::int);
+SELECT bit_get(11, CAST(NULL AS int));
 ----
 NULL
 
 query I
-SELECT bit_get(11::tinyint, 0);
+SELECT bit_get(CAST(11 AS tinyint), 0);
 ----
 1
 
 query I
-SELECT bit_get(11::bigint, 0);
+SELECT bit_get(CAST(11 AS bigint), 0);
 ----
 1
 
 query I
-SELECT bit_get(11, 3::bigint);
+SELECT bit_get(11, CAST(3 AS bigint));
 ----
 1

@@ -15,7 +15,7 @@ https%3A%2F%2Fspark.apache.org
 
 # Test with Utf8View
 query T
-SELECT url_encode('https://spark.apache.org'::STRING);
+SELECT url_encode(CAST('https://spark.apache.org' AS STRING));
 ----
 https%3A%2F%2Fspark.apache.org
 

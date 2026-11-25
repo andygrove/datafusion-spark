@@ -31,6 +31,13 @@ def parse(text: str) -> list:
 
 
 class ParseTest(unittest.TestCase):
+    def test_double_colon_cast_is_rejected(self):
+        with self.assertRaisesRegex(SystemExit, r"\.slt:1: write `CAST\(x AS type\)` instead of `x::type`"):
+            parse("query I\nSELECT 1::INT\n----\n1\n")
+        # `::` inside a string, a comment or the expected results is not a cast.
+        records = parse("query T\nSELECT '::1' -- a::b\n----\n::1\n")
+        self.assertEqual(records[0].expected, ["::1"])
+
     def test_records(self):
         records = parse(
             "# a comment\n"
@@ -100,16 +107,12 @@ class ParseTest(unittest.TestCase):
 
 
 class TranslateTest(unittest.TestCase):
-    def test_spark_parses_double_colon_casts(self):
-        sql = "SELECT abs(-128::TINYINT), 'a'::STRING"
-        self.assertEqual(r.translate(sql), sql)
-
     def test_type_aliases(self):
         self.assertEqual(
-            r.translate("SELECT 1::FLOAT8, CAST(x AS text), TRY_CAST(y AS Bytea)"),
-            "SELECT 1::DOUBLE, CAST(x AS STRING), TRY_CAST(y AS BINARY)",
+            r.translate("SELECT CAST(1 AS FLOAT8), CAST(x AS text), TRY_CAST(y AS Bytea)"),
+            "SELECT CAST(1 AS DOUBLE), CAST(x AS STRING), TRY_CAST(y AS BINARY)",
         )
-        self.assertEqual(r.translate("SELECT 'a'::VARCHAR"), "SELECT 'a'::STRING")
+        self.assertEqual(r.translate("SELECT CAST('a' AS VARCHAR)"), "SELECT CAST('a' AS STRING)")
         self.assertEqual(r.translate("SELECT CAST(x AS VARCHAR(3))"), "SELECT CAST(x AS VARCHAR(3))")
 
     def test_only_types_are_renamed(self):
@@ -129,8 +132,8 @@ class TranslateTest(unittest.TestCase):
         with self.assertRaisesRegex(r.Skip, "backslash"):
             r.translate(r"SELECT quote('a\tb')")
         with self.assertRaisesRegex(r.Skip, "DECIMAL precision"):
-            r.translate("SELECT 1::DECIMAL(76, 10)")
-        self.assertEqual(r.translate("SELECT 1::DECIMAL(38, 10)"), "SELECT 1::DECIMAL(38, 10)")
+            r.translate("SELECT CAST(1 AS DECIMAL(76, 10))")
+        self.assertEqual(r.translate("SELECT CAST(1 AS DECIMAL(38, 10))"), "SELECT CAST(1 AS DECIMAL(38, 10))")
 
     def test_parse_arrow_type(self):
         A, F = r.ArrowType, r.ArrowField
@@ -229,9 +232,8 @@ class TranslateTest(unittest.TestCase):
             "SELECT arrow_cast(DATE '2024-01-01', 'Int64')":
                 "SELECT CAST(unix_date(DATE '2024-01-01') AS BIGINT)",
             "SELECT arrow_cast(CAST(x AS DATE), 'Int32')": "SELECT unix_date(CAST(x AS DATE))",
-            "SELECT arrow_cast('2024-01-01'::DATE, 'Int32')": "SELECT unix_date('2024-01-01'::DATE)",
-            # `::` applies only to b, so the argument is not a date.
-            "SELECT arrow_cast(a = b::DATE, 'Int32')": "SELECT CAST(a = b::DATE AS INT)",
+            # The cast applies only to b, so the argument is not a date.
+            "SELECT arrow_cast(a = CAST(b AS DATE), 'Int32')": "SELECT CAST(a = CAST(b AS DATE) AS INT)",
             # Not visibly a date, so it stays a CAST.
             "SELECT arrow_cast(abs(x), 'Int32')": "SELECT CAST(abs(x) AS INT)",
         }

@@ -9,19 +9,19 @@
 # Known divergences are captured as commented-out queries below.
 
 query D
-SELECT make_date(2013::int, 7::int, 15::int);
+SELECT make_date(CAST(2013 AS int), CAST(7 AS int), CAST(15 AS int));
 ----
 2013-07-15
 
 query T
-SELECT arrow_typeof(make_date(2013::int, 7::int, 15::int));
+SELECT arrow_typeof(make_date(CAST(2013 AS int), CAST(7 AS int), CAST(15 AS int)));
 ----
 Date32
 
 # NULL in any argument returns NULL
 query DDDD
-SELECT make_date(2019::int, 7::int, NULL), make_date(NULL, 7::int, 1::int),
-  make_date(2019::int, NULL::int, 1::int), make_date(2024::int, 13::int, NULL);
+SELECT make_date(CAST(2019 AS int), CAST(7 AS int), NULL), make_date(NULL, CAST(7 AS int), CAST(1 AS int)),
+  make_date(CAST(2019 AS int), CAST(NULL AS int), CAST(1 AS int)), make_date(CAST(2024 AS int), CAST(13 AS int), NULL);
 ----
 NULL NULL NULL NULL
 
@@ -72,7 +72,7 @@ CREATE TABLE ymd AS VALUES
   (2024, 13, 1);
 
 query D
-SELECT make_date(column1::int, column2::int, column3::int) FROM ymd;
+SELECT make_date(CAST(column1 AS int), CAST(column2 AS int), CAST(column3 AS int)) FROM ymd;
 ----
 2024-01-31
 NULL
@@ -83,7 +83,7 @@ NULL
 
 # Mixed array and scalar inputs
 query D
-SELECT make_date(column1::int, 2, 29) FROM ymd;
+SELECT make_date(CAST(column1 AS int), 2, 29) FROM ymd;
 ----
 2024-02-29
 NULL
@@ -100,7 +100,7 @@ SELECT make_date(arrow_cast(24, 'Int8'), arrow_cast(1, 'Int16'), arrow_cast(1, '
 
 # Floating-point and decimal inputs are truncated toward zero
 query DD
-SELECT make_date(2024.7::DOUBLE, 1.9::DOUBLE, 1) AS d1, make_date(2024.7::DECIMAL(5, 1), 1.9::DECIMAL(2, 1), 1) AS d2;
+SELECT make_date(CAST(2024.7 AS DOUBLE), CAST(1.9 AS DOUBLE), 1) AS d1, make_date(CAST(2024.7 AS DECIMAL(5, 1)), CAST(1.9 AS DECIMAL(2, 1)), 1) AS d2;
 ----
 2024-01-01 2024-01-01
 
@@ -191,14 +191,14 @@ query error \[DATETIME_FIELD_OUT_OF_BOUNDS\.WITH_SUGGESTION\] Invalid value for 
 SELECT make_date(-1000000000, 1, 1);
 
 query error \[DATETIME_FIELD_OUT_OF_BOUNDS\.WITH_SUGGESTION\] Invalid date 'February 29' as '2023' is not a leap year
-SELECT make_date(column1::int, column2::int, column3::int) FROM ymd;
+SELECT make_date(CAST(column1 AS int), CAST(column2 AS int), CAST(column3 AS int)) FROM ymd;
 
 query error \[ARITHMETIC_OVERFLOW\] overflow
 SELECT make_date(5881580, 7, 12);
 
 # Rows with a NULL input are not validated
 query D
-SELECT make_date(column1::int, column2::int, column3::int) FROM ymd WHERE column1 IS NULL OR column2 IS NULL;
+SELECT make_date(CAST(column1 AS int), CAST(column2 AS int), CAST(column3 AS int)) FROM ymd WHERE column1 IS NULL OR column2 IS NULL;
 ----
 NULL
 NULL

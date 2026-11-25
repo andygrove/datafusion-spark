@@ -8,13 +8,13 @@
 # (https://github.com/apache/datafusion-spark/issues/306).
 skipif evaluate
 query I
-SELECT unix_date('1970-01-02'::date);
+SELECT unix_date(CAST('1970-01-02' AS date));
 ----
 1
 
 skipif evaluate
 query I
-SELECT unix_date('1900-01-02'::date);
+SELECT unix_date(CAST('1900-01-02' AS date));
 ----
 -25566
 
@@ -27,22 +27,22 @@ SELECT unix_date(arrow_cast('1970-01-02', 'Date64'));
 
 skipif evaluate
 query I
-SELECT unix_date(NULL::date);
+SELECT unix_date(CAST(NULL AS date));
 ----
 NULL
 
 query error Function 'unix_date' requires Date, but received String \(DataType: Utf8View\)
-SELECT unix_date('1970-01-02'::string);
+SELECT unix_date(CAST('1970-01-02' AS string));
 
 # Unix Micro Tests
 
 query I
-SELECT unix_micros('1970-01-01 00:00:01Z'::timestamp);
+SELECT unix_micros(CAST('1970-01-01 00:00:01Z' AS timestamp));
 ----
 1000000
 
 query I
-SELECT unix_micros('1900-01-01 00:00:01Z'::timestamp);
+SELECT unix_micros(CAST('1900-01-01 00:00:01Z' AS timestamp));
 ----
 -2208988799000000
 
@@ -57,23 +57,23 @@ SELECT unix_micros(arrow_cast('1970-01-01 00:00:01Z', 'Timestamp(Second, None)')
 1000000
 
 query I
-SELECT unix_micros(NULL::timestamp);
+SELECT unix_micros(CAST(NULL AS timestamp));
 ----
 NULL
 
 query error Function 'unix_micros' requires Timestamp, but received String \(DataType: Utf8View\)
-SELECT unix_micros('1970-01-01 00:00:01Z'::string);
+SELECT unix_micros(CAST('1970-01-01 00:00:01Z' AS string));
 
 
 # Unix Millis Tests
 
 query I
-SELECT unix_millis('1970-01-01 00:00:01Z'::timestamp);
+SELECT unix_millis(CAST('1970-01-01 00:00:01Z' AS timestamp));
 ----
 1000
 
 query I
-SELECT unix_millis('1900-01-01 00:00:01Z'::timestamp);
+SELECT unix_millis(CAST('1900-01-01 00:00:01Z' AS timestamp));
 ----
 -2208988799000
 
@@ -88,23 +88,23 @@ SELECT unix_millis(arrow_cast('1970-01-01 00:00:01Z', 'Timestamp(Second, None)')
 1000
 
 query I
-SELECT unix_millis(NULL::timestamp);
+SELECT unix_millis(CAST(NULL AS timestamp));
 ----
 NULL
 
 query error Function 'unix_millis' requires Timestamp, but received String \(DataType: Utf8View\)
-SELECT unix_millis('1970-01-01 00:00:01Z'::string);
+SELECT unix_millis(CAST('1970-01-01 00:00:01Z' AS string));
 
 
 # Unix Seconds Tests
 
 query I
-SELECT unix_seconds('1970-01-01 00:00:01Z'::timestamp);
+SELECT unix_seconds(CAST('1970-01-01 00:00:01Z' AS timestamp));
 ----
 1
 
 query I
-SELECT unix_seconds('1900-01-01 00:00:01Z'::timestamp);
+SELECT unix_seconds(CAST('1900-01-01 00:00:01Z' AS timestamp));
 ----
 -2208988799
 
@@ -119,12 +119,12 @@ SELECT unix_seconds(arrow_cast('1970-01-01 00:00:01Z', 'Timestamp(Second, None)'
 1
 
 query I
-SELECT unix_seconds(NULL::timestamp);
+SELECT unix_seconds(CAST(NULL AS timestamp));
 ----
 NULL
 
 query error Function 'unix_seconds' requires Timestamp, but received String \(DataType: Utf8View\)
-SELECT unix_seconds('1970-01-01 00:00:01Z'::string);
+SELECT unix_seconds(CAST('1970-01-01 00:00:01Z' AS string));
 
 # Spark floors (Math.floorDiv) when converting to a coarser unit, so pre-epoch
 # timestamps with a sub-unit remainder round toward negative infinity.
@@ -134,7 +134,7 @@ CREATE TABLE unix_floor_us AS SELECT arrow_cast(column1, 'Timestamp(Microsecond,
 );
 
 query III
-SELECT ts::BIGINT, unix_millis(ts), unix_seconds(ts) FROM unix_floor_us;
+SELECT CAST(ts AS BIGINT), unix_millis(ts), unix_seconds(ts) FROM unix_floor_us;
 ----
 -1 -1 -1
 -1000 -1 -1

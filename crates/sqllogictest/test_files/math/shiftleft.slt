@@ -13,87 +13,87 @@
 
 # Basic shiftleft tests
 query I
-SELECT shiftleft(2::int, 1::int);
+SELECT shiftleft(CAST(2 AS int), CAST(1 AS int));
 ----
 4
 
 query I
-SELECT shiftleft(1::int, 2::int);
+SELECT shiftleft(CAST(1 AS int), CAST(2 AS int));
 ----
 4
 
 query I
-SELECT shiftleft(3::int, 3::int);
+SELECT shiftleft(CAST(3 AS int), CAST(3 AS int));
 ----
 24
 
 # Different data types
 query I
-SELECT shiftleft(2::bigint, 1::int);
+SELECT shiftleft(CAST(2 AS bigint), CAST(1 AS int));
 ----
 4
 
 query I
-SELECT shiftleft(1::bigint, 2::int);
+SELECT shiftleft(CAST(1 AS bigint), CAST(2 AS int));
 ----
 4
 
 query I
-SELECT shiftleft(2::int, 1::bigint);
+SELECT shiftleft(CAST(2 AS int), CAST(1 AS bigint));
 ----
 4
 
 # Large shifts (should handle modulo correctly)
 query I
-SELECT shiftleft(1::int, 32::int);
+SELECT shiftleft(CAST(1 AS int), CAST(32 AS int));
 ----
 1
 
 query I
-SELECT shiftleft(2::int, 33::int);
+SELECT shiftleft(CAST(2 AS int), CAST(33 AS int));
 ----
 4
 
 query I
-SELECT shiftleft(3::int, 64::int);
+SELECT shiftleft(CAST(3 AS int), CAST(64 AS int));
 ----
 3
 
 # Negative shifts
 query I
-SELECT shiftleft(4::int, -1::int);
+SELECT shiftleft(CAST(4 AS int), -CAST(1 AS int));
 ----
 0
 
 query I
-SELECT shiftleft(8::int, -2::int);
+SELECT shiftleft(CAST(8 AS int), -CAST(2 AS int));
 ----
 0
 
 query I
-SELECT shiftleft(16::int, -3::int);
+SELECT shiftleft(CAST(16 AS int), -CAST(3 AS int));
 ----
 0
 
 # Zero shifts
 query I
-SELECT shiftleft(5::int, 0::int);
+SELECT shiftleft(CAST(5 AS int), CAST(0 AS int));
 ----
 5
 
 query I
-SELECT shiftleft(0::int, 5::int);
+SELECT shiftleft(CAST(0 AS int), CAST(5 AS int));
 ----
 0
 
 # Edge cases
 query I
-SELECT shiftleft(2147483647::int, 1::int);
+SELECT shiftleft(CAST(2147483647 AS int), CAST(1 AS int));
 ----
 -2
 
 query I
-SELECT shiftleft(-1::int, 1::int);
+SELECT shiftleft(-CAST(1 AS int), CAST(1 AS int));
 ----
 -2
 
@@ -108,35 +108,35 @@ SELECT shiftleft(value, shift) FROM (VALUES (1, 1), (2, 2), (3, 3), (4, 4)) AS t
 
 # Null handling
 query I
-SELECT shiftleft(NULL::int, 1::int);
+SELECT shiftleft(CAST(NULL AS int), CAST(1 AS int));
 ----
 NULL
 
 query I
-SELECT shiftleft(1::int, NULL::int);
+SELECT shiftleft(CAST(1 AS int), CAST(NULL AS int));
 ----
 NULL
 
 query I
-SELECT shiftleft(NULL::int, NULL::int);
+SELECT shiftleft(CAST(NULL AS int), CAST(NULL AS int));
 ----
 NULL
 
 query I
-select shiftleft(3::int,-31);
+select shiftleft(CAST(3 AS int),-31);
 ----
 6
 
 query I
-select shiftleft(3::int,-32);
+select shiftleft(CAST(3 AS int),-32);
 ----
 3
 
 # i32 + nulls
 query IT
 SELECT
-	shiftleft(value::INT, shift),
-	arrow_typeof(shiftleft(value::INT, shift))
+	shiftleft(CAST(value AS INT), shift),
+	arrow_typeof(shiftleft(CAST(value AS INT), shift))
 FROM VALUES
 (1, 1),
 (2, 2),
@@ -156,8 +156,8 @@ NULL Int32
 # big shifts
 query IT
 SELECT
-	shiftleft(value::INT, shift),
-	arrow_typeof(shiftleft(value::INT, shift))
+	shiftleft(CAST(value AS INT), shift),
+	arrow_typeof(shiftleft(CAST(value AS INT), shift))
 FROM VALUES
 (1, 32),
 (2, 33),
@@ -171,8 +171,8 @@ t(value, shift)
 # negative shift
 query IT
 SELECT
-	shiftleft(value::INT, shift),
-	arrow_typeof(shiftleft(value::INT, shift))
+	shiftleft(CAST(value AS INT), shift),
+	arrow_typeof(shiftleft(CAST(value AS INT), shift))
 FROM VALUES
 (4, -1),
 (8, -2),
@@ -186,8 +186,8 @@ t(value, shift)
 # i64 value
 query IT
 SELECT
-	shiftleft(value::BIGINT, shift),
-	arrow_typeof(shiftleft(value::BIGINT, shift))
+	shiftleft(CAST(value AS BIGINT), shift),
+	arrow_typeof(shiftleft(CAST(value AS BIGINT), shift))
 FROM VALUES (1, 1), (2, 2), (3, 3) t(value, shift)
 ----
 2 Int64
@@ -228,6 +228,6 @@ SELECT shiftleft(null, null), arrow_typeof(shiftleft(null, null));
 NULL Int32
 
 query IT
-SELECT shiftleft(1::bigint, null), arrow_typeof(shiftleft(1::bigint, null));
+SELECT shiftleft(CAST(1 AS bigint), null), arrow_typeof(shiftleft(CAST(1 AS bigint), null));
 ----
 NULL Int64

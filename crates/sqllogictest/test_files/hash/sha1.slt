@@ -39,7 +39,7 @@ SELECT sha1(arrow_cast('Spark', 'LargeUtf8'));
 85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
 
 query T
-SELECT sha1('Spark'::STRING);
+SELECT sha1(CAST('Spark' AS STRING));
 ----
 85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
 
@@ -49,12 +49,12 @@ SELECT sha1(arrow_cast('Spark', 'Utf8'));
 85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
 
 query T
-SELECT sha1('Spark'::BINARY);
+SELECT sha1(CAST('Spark' AS BINARY));
 ----
 85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
 
 query T
-SELECT sha1(arrow_cast('Spark'::BINARY, 'FixedSizeBinary(5)'));
+SELECT sha1(arrow_cast(CAST('Spark' AS BINARY), 'FixedSizeBinary(5)'));
 ----
 85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
 
@@ -82,13 +82,13 @@ NULL
 
 # Spark's `Sha1.inputTypes` is BINARY. Only a STRING argument is cast to it.
 query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha1` requires the "BINARY" type, however it has the type "INT"\. SQLSTATE: 42K09
-SELECT sha1(1::INT);
+SELECT sha1(CAST(1 AS INT));
 
 query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha1` requires the "BINARY" type, however it has the type "BIGINT"\. SQLSTATE: 42K09
 SELECT sha1(1);
 
 query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha1` requires the "BINARY" type, however it has the type "DOUBLE"\. SQLSTATE: 42K09
-SELECT sha1(1.5::DOUBLE);
+SELECT sha1(CAST(1.5 AS DOUBLE));
 
 query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha1` requires the "BINARY" type, however it has the type "BOOLEAN"\. SQLSTATE: 42K09
 SELECT sha1(true);
@@ -112,7 +112,7 @@ SELECT sha1('Spark');
 85f5955f4b27a9a4c2aab6ffe5d7189fc298b92c
 
 query error \[DATATYPE_MISMATCH\.UNEXPECTED_INPUT_TYPE\] The first parameter of `sha1` requires the "BINARY" type, however it has the type "INT"\. SQLSTATE: 42K09
-SELECT sha1(1::INT);
+SELECT sha1(CAST(1 AS INT));
 
 statement ok
 set datafusion.execution.enable_ansi_mode = false;

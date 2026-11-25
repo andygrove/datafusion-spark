@@ -3,99 +3,99 @@
 # SPDX-FileContributor: Licensed to the Apache Software Foundation (ASF) under one or more contributor license agreements
 
 query B
-SELECT luhn_check('79927398713'::string);
+SELECT luhn_check(CAST('79927398713' AS string));
 ----
 true
 
 
 query B
-SELECT luhn_check('79927398714'::string);
+SELECT luhn_check(CAST('79927398714' AS string));
 ----
 false
 
 
 query B
-SELECT luhn_check('8112189876'::string);
+SELECT luhn_check(CAST('8112189876' AS string));
 ----
 true
 
 query B
-select luhn_check('4111111111111111'::string);
+select luhn_check(CAST('4111111111111111' AS string));
 ----
 true
 
 query B
-select luhn_check('5500000000000004'::string);
+select luhn_check(CAST('5500000000000004' AS string));
 ----
 true
 
 query B
-select luhn_check('340000000000009'::string);
+select luhn_check(CAST('340000000000009' AS string));
 ----
 true
 
 query B
-select luhn_check('6011000000000004'::string);
+select luhn_check(CAST('6011000000000004' AS string));
 ----
 true
 
 
 query B
-select luhn_check('6011000000000005'::string);
+select luhn_check(CAST('6011000000000005' AS string));
 ----
 false
 
 
 query B
-select luhn_check('378282246310006'::string);
+select luhn_check(CAST('378282246310006' AS string));
 ----
 false
 
 
 query B
-select luhn_check('0'::string);
+select luhn_check(CAST('0' AS string));
 ----
 true
 
 
 query B
-select luhn_check('79927398713'::string)
+select luhn_check(CAST('79927398713' AS string))
 ----
 true
 
 query B
-select luhn_check('4417123456789113'::string)
+select luhn_check(CAST('4417123456789113' AS string))
 ----
 true
 
 query B
-select luhn_check('7992 7398 714'::string)
+select luhn_check(CAST('7992 7398 714' AS string))
 ----
 false
 
 query B
-select luhn_check('79927398714'::string)
+select luhn_check(CAST('79927398714' AS string))
 ----
 false
 
 query B
-select luhn_check('4111111111111111    '::string)
+select luhn_check(CAST('4111111111111111    ' AS string))
 ----
 false
 
 
 query B
-select luhn_check('4111111 111111111'::string)
+select luhn_check(CAST('4111111 111111111' AS string))
 ----
 false
 
 query B
-select luhn_check(' 4111111111111111'::string)
+select luhn_check(CAST(' 4111111111111111' AS string))
 ----
 false
 
 query B
-select luhn_check(''::string)
+select luhn_check(CAST('' AS string))
 ----
 false
 
@@ -106,13 +106,13 @@ false
 
 
 query B
-select luhn_check('510B105105105106'::string)
+select luhn_check(CAST('510B105105105106' AS string))
 ----
 false
 
 
 query B
-select luhn_check('ABCDED'::string)
+select luhn_check(CAST('ABCDED' AS string))
 ----
 false
 
@@ -122,24 +122,24 @@ select luhn_check(null);
 NULL
 
 query B
-select luhn_check(6011111111111117::BIGINT)
+select luhn_check(CAST(6011111111111117 AS BIGINT))
 ----
 true
 
 
 query B
-select luhn_check(6011111111111118::BIGINT)
+select luhn_check(CAST(6011111111111118 AS BIGINT))
 ----
 false
 
 
 query B
-select luhn_check(123.456::decimal(6,3))
+select luhn_check(CAST(123.456 AS decimal(6,3)))
 ----
 false
 
 query B
-SELECT luhn_check(a) FROM (VALUES ('79927398713'::string), ('79927398714'::string)) AS t(a);
+SELECT luhn_check(a) FROM (VALUES (CAST('79927398713' AS string)), (CAST('79927398714' AS string))) AS t(a);
 ----
 true
 false

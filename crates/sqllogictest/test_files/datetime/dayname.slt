@@ -8,79 +8,79 @@
 # calendar (2024-01-01 is a Monday).
 
 query T
-SELECT dayname('2008-02-20'::DATE);
+SELECT dayname(CAST('2008-02-20' AS DATE));
 ----
 Wed
 
 # All seven days
 query T
-SELECT dayname('2024-01-01'::DATE);
+SELECT dayname(CAST('2024-01-01' AS DATE));
 ----
 Mon
 
 query T
-SELECT dayname('2024-01-02'::DATE);
+SELECT dayname(CAST('2024-01-02' AS DATE));
 ----
 Tue
 
 query T
-SELECT dayname('2024-01-03'::DATE);
+SELECT dayname(CAST('2024-01-03' AS DATE));
 ----
 Wed
 
 query T
-SELECT dayname('2024-01-04'::DATE);
+SELECT dayname(CAST('2024-01-04' AS DATE));
 ----
 Thu
 
 query T
-SELECT dayname('2024-01-05'::DATE);
+SELECT dayname(CAST('2024-01-05' AS DATE));
 ----
 Fri
 
 query T
-SELECT dayname('2024-01-06'::DATE);
+SELECT dayname(CAST('2024-01-06' AS DATE));
 ----
 Sat
 
 query T
-SELECT dayname('2024-01-07'::DATE);
+SELECT dayname(CAST('2024-01-07' AS DATE));
 ----
 Sun
 
 # Epoch and dates before it
 query T
-SELECT dayname('1970-01-01'::DATE);
+SELECT dayname(CAST('1970-01-01' AS DATE));
 ----
 Thu
 
 query T
-SELECT dayname('1969-12-31'::DATE);
+SELECT dayname(CAST('1969-12-31' AS DATE));
 ----
 Wed
 
 # Leap day
 query T
-SELECT dayname('2024-02-29'::DATE);
+SELECT dayname(CAST('2024-02-29' AS DATE));
 ----
 Thu
 
 # NULL
 query T
-SELECT dayname(NULL::DATE);
+SELECT dayname(CAST(NULL AS DATE));
 ----
 NULL
 
 # Calendar boundaries. 1582-10-04 is the last Julian day before the Gregorian
 # switch. Spark uses the proleptic Gregorian calendar, so it is a Monday.
 query TTT
-SELECT dayname('0001-01-01'::DATE), dayname('9999-12-31'::DATE), dayname('1582-10-04'::DATE);
+SELECT dayname(CAST('0001-01-01' AS DATE)), dayname(CAST('9999-12-31' AS DATE)), dayname(CAST('1582-10-04' AS DATE));
 ----
 Mon Fri Mon
 
 # Dates from Comet's unit tests
 query TTT
-SELECT dayname('2024-01-15'::DATE), dayname('2024-06-30'::DATE), dayname('2020-12-31'::DATE);
+SELECT dayname(CAST('2024-01-15' AS DATE)), dayname(CAST('2024-06-30' AS DATE)), dayname(CAST('2020-12-31' AS DATE));
 ----
 Mon Sun Thu
 
@@ -92,17 +92,17 @@ NULL Utf8
 
 # Strings are implicitly cast to dates
 query T
-SELECT dayname('2008-02-20'::STRING);
+SELECT dayname(CAST('2008-02-20' AS STRING));
 ----
 Wed
 
 query T
-SELECT dayname('2024-05-20 23:30:00'::STRING);
+SELECT dayname(CAST('2024-05-20 23:30:00' AS STRING));
 ----
 Mon
 
 query T
-SELECT dayname(d) FROM (VALUES ('2024-01-01'::STRING), (NULL::STRING), ('2024-01-07'::STRING)) AS t(d);
+SELECT dayname(d) FROM (VALUES (CAST('2024-01-01' AS STRING)), (CAST(NULL AS STRING)), (CAST('2024-01-07' AS STRING))) AS t(d);
 ----
 Mon
 NULL
@@ -121,7 +121,7 @@ statement ok
 set datafusion.execution.enable_ansi_mode = true;
 
 query error Cannot cast string 'abc' to value of Date32 type
-SELECT dayname('abc'::STRING);
+SELECT dayname(CAST('abc' AS STRING));
 
 statement ok
 set datafusion.execution.enable_ansi_mode = false;
@@ -157,13 +157,13 @@ reset datafusion.execution.time_zone;
 
 # Result type
 query T
-SELECT arrow_typeof(dayname('2024-01-01'::DATE));
+SELECT arrow_typeof(dayname(CAST('2024-01-01' AS DATE)));
 ----
 Utf8
 
 # Column input, including NULL
 query T
-SELECT dayname(d) FROM (VALUES ('2024-01-01'::DATE), (NULL::DATE), ('2024-01-07'::DATE)) AS t(d);
+SELECT dayname(d) FROM (VALUES (CAST('2024-01-01' AS DATE)), (CAST(NULL AS DATE)), (CAST('2024-01-07' AS DATE))) AS t(d);
 ----
 Mon
 NULL
@@ -171,7 +171,7 @@ Sun
 
 # Spark raises DATATYPE_MISMATCH.UNEXPECTED_INPUT_TYPE for an integer
 statement error Function 'dayname' requires Date, but received Int32
-SELECT dayname(1::INT);
+SELECT dayname(CAST(1 AS INT));
 
 statement error 'dayname' does not support zero arguments
 SELECT dayname();

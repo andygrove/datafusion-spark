@@ -135,102 +135,102 @@ false
 
 # Negative zero equals positive zero
 query B
-SELECT array_contains(array(-0.0::double), 0.0::double);
+SELECT array_contains(array(-CAST(0.0 AS double)), CAST(0.0 AS double));
 ----
 true
 
 query B
-SELECT array_contains(array(0.0::double), -0.0::double);
+SELECT array_contains(array(CAST(0.0 AS double)), -CAST(0.0 AS double));
 ----
 true
 
 query B
-SELECT array_contains(array(-0.0::float), 0.0::float);
+SELECT array_contains(array(-CAST(0.0 AS float)), CAST(0.0 AS float));
 ----
 true
 
 # NaN equals NaN, whatever its sign bit
 query B
-SELECT array_contains(array('NaN'::double), 'NaN'::double);
+SELECT array_contains(array(CAST('NaN' AS double)), CAST('NaN' AS double));
 ----
 true
 
 query B
-SELECT array_contains(array('NaN'::double), -('NaN'::double));
+SELECT array_contains(array(CAST('NaN' AS double)), -(CAST('NaN' AS double)));
 ----
 true
 
 query B
-SELECT array_contains(array('NaN'::float), -('NaN'::float));
+SELECT array_contains(array(CAST('NaN' AS float)), -(CAST('NaN' AS float)));
 ----
 true
 
 # Different values still differ
 query B
-SELECT array_contains(array(1.5::double, 'NaN'::double), 0.0::double);
+SELECT array_contains(array(CAST(1.5 AS double), CAST('NaN' AS double)), CAST(0.0 AS double));
 ----
 false
 
 # Null semantics are unchanged
 query B
-SELECT array_contains(array(1.5::double, NULL), -0.0::double);
+SELECT array_contains(array(CAST(1.5 AS double), NULL), -CAST(0.0 AS double));
 ----
 NULL
 
 query B
-SELECT array_contains(array(-0.0::double, NULL), 0.0::double);
+SELECT array_contains(array(-CAST(0.0 AS double), NULL), CAST(0.0 AS double));
 ----
 true
 
 # Other list types
 query B
-SELECT array_contains(arrow_cast(array(-0.0::double), 'LargeList(Float64)'), 0.0::double);
+SELECT array_contains(arrow_cast(array(-CAST(0.0 AS double)), 'LargeList(Float64)'), CAST(0.0 AS double));
 ----
 true
 
 query B
-SELECT array_contains(arrow_cast(array(-0.0::double), 'FixedSizeList(1, Float64)'), 0.0::double);
+SELECT array_contains(arrow_cast(array(-CAST(0.0 AS double)), 'FixedSizeList(1, Float64)'), CAST(0.0 AS double));
 ----
 true
 
 # Nested elements
 query B
-SELECT array_contains(array(array(-0.0::double)), array(0.0::double));
+SELECT array_contains(array(array(-CAST(0.0 AS double))), array(CAST(0.0 AS double)));
 ----
 true
 
 query B
-SELECT array_contains(array(array('NaN'::double)), array(-('NaN'::double)));
+SELECT array_contains(array(array(CAST('NaN' AS double))), array(-(CAST('NaN' AS double))));
 ----
 true
 
 query B
-SELECT array_contains(array(arrow_cast(array('NaN'::double), 'FixedSizeList(1, Float64)')), arrow_cast(array(-('NaN'::double)), 'FixedSizeList(1, Float64)'));
+SELECT array_contains(array(arrow_cast(array(CAST('NaN' AS double)), 'FixedSizeList(1, Float64)')), arrow_cast(array(-(CAST('NaN' AS double))), 'FixedSizeList(1, Float64)'));
 ----
 true
 
 query B
-SELECT array_contains(array(named_struct('a', 'NaN'::double, 'b', 1)), named_struct('a', -('NaN'::double), 'b', 1));
+SELECT array_contains(array(named_struct('a', CAST('NaN' AS double), 'b', 1)), named_struct('a', -(CAST('NaN' AS double)), 'b', 1));
 ----
 true
 
 query B
-SELECT array_contains(array(named_struct('a', -0.0::double, 'b', 1)), named_struct('a', 0.0::double, 'b', 1));
+SELECT array_contains(array(named_struct('a', -CAST(0.0 AS double), 'b', 1)), named_struct('a', CAST(0.0 AS double), 'b', 1));
 ----
 true
 
 query B
-SELECT array_contains(array(named_struct('a', 'NaN'::double, 'b', 1)), named_struct('a', -('NaN'::double), 'b', 2));
+SELECT array_contains(array(named_struct('a', CAST('NaN' AS double), 'b', 1)), named_struct('a', -(CAST('NaN' AS double)), 'b', 2));
 ----
 false
 
 # Columns
 statement ok
 CREATE TABLE test_float_arrays AS VALUES
-  (1, make_array(-0.0::double, 1.5::double), 0.0::double),
-  (2, make_array('NaN'::double), -('NaN'::double)),
-  (3, make_array(1.5::double), 0.0::double),
-  (4, make_array(0.0::double, NULL), -0.0::double);
+  (1, make_array(-CAST(0.0 AS double), CAST(1.5 AS double)), CAST(0.0 AS double)),
+  (2, make_array(CAST('NaN' AS double)), -(CAST('NaN' AS double))),
+  (3, make_array(CAST(1.5 AS double)), CAST(0.0 AS double)),
+  (4, make_array(CAST(0.0 AS double), NULL), -CAST(0.0 AS double));
 
 query IB
 SELECT column1, array_contains(column2, column3)

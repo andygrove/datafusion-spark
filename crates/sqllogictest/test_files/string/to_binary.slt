@@ -11,91 +11,91 @@
 ## Original Query: SELECT to_binary('abc', 'utf-8');
 ## PySpark 3.5.5 Result: {'to_binary(abc, utf-8)': bytearray(b'abc'), 'typeof(to_binary(abc, utf-8))': 'binary', 'typeof(abc)': 'string', 'typeof(utf-8)': 'string'}
 query ?
-SELECT to_binary('abc'::string, 'utf-8'::string);
+SELECT to_binary(CAST('abc' AS string), CAST('utf-8' AS string));
 ----
 616263
 
 # the format is matched case-insensitively, and utf8 is an accepted spelling
 query ?
-SELECT to_binary('abc'::string, 'UTF8'::string);
+SELECT to_binary(CAST('abc' AS string), CAST('UTF8' AS string));
 ----
 616263
 
 query ?
-SELECT to_binary('abc'::string, 'utf8'::string);
+SELECT to_binary(CAST('abc' AS string), CAST('utf8' AS string));
 ----
 616263
 
 # multi-byte character test
 query ?
-SELECT to_binary('é'::string, 'utf-8'::string);
+SELECT to_binary(CAST('é' AS string), CAST('utf-8' AS string));
 ----
 c3a9
 
 # hex is the default when fmt is omitted
 query ?
-SELECT to_binary('537061726b'::string);
+SELECT to_binary(CAST('537061726b' AS string));
 ----
 537061726b
 
 query ?
-SELECT to_binary('537061726b'::string, 'hex'::string);
+SELECT to_binary(CAST('537061726b' AS string), CAST('hex' AS string));
 ----
 537061726b
 
 # an odd number of hex digits is left-padded with a leading zero
 query ?
-SELECT to_binary('f'::string, 'hex'::string);
+SELECT to_binary(CAST('f' AS string), CAST('hex' AS string));
 ----
 0f
 
 query ?
-SELECT to_binary('U3Bhcms='::string, 'base64'::string);
+SELECT to_binary(CAST('U3Bhcms=' AS string), CAST('base64' AS string));
 ----
 537061726b
 
 # characters outside the base64 alphabet are skipped, as Java's MIME decoder does
 query ?
-SELECT to_binary('U3Bh cms='::string, 'base64'::string);
+SELECT to_binary(CAST('U3Bh cms=' AS string), CAST('base64' AS string));
 ----
 537061726b
 
 # an unpadded final group is accepted
 query ?
-SELECT to_binary('U3Bhcms'::string, 'base64'::string);
+SELECT to_binary(CAST('U3Bhcms' AS string), CAST('base64' AS string));
 ----
 537061726b
 
 # empty input converts to empty binary in every format
 query T
-SELECT arrow_cast(to_binary(''::string, 'hex'::string), 'Utf8');
+SELECT arrow_cast(to_binary(CAST('' AS string), CAST('hex' AS string)), 'Utf8');
 ----
 (empty)
 
 query T
-SELECT arrow_cast(to_binary(''::string, 'utf-8'::string), 'Utf8');
+SELECT arrow_cast(to_binary(CAST('' AS string), CAST('utf-8' AS string)), 'Utf8');
 ----
 (empty)
 
 query T
-SELECT arrow_cast(to_binary(''::string, 'base64'::string), 'Utf8');
+SELECT arrow_cast(to_binary(CAST('' AS string), CAST('base64' AS string)), 'Utf8');
 ----
 (empty)
 
 # NULL input, and a NULL format, both give NULL
 query ?
-SELECT to_binary(NULL::string, 'hex'::string);
+SELECT to_binary(CAST(NULL AS string), CAST('hex' AS string));
 ----
 NULL
 
 query ?
-SELECT to_binary('abc'::string, NULL::string);
+SELECT to_binary(CAST('abc' AS string), CAST(NULL AS string));
 ----
 NULL
 
 # a column of values is converted row by row, with NULLs preserved
 query ?
-SELECT to_binary(a, 'utf-8'::string) FROM (VALUES ('abc'::string), (NULL), ('déf')) AS t(a);
+SELECT to_binary(a, CAST('utf-8' AS string)) FROM (VALUES (CAST('abc' AS string)), (NULL), ('déf')) AS t(a);
 ----
 616263
 NULL
@@ -103,15 +103,15 @@ NULL
 
 # to_binary raises on a value that cannot be converted
 statement error DataFusion error: Execution error: to_binary: cannot convert 'zz' to binary using format 'hex'
-SELECT to_binary('zz'::string, 'hex'::string);
+SELECT to_binary(CAST('zz' AS string), CAST('hex' AS string));
 
 statement error DataFusion error: Execution error: to_binary: cannot convert 'a!' to binary using format 'base64'
-SELECT to_binary('a!'::string, 'base64'::string);
+SELECT to_binary(CAST('a!' AS string), CAST('base64' AS string));
 
 # ...and on a format it does not recognise
 statement error DataFusion error: Error during planning: to_binary: invalid fmt 'invalidFormat', expected one of 'hex', 'utf\-8', 'utf8' or 'base64'
-SELECT to_binary('abc'::string, 'invalidFormat'::string);
+SELECT to_binary(CAST('abc' AS string), CAST('invalidFormat' AS string));
 
 # one bad value fails the whole batch
 statement error DataFusion error: Execution error: to_binary: cannot convert 'zz' to binary using format 'hex'
-SELECT to_binary(a, 'hex'::string) FROM (VALUES ('4142'::string), ('zz')) AS t(a);
+SELECT to_binary(a, CAST('hex' AS string)) FROM (VALUES (CAST('4142' AS string)), ('zz')) AS t(a);
