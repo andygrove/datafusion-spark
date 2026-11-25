@@ -74,7 +74,7 @@ SELECT abs(CAST(('-99999999.99') AS DECIMAL(10, 2))), abs(CAST(0 AS DECIMAL(10, 
 ----
 99999999.99 0.00 NULL
 
-# xfail spark: intended: Spark's abs rounds DECIMAL to 34 digits and overflows, DataFusion returns the exact value
+# xfail spark>=4.0: intended: Spark's abs rounds DECIMAL to 34 digits and overflows, DataFusion returns the exact value
 query RRR
 SELECT abs(CAST(('-9999999999999999999999999999.9999999999') AS DECIMAL(38, 10))), abs(CAST(0 AS DECIMAL(38, 10))), abs(CAST(NULL AS DECIMAL(38, 10)));
 ----
@@ -196,7 +196,7 @@ SELECT abs(a) FROM (VALUES (CAST(('-99999999.99') AS DECIMAL(10, 2))), (CAST(0 A
 0.00
 NULL
 
-# xfail spark: intended: Spark's abs rounds DECIMAL to 34 digits and overflows, DataFusion returns the exact value
+# xfail spark>=4.0: intended: Spark's abs rounds DECIMAL to 34 digits and overflows, DataFusion returns the exact value
 query R
 SELECT abs(a) FROM (VALUES (CAST(('-9999999999999999999999999999.9999999999') AS DECIMAL(38, 10))), (CAST(0 AS DECIMAL(38, 10))), (CAST(NULL AS DECIMAL(38, 10)))) AS t(a);
 ----

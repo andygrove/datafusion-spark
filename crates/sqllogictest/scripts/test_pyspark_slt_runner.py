@@ -106,8 +106,37 @@ class ParseTest(unittest.TestCase):
             "query I\n"
             "SELECT 4\n"
         )
-        reasons = [record.xfail_reason for record in records]
-        self.assertEqual(reasons, ["Spark returns NULL", None, "no space after the hash", None])
+        reasons = [[x.reason for x in record.xfails] for record in records]
+        self.assertEqual(reasons, [["Spark returns NULL"], [], ["no space after the hash"], []])
+
+    def test_xfail_spark_versions(self):
+        [record] = parse(
+            "# xfail spark<4.0: Spark 3.5 differs\n"
+            "# xfail spark >= 4.0, <=4.2: Spark 4.0 to 4.2 differ\n"
+            "query I\n"
+            "SELECT 1\n"
+        )
+        reason = lambda version: getattr(record.xfail(r.version_tuple(version)), "reason", None)  # noqa: E731
+        self.assertEqual(reason("3.5.9"), "Spark 3.5 differs")
+        self.assertEqual(reason("4.0.1"), "Spark 4.0 to 4.2 differ")
+        self.assertEqual(reason("4.2.0"), "Spark 4.0 to 4.2 differ")
+        self.assertIsNone(reason("4.3.0"))
+
+    def test_xfail_that_never_applies(self):
+        # No supported version matches the first, and the second is shadowed.
+        for markers in ("# xfail spark>=4.0, <4.2: x\n", "# xfail spark: x\n# xfail spark<4.0: y\n"):
+            with self.assertRaisesRegex(SystemExit, "never applies"):
+                parse(f"{markers}query I\nSELECT 1\n")
+
+    def test_first_matching_xfail_applies(self):
+        [record] = parse("# xfail spark<4.0: old\n# xfail spark: any\nquery I\nSELECT 1\n")
+        self.assertEqual(record.xfail((3, 5)).reason, "old")
+        self.assertEqual(record.xfail((4, 2)).reason, "any")
+
+    def test_xfail_bad_version_condition(self):
+        for marker in ("# xfail spark 3.5: x", "# xfail spark<4: x", "# xfail spark<4.0;>3.4: x"):
+            with self.assertRaisesRegex(SystemExit, "version condition"):
+                parse(f"{marker}\nquery I\nSELECT 1\n")
 
 
 class TranslateTest(unittest.TestCase):
@@ -441,6 +470,7 @@ class FakeRunner:
     """Stands in for SparkRunner: returns a fixed result or raises a SparkError."""
 
     time_zone = "UTC"
+    version = "4.2.0"
 
     def __init__(self, result=None, set_error=None):
         self.result = result
@@ -549,6 +579,18 @@ class RunRecordTest(unittest.TestCase):
         self.assertEqual(outcome.status, "xpass")
         self.assertIn("remove `# xfail spark: a fixed bug`", r.report(outcome, "4.2.0"))
 
+    def test_xfail_for_another_spark_version(self):
+        result = (FakeSchema("IntegerType"), [(1,)])
+        differs = "# xfail spark<4.0: only Spark 3.5\nquery I\nSELECT a\n----\n2\n"
+        self.assertEqual(self.outcome(differs, result).status, "mismatch")
+        passes = "# xfail spark<4.0: only Spark 3.5\nquery I\nSELECT a\n----\n1\n"
+        self.assertEqual(self.outcome(passes, result).status, "pass")
+
+    def test_xpass_names_the_versioned_marker(self):
+        result = (FakeSchema("IntegerType"), [(1,)])
+        outcome = self.outcome("# xfail spark>=4.0: fixed\nquery I\nSELECT a\n----\n1\n", result)
+        self.assertIn("remove `# xfail spark>=4.0: fixed`", r.report(outcome, "4.2.0"))
+
     def test_xfail_skipped_record_stays_skipped(self):
         parse_error = r.SparkError("parse", "Spark cannot parse it (PARSE_SYNTAX_ERROR)")
         outcome = self.outcome("# xfail spark: x\nquery ?\nSELECT [1]\n----\n[1]\n", parse_error)
@@ -623,7 +665,7 @@ class RunFilesTest(unittest.TestCase):
                 paths[-1].write_text("".join(self.QUERY.format(q) for q in queries))
             runner = DyingRunner()
             with contextlib.redirect_stdout(io.StringIO()) as out:
-                result = r.run_files(runner, paths)
+                result = r.run_files(runner, {p: r.parse_slt(p) for p in paths})
         return runner, result, out.getvalue()
 
     def test_new_session_after_the_jvm_dies(self):
@@ -655,7 +697,7 @@ class RunFilesTest(unittest.TestCase):
             path = Path(d, "0.slt")
             path.write_text(self.QUERY.format(1))
             with contextlib.redirect_stdout(io.StringIO()) as out:
-                statuses, _, stopped = r.run_files(runner, [path])
+                statuses, _, stopped = r.run_files(runner, {path: r.parse_slt(path)})
         self.assertIsNone(stopped)
         self.assertEqual((runner.restarts, statuses["pass"]), (1, 1))
         self.assertIn("Spark failed (An error occurred while calling o49.listTables.)", out.getvalue())

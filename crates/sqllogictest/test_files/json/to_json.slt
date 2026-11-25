@@ -302,6 +302,7 @@ RESET datafusion.execution.time_zone;
 statement ok
 SET datafusion.execution.time_zone = 'America/Los_Angeles';
 
+# xfail spark<4.0: intended: Spark 3.5 drops the seconds of the offset, and datafusion-spark follows Spark 4
 query T
 SELECT to_json(named_struct('t', arrow_cast('1800-01-01T07:52:58Z', 'Timestamp(Microsecond, Some("America/Los_Angeles"))')));
 ----

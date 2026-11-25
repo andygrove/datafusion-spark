@@ -93,11 +93,13 @@ SELECT arrow_typeof(greatest(CAST(1 AS decimal(38,10)), CAST(1 AS decimal(38,0))
 Decimal128(38, 0)
 
 # The fractional digits that do not fit are rounded away
+# xfail spark<4.0: intended: Spark 3.5 picks DECIMAL(38, 10) as the wider type and keeps the fraction, and datafusion-spark follows Spark 4
 query R
 SELECT greatest(CAST(1.5 AS decimal(38,10)), CAST(1 AS decimal(38,0)));
 ----
 2
 
+# xfail spark<4.0: intended: Spark 3.5 picks DECIMAL(38, 10) as the wider type and returns NULL for the value that does not fit, and datafusion-spark follows Spark 4
 query R
 SELECT greatest(CAST(1 AS decimal(38,10)), CAST('12345678901234567890123456789' AS decimal(38,0)));
 ----
